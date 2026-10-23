@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UDP против TCP</title>
+<style>
+:root {
+  --bg: #fafaf7; --fg: #1d1f24; --muted: #6b7078; --card: #ffffff; --line: #c9ccd2;
+  --ok: #1f8a5b; --bad: #c0392b; --accent: #7c3aed; --shadow: rgba(0,0,0,.08); --ghost: #e7e8ec; --msg: #2b6cd9;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --fg: #e8eaee; --muted: #9aa0aa; --card: #1d2026; --line: #3a3f48;
+    --ok: #4fd197; --bad: #ff8a7a; --accent: #b794ff; --shadow: rgba(0,0,0,.4); --ghost: #2a2e36; --msg: #6ea3ff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 820px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 14px; color: var(--muted); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.counter { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stage { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 8px var(--shadow); padding: 14px; display: grid; gap: 14px; }
+.zone h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; min-height: 44px; align-items: center; }
+.pkt { min-width: 48px; height: 38px; padding: 0 8px; display: grid; place-items: center; font: 600 14px ui-monospace, Menlo, monospace; color: #fff; background: var(--msg); border-radius: 6px; }
+.pkt.ghost { background: var(--ghost); color: var(--muted); }
+.pkt.lost { background: transparent; border: 2px dashed var(--bad); color: var(--bad); }
+.pkt.dup { background: var(--accent); }
+.pkt.late { outline: 2px solid var(--bad); }
+.pipe { border: 2px solid var(--line); border-radius: 10px; padding: 8px; min-height: 54px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: linear-gradient(90deg, transparent, var(--ghost) 40%, transparent); }
+.empty { color: var(--muted); font-size: 13px; }
+.legend { font-size: 13px; color: var(--muted); }
+.caption { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--accent); background: var(--card); border-radius: 0 8px 8px 0; min-height: 3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>UDP против TCP</h1>
+  <p class="sub">Отправитель шлёт пять сообщений 1 2 3 4 5. Сеть между ними нарочно плохая. Смотри, что доходит до программы получателя.</p>
+  <div class="bar">
+    <button id="sc-u" class="on">UDP</button>
+    <button id="sc-t">TCP</button>
+    <span style="width:12px"></span>
+    <button id="prev">Назад</button>
+    <button id="next">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="stage">
+    <div class="zone"><h2>Отправлено</h2><div class="row" id="sent"></div></div>
+    <div class="zone"><h2>В сети</h2><div class="pipe" id="pipe"></div></div>
+    <div class="zone"><h2>Получила программа (по порядку прихода)</h2><div class="row" id="got"></div></div>
+    <div class="legend" id="legend"></div>
+  </div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+// pkt: [метка, класс]; sent: сколько отправлено; pipe: что в пути; got: что получено
+const SC = {
+  u: {
+    legend: "Красный пунктир: потеряно. Фиолетовое: дубль. Красная рамка: пришло не в своём порядке. UDP ничего не чинит и ничего не сообщает.",
+    steps: [
+      { t: "Отправитель собирается слать 1, 2, 3, 4, 5 по одному send_to. Соединения нет, договариваться не с кем.", sent: 0, pipe: [], got: [] },
+      { t: "Все пять датаграмм ушли. Каждая живёт своей жизнью: у каждой свой маршрут.", sent: 5, pipe: [["1"],["2"],["3"],["4"],["5"]], got: [] },
+      { t: "Четвёрка потерялась в сети. Ни отправитель, ни получатель об этом не узнают сами.", sent: 5, pipe: [["1"],["2"],["3"],["5"]], got: [], lost: ["4"] },
+      { t: "Пришли 1 и 3: тройка обогнала двойку, которая задержалась. Каждый recv_from вернул ровно одну датаграмму, границы целы.", sent: 5, pipe: [["2"],["5"]], got: [["1"],["3","late"]], lost: ["4"] },
+      { t: "Пришла 2, уже после 3: перестановка. Затем 5.", sent: 5, pipe: [], got: [["1"],["3","late"],["2","late"],["5"]], lost: ["4"] },
+      { t: "Сеть задвоила пятёрку: та же датаграмма пришла второй раз. Итого программа видит 1 3 2 5 5. Чтобы это починить, нужны номера, таймаут и повтор: это работа приложения.", sent: 5, pipe: [], got: [["1"],["3","late"],["2","late"],["5"],["5","dup"]], lost: ["4"] }
+    ]
+  },
+  t: {
+    legend: "TCP прячет потери за собой: потерянный сегмент отправляется заново, порядок восстанавливается, дубли выбрасываются.",
+    steps: [
+      { t: "Отправитель пишет в поток 1, 2, 3, 4, 5. Соединение уже установлено.", sent: 0, pipe: [], got: [] },
+      { t: "Все пять ушли. Для TCP это один поток байтов, а не пять отдельных сообщений.", sent: 5, pipe: [["1"],["2"],["3"],["4"],["5"]], got: [] },
+      { t: "Сегмент с 4 потерялся в сети, но получатель не подтвердил его, и отправитель знает об этом.", sent: 5, pipe: [["1"],["2"],["3"],["5"]], got: [], lost: ["4"] },
+      { t: "Пришли 1, 2, 3. Пятёрка пришла раньше четвёрки, но TCP держит её в буфере и не отдаёт программе.", sent: 5, pipe: [["5"]], got: [["1"],["2"],["3"]], lost: ["4"] },
+      { t: "По таймеру отправитель повторил 4. Ядро отдаёт программе 4 и сразу за ней буферизованную 5.", sent: 5, pipe: [], got: [["1"],["2"],["3"],["4"],["5"]] },
+      { t: "Программа видит 1 2 3 4 5: порядок и полнота. Платой стала задержка: пока ждали повтора, 5 не выдавалась. Кроме того, границы сообщений TCP не хранит, их придётся придумать самому (глава про фрейминг).", sent: 5, pipe: [], got: [["1"],["2"],["3"],["4"],["5"]] }
+    ]
+  }
+};
+let key = "u", step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function pkt(label, cls) {
+  const d = document.createElement("div");
+  d.className = "pkt " + (cls || "");
+  d.textContent = label;
+  return d;
+}
+function fill(el, items, emptyText) {
+  el.innerHTML = "";
+  if (!items.length) {
+    const e = document.createElement("span");
+    e.className = "empty"; e.textContent = emptyText;
+    el.appendChild(e);
+  } else items.forEach(x => el.appendChild(x));
+}
+function render() {
+  const sc = SC[key], s = sc.steps[step];
+  const sent = [];
+  for (let i = 1; i <= 5; i++) sent.push(pkt(String(i), i <= s.sent ? "" : "ghost"));
+  fill($("sent"), sent, "");
+  const pipe = s.pipe.map(([l, c]) => pkt(l, c));
+  (s.lost || []).forEach(l => pipe.push(pkt(l, "lost")));
+  fill($("pipe"), pipe, "пусто");
+  fill($("got"), s.got.map(([l, c]) => pkt(l, c)), "пока ничего");
+  $("legend").textContent = sc.legend;
+  $("caption").textContent = s.t;
+  $("counter").textContent = `шаг ${step} из ${sc.steps.length - 1}`;
+  $("prev").disabled = step === 0;
+  $("next").disabled = step === sc.steps.length - 1;
+}
+function go(n) { step = Math.max(0, Math.min(SC[key].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SC[key].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SC[key].steps.length - 1) return stop(); go(step + 1); }, 2400);
+};
+function pick(k) {
+  stop(); key = k;
+  $("sc-u").classList.toggle("on", k === "u");
+  $("sc-t").classList.toggle("on", k === "t");
+  go(0);
+}
+$("sc-u").onclick = () => pick("u");
+$("sc-t").onclick = () => pick("t");
+go(0);
+</script>
+</body>
+</html>

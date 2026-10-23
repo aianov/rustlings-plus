@@ -1,0 +1,38 @@
+[chapter]
+title.en = "Lifetimes"
+title.ru = "Времена жизни"
+
+[[exercises]]
+name = "lifetimes1"
+hint.en = """
+Let the compiler guide you. Also take a look at The Book if you need help:
+https://doc.rust-lang.org/book/ch10-03-lifetime-syntax.html"""
+hint.ru = """Пусть тебя ведёт компилятор. Если нужна помощь, загляни в Книгу:
+https://doc.rust-lang.ru/book/ch10-03-lifetime-syntax.html"""
+
+[[exercises]]
+name = "lifetimes2"
+test = false
+hint.en = """
+Remember that the generic lifetime `'a` will get the concrete lifetime that is
+equal to the smaller of the lifetimes of `x` and `y`.
+
+You can take at least two paths to achieve the desired result while keeping the
+inner block:
+1. Move the `string2` declaration to make it live as long as `string1` (how is
+   `result` declared?)
+2. Move `println!` into the inner block"""
+hint.ru = """Помни, что обобщённое время жизни `'a` получает конкретное время жизни,
+равное меньшему из времён жизни `x` и `y`.
+
+Чтобы получить нужный результат и оставить внутренний блок, есть минимум два пути:
+1. Перенести объявление `string2`, чтобы оно жило так же долго, как `string1`
+   (как объявлен `result`?)
+2. Перенести `println!` во внутренний блок"""
+
+[[exercises]]
+name = "lifetimes3"
+test = false
+hint.en = """
+Let the compiler guide you :)"""
+hint.ru = """Пусть тебя ведёт компилятор :)"""

@@ -1,0 +1,102 @@
+[chapter]
+title.en = "Traits"
+title.ru = "Трейты"
+
+[[exercises]]
+name = "traits1"
+hint.en = """
+More about traits in The Book:
+https://doc.rust-lang.org/book/ch10-02-traits.html
+
+The `+` operator can concatenate a `String` with a `&str`."""
+hint.ru = """Подробнее о трейтах в Книге:
+https://doc.rust-lang.ru/book/ch10-02-traits.html
+
+Оператор `+` умеет приклеивать `&str` к `String`."""
+
+[[exercises]]
+name = "traits2"
+hint.en = """
+Notice how the trait takes ownership of `self` and returns `Self`.
+
+Although the signature of `append_bar` in the trait takes `self` as argument,
+the implementation can take `mut self` instead. This is possible because the
+value is owned anyway."""
+hint.ru = """Обрати внимание: трейт забирает владение `self` и возвращает `Self`.
+
+Хотя в сигнатуре `append_bar` в трейте `self` передаётся как аргумент,
+в реализации можно написать `mut self`. Это возможно, потому что значение
+всё равно принадлежит нам."""
+
+[[exercises]]
+name = "traits3"
+hint.en = """
+Traits can have a default implementation for functions. Data types that
+implement the trait can then use the default version of these functions
+if they choose not to implement the function themselves.
+
+Related section in The Book:
+https://doc.rust-lang.org/book/ch10-02-traits.html#default-implementations"""
+hint.ru = """У функций трейта может быть реализация по умолчанию. Типы, реализующие трейт,
+могут использовать версию по умолчанию, если не хотят реализовывать функцию
+сами.
+
+Соответствующий раздел Книги:
+https://doc.rust-lang.ru/book/ch10-02-traits.html#default-implementations"""
+
+[[exercises]]
+name = "traits4"
+hint.en = """
+Instead of using concrete types as parameters you can use traits. Try replacing
+`???` with `impl [what goes here?]`.
+
+Related section in The Book:
+https://doc.rust-lang.org/book/ch10-02-traits.html#traits-as-parameters"""
+hint.ru = """Вместо конкретных типов в параметрах можно использовать трейты. Попробуй
+заменить `???` на `impl [что здесь должно быть?]`.
+
+Соответствующий раздел Книги:
+https://doc.rust-lang.ru/book/ch10-02-traits.html#traits-as-parameters"""
+
+[[exercises]]
+name = "traits5"
+hint.en = """
+To ensure a parameter implements multiple traits use the '+ syntax'. Try
+replacing `???` with 'impl [what goes here?] + [what goes here?]'.
+
+Related section in The Book:
+https://doc.rust-lang.org/book/ch10-02-traits.html#specifying-multiple-trait-bounds-with-the--syntax"""
+hint.ru = """Чтобы параметр реализовывал сразу несколько трейтов, используй синтаксис с `+`.
+Попробуй заменить `???` на `impl [что здесь?] + [что здесь?]`.
+
+Соответствующий раздел Книги:
+https://doc.rust-lang.ru/book/ch10-02-traits.html#specifying-multiple-trait-bounds-with-the--syntax"""
+
+[[exercises]]
+name = "quiz3"
+quiz = true
+hint.en = """
+To find the best solution to this challenge, you need to recall your knowledge
+of traits, specifically "Trait Bound Syntax":
+https://doc.rust-lang.org/book/ch10-02-traits.html#trait-bound-syntax
+
+Here is how to specify a trait bound for an implementation block:
+`impl<T: Trait1 + Trait2 + …> for Foo<T> { … }`
+
+You may need this:
+`use std::fmt::Display;`"""
+hint.ru = """Чтобы найти лучшее решение, вспомни про трейты, а именно про «синтаксис ограничений
+трейтов» (Trait Bound Syntax):
+https://doc.rust-lang.ru/book/ch10-02-traits.html#trait-bound-syntax
+
+Вот как задать ограничение трейта для блока реализации:
+`impl<T: Trait1 + Trait2 + …> for Foo<T> { … }`
+
+Тебе может понадобиться:
+`use std::fmt::Display;`"""
+
+[[exercises]]
+name = "m04_store_traits"
+kind = "milestone"
+journey = "backend"
+quiz = true

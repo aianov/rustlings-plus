@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/feedlib"]
+resolver = "3"

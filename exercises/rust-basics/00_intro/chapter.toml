@@ -1,0 +1,22 @@
+[chapter]
+title.en = "Intro"
+title.ru = "Введение"
+
+[[exercises]]
+name = "intro1"
+test = false
+skip_check_unsolved = true
+hint.en = """
+Enter `n` to move on to the next exercise.
+You might need to press ENTER after typing `n`."""
+hint.ru = """Введи `n`, чтобы перейти к следующему упражнению.
+Возможно, после `n` придётся нажать ENTER."""
+
+[[exercises]]
+name = "intro2"
+test = false
+hint.en = """
+The compiler is informing us that we've got the name of the print macro wrong.
+It also suggests an alternative."""
+hint.ru = """Компилятор сообщает, что мы ошиблись в имени макроса печати.
+Он же предлагает подходящую замену."""

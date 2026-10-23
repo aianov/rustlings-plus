@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package social.v1;
+
+// Сервис учётных записей. Регистрация, вход и выход живут в его HTTP,
+// по gRPC другие сервисы только проверяют токены и узнают владельцев.
+service Auth {
+  // Чей это токен. Неизвестный или отозванный токен: UNAUTHENTICATED.
+  rpc ValidateToken(ValidateTokenRequest) returns (Account);
+  // Учётная запись по id. Нет такой: NOT_FOUND.
+  rpc GetAccount(GetAccountRequest) returns (Account);
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message GetAccountRequest {
+  uint64 user_id = 1;
+}
+
+message Account {
+  uint64 user_id = 1;
+  string username = 2;
+}

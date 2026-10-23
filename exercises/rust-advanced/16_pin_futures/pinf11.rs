@@ -1,0 +1,142 @@
+// `map` из прошлой задачи требует `F: Unpin`, и пока мы передаём `Slow` или `ready`, всё хорошо. Но стоит
+// отдать в него настоящий `async`-блок, как файл перестаёт собираться: «`{async block}` cannot be
+// unpinned». То же с `poll_twice`: она принимает `&mut F` с `F: Unpin`, а тесты вызывают её на
+// закреплённом `async`-блоке.
+// Нужно, чтобы оба помощника принимали любой `Future`, в том числе `!Unpin`, и не требовали от вызывающего
+// ничего, кроме готового future. Писать `unsafe` не нужно и нельзя.
+// TODO: Измени `Map`, `map` и `poll_twice` так, чтобы тесты собирались и проходили.
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll, Waker};
+
+pub struct Map<F, G> {
+    inner: F,
+    f: Option<G>,
+}
+
+pub fn map<F, G, T>(inner: F, f: G) -> Map<F, G>
+where
+    F: Future + Unpin,
+    G: FnOnce(F::Output) -> T,
+{
+    Map { inner, f: Some(f) }
+}
+
+impl<F, G, T> Future for Map<F, G>
+where
+    F: Future + Unpin,
+    G: FnOnce(F::Output) -> T + Unpin,
+{
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<T> {
+        let this = self.get_mut();
+        match Pin::new(&mut this.inner).poll(cx) {
+            Poll::Ready(value) => {
+                let f = this.f.take().expect("Map опрошен после Ready");
+                Poll::Ready(f(value))
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+/// Два опроса подряд пустым Waker; возвращает оба ответа.
+pub fn poll_twice<F: Future + Unpin>(fut: &mut F) -> (Poll<F::Output>, Poll<F::Output>) {
+    let mut cx = Context::from_waker(Waker::noop());
+    let first = Pin::new(&mut *fut).poll(&mut cx);
+    let second = Pin::new(fut).poll(&mut cx);
+    (first, second)
+}
+
+fn main() {
+    let _mapped = map(std::future::ready(1), |n| n + 1);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::pin::pin;
+
+    struct Yield(bool);
+
+    impl Future for Yield {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+            if self.0 {
+                Poll::Ready(())
+            } else {
+                self.0 = true;
+                cx.waker().wake_by_ref();
+                Poll::Pending
+            }
+        }
+    }
+
+    fn finish<F: Future>(fut: F) -> (F::Output, u32) {
+        let mut fut = pin!(fut);
+        let mut cx = Context::from_waker(Waker::noop());
+        for n in 1..=50 {
+            if let Poll::Ready(value) = fut.as_mut().poll(&mut cx) {
+                return (value, n);
+            }
+        }
+        panic!("future не завершился");
+    }
+
+    #[test]
+    fn map_over_an_async_block() {
+        let fut = map(
+            async {
+                Yield(false).await;
+                20
+            },
+            |n| n + 1,
+        );
+        assert_eq!(finish(fut), (21, 2));
+    }
+
+    #[test]
+    fn map_over_a_block_that_borrows_its_own_locals() {
+        let fut = map(
+            async {
+                let words = ["a", "b", "c"];
+                let longest = words.iter().min_by_key(|w| w.len()).unwrap();
+                Yield(false).await;
+                *longest
+            },
+            |w| w.to_uppercase(),
+        );
+        assert_eq!(finish(fut).0, "A");
+    }
+
+    #[test]
+    fn maps_of_maps_still_work() {
+        let fut = map(map(async { 1 }, |n| n + 1), |n| n * 10);
+        assert_eq!(finish(fut), (20, 1));
+    }
+
+    #[test]
+    fn the_function_runs_only_when_ready() {
+        let calls = std::cell::Cell::new(0);
+        let fut = map(
+            async {
+                Yield(false).await;
+                Yield(false).await;
+            },
+            |()| calls.set(calls.get() + 1),
+        );
+        let ((), polls) = finish(fut);
+        assert_eq!((polls, calls.get()), (3, 1));
+    }
+
+    #[test]
+    fn poll_twice_works_on_pinned_async_blocks() {
+        let pair = poll_twice(pin!(async {
+            Yield(false).await;
+            5
+        }));
+        assert_eq!(pair, (Poll::Pending, Poll::Ready(5)));
+    }
+}

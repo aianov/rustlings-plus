@@ -1,0 +1,13 @@
+[package]
+name = "social-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "net", "io-util", "io-std", "macros", "time", "fs"] }
+
+[lints]
+workspace = true

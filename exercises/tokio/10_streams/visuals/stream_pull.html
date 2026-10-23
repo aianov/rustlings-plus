@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Стрим тянут</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.cols { display:flex; gap:10px; flex-wrap:wrap; }
+.col { flex:1 1 170px; min-width:150px; border:1px solid var(--line); border-radius:8px; padding:8px; background:var(--bg); }
+.col h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.chip { display:block; margin:4px 0; padding:6px 10px; border-radius:8px; border:2px solid var(--line); font:600 13px ui-monospace,Menlo,monospace; background:var(--panel); }
+.chip.a { border-color:var(--a); } .chip.b { border-color:var(--b); } .chip.ok { border-color:var(--ok); color:var(--ok); } .chip.bad { border-color:var(--bad); color:var(--bad); }
+.chip.gone { opacity:.5; text-decoration:line-through; border-style:dashed; }
+.empty { color:var(--muted); font-size:13px; font-style:italic; }
+code { font:13px ui-monospace,Menlo,monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+.verdict { margin-top:10px; padding:8px 12px; border-radius:8px; border:2px solid var(--line); font:600 14px system-ui,sans-serif; }
+.verdict.ok { border-color:var(--ok); color:var(--ok); } .verdict.bad { border-color:var(--bad); color:var(--bad); } .verdict.info { color:var(--muted); }
+</style>
+</head>
+<body>
+<h1>Стрим работает, только пока его тянут</h1>
+<p class="sub">Источник ничего не делает сам. Потребитель просит элемент, комбинаторы передают просьбу вглубь, и только тогда что-то происходит.</p>
+<div class="modes" id="modes"></div>
+<div class="panel" id="view"></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+<script>
+const MODES = {"pull": {"label": "Ленивость", "small": "map и take тянут по запросу", "steps": [{"cols": [{"h": "Потребитель", "items": [{"t": "collect() ещё не вызван", "s": ""}]}, {"h": "Цепочка", "items": [{"t": "iter(1..=3)", "s": "a"}, {"t": ".map(f)", "s": "a"}, {"t": ".take(2)", "s": "a"}]}, {"h": "Источник", "items": [{"t": "1, 2, 3 лежат на месте", "s": ""}]}], "v": {"k": "info", "t": "Цепочка собрана, ничего не происходит"}, "cap": "Мы описали конвейер: взять числа, умножить, оставить два. Но ни одно число ещё не тронуто и <code>f</code> ни разу не вызвана."}, {"cols": [{"h": "Потребитель", "items": [{"t": "collect().await: просит элемент", "s": "b"}]}, {"h": "Цепочка", "items": [{"t": "take: просит у map", "s": "a"}, {"t": "map: просит у iter", "s": "a"}]}, {"h": "Источник", "items": [{"t": "отдаёт 1", "s": "ok"}]}], "v": {"k": "info", "t": "Первый запрос идёт сверху вниз"}, "cap": "Просьба опускается по цепочке до самого источника: потребитель вызывает <code>poll_next</code> у <code>take</code>, тот у <code>map</code>, тот у источника."}, {"cols": [{"h": "Потребитель", "items": [{"t": "получил 2", "s": "ok"}, {"t": "просит ещё", "s": "b"}]}, {"h": "Цепочка", "items": [{"t": "map: f(1) = 2 вызвана", "s": "ok"}]}, {"h": "Источник", "items": [{"t": "отдаёт 2", "s": "ok"}]}], "v": {"k": "ok", "t": "Второй элемент пошёл тем же путём"}, "cap": "Значение поднялось вверх, по дороге <code>map</code> вызвал <code>f</code>. Потребитель сразу просит следующее."}, {"cols": [{"h": "Потребитель", "items": [{"t": "получил 2, 4", "s": "ok"}, {"t": "конец", "s": "ok"}]}, {"h": "Цепочка", "items": [{"t": "take: набрал два, дальше None", "s": "gone"}]}, {"h": "Источник", "items": [{"t": "число 3 так и осталось нетронутым", "s": "gone"}]}], "v": {"k": "ok", "t": "Третьего вычисления не было"}, "cap": "<code>take(2)</code> набрал два элемента и больше не опрашивает источник. Работа, которую никто не просил, не делается. Эту же ленивость ты проверяешь в задачах, где считаешь вызовы."}]}, "buffered": {"label": "buffer_unordered(3)", "small": "три в работе, порядок по готовности", "steps": [{"cols": [{"h": "Поток заданий", "items": [{"t": "1", "s": "a"}, {"t": "2", "s": "a"}, {"t": "3", "s": "a"}, {"t": "4", "s": "a"}, {"t": "5", "s": "a"}]}, {"h": "В работе (окно 3)", "items": []}, {"h": "Выдано", "items": []}], "v": {"k": "info", "t": "Пять заданий, окно на три"}, "cap": "Поток future: каждый элемент это ещё не запущенная работа. Комбинатор держит в работе не больше трёх."}, {"cols": [{"h": "Поток заданий", "items": [{"t": "4", "s": "a"}, {"t": "5", "s": "a"}]}, {"h": "В работе (окно 3)", "items": [{"t": "1 (300 мс)", "s": "b"}, {"t": "2 (100 мс)", "s": "b"}, {"t": "3 (200 мс)", "s": "b"}]}, {"h": "Выдано", "items": []}], "v": {"k": "info", "t": "Окно заполнено"}, "cap": "Первые три запущены одновременно. Четвёртое и пятое ждут, потому что окно полно. Это и есть ограничение параллельности."}, {"cols": [{"h": "Поток заданий", "items": [{"t": "5", "s": "a"}]}, {"h": "В работе (окно 3)", "items": [{"t": "1 (осталось 200)", "s": "b"}, {"t": "3 (осталось 100)", "s": "b"}, {"t": "4 (100 мс)", "s": "b"}]}, {"h": "Выдано", "items": [{"t": "2", "s": "ok"}]}], "v": {"k": "ok", "t": "Задание 2 готово первым, его место сразу занято"}, "cap": "Через 100 мс закончилось задание 2: оно выдано потребителю, а освободившееся место заняло задание 4. Без ожидания остальных. У <code>buffered</code> результат 2 лежал бы и ждал задание 1."}, {"cols": [{"h": "Поток заданий", "items": []}, {"h": "В работе (окно 3)", "items": [{"t": "4 (осталось 100)", "s": "b"}, {"t": "5 (100 мс)", "s": "b"}]}, {"h": "Выдано", "items": [{"t": "2", "s": "ok"}, {"t": "3", "s": "ok"}, {"t": "1", "s": "ok"}]}], "v": {"k": "ok", "t": "Порядок выдачи не совпал с порядком ввода"}, "cap": "Дальше выходят 3 и 1, потом 4 и 5. Все задания сделаны, одновременно шло не больше трёх, порядок как получился. Если порядок нужен, платишь простоем окна."}]}, "drop": {"label": "Бросили стрим", "small": "производитель замечает по send", "steps": [{"cols": [{"h": "Потребитель", "items": [{"t": "читает поток", "s": "a"}]}, {"h": "Канал (4)", "items": [{"t": "1", "s": "a"}, {"t": "2", "s": "a"}]}, {"h": "Производитель (spawn)", "items": [{"t": "send(3) ждёт места", "s": "b"}]}], "v": {"k": "info", "t": "Всё работает"}, "cap": "Производитель живёт в отдельной задаче и пишет в канал, потребитель читает канал как поток."}, {"cols": [{"h": "Потребитель", "items": [{"t": "взял 3 элемента, выбросил поток", "s": "gone"}]}, {"h": "Канал (4)", "items": [{"t": "приёмник уничтожен", "s": "bad"}]}, {"h": "Производитель (spawn)", "items": [{"t": "send(4) ...", "s": "b"}]}], "v": {"k": "bad", "t": "Читать больше некому"}, "cap": "Потребитель ушёл, а производитель про это ещё не знает: его задача никуда не делась."}, {"cols": [{"h": "Канал (4)", "items": [{"t": "закрыт", "s": "bad"}]}, {"h": "Производитель (spawn)", "items": [{"t": "send вернул Err", "s": "bad"}, {"t": "let _ = ... : игнор, цикл дальше, утечка", "s": "bad"}]}], "v": {"k": "bad", "t": "Ошибка проглочена, задача живёт вечно"}, "cap": "Если ошибку <code>send</code> выбросить, производитель так и будет вертеться вхолостую, держа память и таймеры. На тысячу подписок это тысяча зомби."}, {"cols": [{"h": "Канал (4)", "items": [{"t": "закрыт", "s": "bad"}]}, {"h": "Производитель (spawn)", "items": [{"t": "send вернул Err", "s": "ok"}, {"t": "break: задача завершена, Drop выполнен", "s": "gone"}]}], "v": {"k": "ok", "t": "Ошибка отправки это сигнал выходить"}, "cap": "Правильный производитель проверяет результат <code>send</code>: ошибка означает «читателей нет», и цикл заканчивается. Брошенный поток останавливает источник."}]}};
+const KEYS = Object.keys(MODES);
+let mode = KEYS[0], pos = 0, timer = null;
+const $ = id => document.getElementById(id);
+function view(s) {
+  const cols = s.cols.map(c => {
+    const items = c.items.length ? c.items.map(i => `<span class="chip ${i.s || ""}">${i.t}</span>`).join("") : `<span class="empty">пусто</span>`;
+    return `<div class="col"><h2>${c.h}</h2>${items}</div>`;
+  }).join("");
+  return `<div class="cols">${cols}</div><div class="verdict ${s.v.k}">${s.v.t}</div>`;
+}
+function render() {
+  const steps = MODES[mode].steps, s = steps[pos];
+  $("view").innerHTML = view(s);
+  $("caption").innerHTML = s.cap;
+  $("counter").textContent = `шаг ${pos} из ${steps.length - 1}`;
+  const end = pos >= steps.length - 1;
+  $("step").disabled = end; $("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "Играть"; }
+function step(){ if (pos < MODES[mode].steps.length - 1) { pos++; render(); } }
+function setMode(m){ stop(); mode = m; pos = 0; document.querySelectorAll(".mode").forEach(b => b.classList.toggle("on", b.dataset.m === m)); render(); }
+$("modes").innerHTML = KEYS.map(k => `<button class="mode ${k === mode ? "on" : ""}" data-m="${k}">${MODES[k].label}<small>${MODES[k].small}</small></button>`).join("");
+document.querySelectorAll(".mode").forEach(b => b.onclick = () => setMode(b.dataset.m));
+$("step").onclick = () => { stop(); step(); };
+$("play").onclick = () => { if (timer) { stop(); return; } $("play").textContent = "Пауза"; timer = setInterval(step, 1800); };
+$("reset").onclick = () => setMode(mode);
+render();
+</script>
+</body>
+</html>

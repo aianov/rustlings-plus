@@ -1,0 +1,17 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+certgen.workspace = true
+db-engine.workspace = true
+tokio.workspace = true
+auth-service.workspace = true
+user-service.workspace = true
+post-service.workspace = true
+
+[lints]
+workspace = true

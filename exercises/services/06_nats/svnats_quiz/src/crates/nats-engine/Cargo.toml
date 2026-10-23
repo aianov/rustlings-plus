@@ -1,0 +1,16 @@
+[package]
+name = "nats-engine"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+async-nats = "=0.36.0"
+bytes = "1"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }

@@ -1,0 +1,18 @@
+[package]
+name = "course-support"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[features]
+pg = ["dep:sqlx", "dep:futures"]
+scylla = ["dep:scylla"]
+nats = ["dep:async-nats", "dep:futures"]
+redis = []
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "=0.8.6", optional = true, default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "macros", "migrate"] }
+scylla = { version = "=0.12.0", optional = true }
+async-nats = { version = "=0.36.0", optional = true }
+futures = { version = "0.3", optional = true }

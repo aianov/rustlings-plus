@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>broadcast: буфер обогнал медленного подписчика</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+.lbl { color:var(--muted); font-size:13px; min-width:150px; }
+.slot { width:54px; height:44px; border-radius:8px; border:2px dashed var(--line); display:flex; align-items:center; justify-content:center; font:600 16px ui-monospace,Menlo,monospace; }
+.slot.full { border-style:solid; border-color:var(--a); background:color-mix(in srgb,var(--a) 14%,transparent); }
+.slot.new { border-color:var(--ok); background:color-mix(in srgb,var(--ok) 16%,transparent); }
+.slot.lost { border-style:solid; border-color:var(--bad); color:var(--bad); background:color-mix(in srgb,var(--bad) 12%,transparent); }
+.chip { min-width:40px; height:34px; padding:0 8px; border-radius:17px; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font:600 14px ui-monospace,Menlo,monospace; }
+.chip.live { border-color:var(--a); } .chip.gone { opacity:.5; text-decoration:line-through; border-style:dashed; }
+.chip.ptr { box-shadow:0 0 0 3px color-mix(in srgb,var(--b) 55%,transparent); }
+.badge { padding:4px 12px; border-radius:12px; font:600 13px system-ui,sans-serif; border:2px solid var(--line); }
+.badge.on { border-color:var(--ok); color:var(--ok); } .badge.bad { border-color:var(--bad); color:var(--bad); } .badge.wait { border-color:var(--b); color:var(--b); }
+code { font:13px ui-monospace,Menlo,monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+</style>
+</head>
+<body>
+<h1>broadcast: буфер обогнал медленного подписчика</h1>
+<p class="sub">Кольцевой буфер на четыре сообщения. Отправитель никого не ждёт, поэтому отстающий теряет сообщения.</p>
+<div class="modes"><button class="mode on" data-m="lag">Один отправитель, два подписчика<small>быстрый и медленный</small></button></div>
+<div class="panel" id="view"></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+<script>
+
+const CAP = 4;
+const SC = {
+  lag: [
+    { sent:0, fast:1, slow:1, lagged:false, cap:"Канал <code>broadcast::channel(4)</code>: кольцевой буфер на четыре сообщения. Подписчика два: быстрый и медленный. У каждого своя позиция чтения (какое сообщение прочитает следующим)." },
+    { sent:2, fast:1, slow:1, lagged:false, cap:"Отправитель разослал сообщения 1 и 2. В буфере они лежат одним экземпляром, а у каждого подписчика своя позиция." },
+    { sent:2, fast:3, slow:1, lagged:false, cap:"Быстрый подписчик прочитал 1 и 2 (каждый получил свою копию значения). Медленный пока ничего не читал." },
+    { sent:4, fast:3, slow:1, lagged:false, cap:"Отправлены 3 и 4. Буфер полон, но ничего не потеряно: самое старое сообщение (1) ещё на месте, и медленный всё ещё может его прочитать." },
+    { sent:6, fast:3, slow:1, lagged:true, cap:"Отправлены 5 и 6. Буфер кольцевой, поэтому 5 затёрло 1, а 6 затёрло 2. Медленный подписчик указывает на сообщение, которого уже нет. Отправителю всё равно: он не ждёт никого, в этом отличие от mpsc." },
+    { sent:6, fast:7, slow:3, lagged:false, event:true, cap:"Медленный вызывает <code>recv()</code> и получает <b>Err(Lagged(2))</b>: «ты пропустил два сообщения». Позиция сама перескочила на самое старое из оставшихся (3). Это не конец: читать можно дальше. Заодно быстрый дочитал до конца." },
+    { sent:6, fast:7, slow:7, lagged:false, cap:"Медленный дочитал 3, 4, 5, 6. Ошибку Lagged надо обработать явно: посчитать потери, залогировать и продолжить, а не выходить из цикла." }
+  ]
+};
+function view(s) {
+  let ring = '';
+  const oldest = Math.max(1, s.sent-CAP+1);
+  for (let i=0;i<CAP;i++) {
+    let msg = null;
+    for (let m=oldest;m<=s.sent;m++) if ((m-1)%CAP===i) msg=m;
+    ring += `<div class="slot ${msg?'full':''} ${msg===s.sent&&s.sent>0?'new':''}">${msg??''}</div>`;
+  }
+  let stream = '';
+  for (let m=1;m<=Math.max(s.sent,1);m++) {
+    if (s.sent===0) break;
+    stream += `<div class="chip ${m<oldest?'gone':'live'}">${m}</div>`;
+  }
+  const ptr = (name, p) => `<div class="row"><span class="lbl">${name}: читает следующим ${p>s.sent?'(нового нет)':p}</span>${p<oldest&&s.sent>0?'<span class="badge bad">отстал: сообщение затёрто</span>':''}${s.event&&name==='медленный'?'<span class="badge wait">Err(Lagged(2))</span>':''}</div>`;
+  return `<h2>Кольцевой буфер (${CAP} места)</h2><div class="row">${ring}</div>
+  <h2>Отправлено по порядку (перечёркнуто: уже затёрто)</h2><div class="row">${stream||'<span class="lbl">пока ничего</span>'}</div>
+  <h2>Подписчики</h2>${ptr('быстрый',s.fast)}${ptr('медленный',s.slow)}`;
+}
+
+
+let mode = Object.keys(SC)[0], pos = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SC[mode], s = sc[pos];
+  $("view").innerHTML = view(s);
+  $("caption").innerHTML = s.cap;
+  $("counter").textContent = `шаг ${pos} из ${sc.length-1}`;
+  const end = pos >= sc.length-1;
+  $("step").disabled = end; $("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} $("play").textContent="Играть"; }
+function step(){ if(pos<SC[mode].length-1){pos++;render();} }
+function setMode(m){ stop(); mode=m; pos=0; document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("on",b.dataset.m===m)); render(); }
+document.querySelectorAll(".mode").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+$("step").onclick=()=>{stop();step();};
+$("play").onclick=()=>{ if(timer){stop();return;} $("play").textContent="Пауза"; timer=setInterval(step,1800); };
+$("reset").onclick=()=>setMode(mode);
+render();
+
+</script>
+</body>
+</html>

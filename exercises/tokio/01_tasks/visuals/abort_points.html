@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>abort срабатывает только в точке .await</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --accent:#2f6fed; --bad:#d64545; --ok:#2e9e5b; --warn:#b7791f; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --accent:#6b9bff; --bad:#ff7b7b; --ok:#4cc585; --warn:#e0b04f; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--accent); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.grid { display:grid; grid-template-columns:1.2fr 1fr; gap:10px; margin-bottom:10px; }
+@media (max-width:700px) { .grid { grid-template-columns:1fr; } }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.code { background:var(--code); border-radius:8px; padding:6px 0; font:13px/1.6 ui-monospace,"SF Mono",Menlo,monospace; }
+.code div { padding:0 10px; border-left:3px solid transparent; white-space:pre; display:flex; justify-content:space-between; gap:10px; }
+.code div.cur { background:color-mix(in srgb,var(--accent) 20%,transparent); border-left-color:var(--accent); }
+.code div.point { color:var(--warn); }
+.code .tag { font:11px system-ui,sans-serif; color:var(--warn); }
+.row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.badge { padding:4px 12px; border-radius:12px; font:600 13px system-ui,sans-serif; border:2px solid var(--line); }
+.badge.flag-on { border-color:var(--warn); color:var(--warn); }
+.badge.cancelled { border-color:var(--ok); color:var(--ok); }
+.badge.running { border-color:var(--accent); color:var(--accent); }
+.badge.stuck { border-color:var(--bad); color:var(--bad); }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+</style>
+</head>
+<body>
+<h1>abort срабатывает только в точке .await</h1>
+<p class="sub">abort() лишь поднимает флаг. Задача увидит его, когда в следующий раз вернётся в рантайм. Сравни два цикла.</p>
+
+<div class="modes">
+  <button class="mode on" id="mAwait">loop { work(); tick().await; }<small>в цикле есть .await</small></button>
+  <button class="mode" id="mSpin">loop { work(); }<small>в цикле нет ни одного .await</small></button>
+</div>
+
+<div class="grid">
+  <div class="panel"><h2>Код задачи</h2><div class="code" id="code"></div></div>
+  <div class="panel">
+    <h2>Состояние</h2>
+    <div class="row">Флаг отмены: <span class="badge" id="flag"></span></div>
+    <div class="row">Задача: <span class="badge" id="state"></span></div>
+    <div class="row" style="color:var(--muted);font-size:13px">Шаг работы в цикле: <b id="work">0</b></div>
+  </div>
+</div>
+
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+
+<script>
+const CODE_AWAIT = ["tokio::spawn(async {", "    loop {", "        work();", "        tick().await;", "    }", "});"];
+const CODE_SPIN  = ["tokio::spawn(async {", "    loop {", "        work();", "    }", "});"];
+const SCRIPTS = {
+  await: [
+    { line:-1, flag:false, st:"running", work:0, cap:"Задача запущена и работает. Из main пока никто не звал abort()." },
+    { line:2, flag:false, st:"running", work:1, cap:"Шаг цикла: work()." },
+    { line:3, flag:false, st:"running", work:1, cap:"<b>tick().await</b>: задача возвращается в рантайм. Здесь рантайм может её приостановить и проверить флаг, но флаг пока не поднят." },
+    { line:2, flag:false, st:"running", work:2, cap:"Следующий шаг: work()." },
+    { line:2, flag:true, st:"running", work:2, cap:"В этот момент из main вызван <b>abort()</b>. Флаг поднят, но задача сейчас выполняет work(): прервать её посреди работы нельзя, abort ничего не убивает." },
+    { line:3, flag:true, st:"cancelled", work:2, cap:"Задача дошла до <b>.await</b>, рантайм увидел флаг и больше её не опрашивает. Задача отменена, её локальные переменные уничтожены." }
+  ],
+  spin: [
+    { line:-1, flag:false, st:"running", work:0, cap:"Задача запущена. Она занимает воркер и в рантайм не возвращается." },
+    { line:2, flag:false, st:"running", work:1, cap:"work() выполнился, цикл начинается снова." },
+    { line:2, flag:false, st:"running", work:2, cap:"work(), и снова work(). Ни одного .await на пути." },
+    { line:2, flag:true, st:"running", work:3, cap:"Из main вызван <b>abort()</b>. Флаг поднят." },
+    { line:2, flag:true, st:"stuck", work:4, cap:"Задача продолжает работать: проверять флаг некому, потому что рантайм получает управление только в .await." },
+    { line:2, flag:true, st:"stuck", work:5, cap:"Флаг стоит, а задача крутится. <b>handle.await</b> в main будет ждать, пока цикл не закончится сам (а у бесконечного не закончится). Лечится <b>yield_now().await</b> внутри цикла." }
+  ]
+};
+let mode = "await", pos = 0, timer = null;
+const STATE = { running:["работает","running"], cancelled:["отменена","cancelled"], stuck:["не видит отмену","stuck"] };
+function render() {
+  const sc = SCRIPTS[mode], s = sc[pos], code = mode==="await"?CODE_AWAIT:CODE_SPIN;
+  const awaitLine = mode==="await"?3:-1;
+  document.getElementById("code").innerHTML = code.map((t,i)=>`<div class="${i===s.line?"cur":""} ${i===awaitLine?"point":""}"><span>${t}</span><span class="tag">${i===awaitLine?"точка отмены":""}</span></div>`).join("");
+  const f = document.getElementById("flag"); f.textContent = s.flag?"поднят":"не поднят"; f.className = "badge "+(s.flag?"flag-on":"");
+  const st = document.getElementById("state"); st.textContent = STATE[s.st][0]; st.className = "badge "+STATE[s.st][1];
+  document.getElementById("work").textContent = s.work;
+  document.getElementById("caption").innerHTML = s.cap;
+  document.getElementById("counter").textContent = `шаг ${pos} из ${sc.length-1}`;
+  const end = pos>=sc.length-1;
+  document.getElementById("step").disabled = end; document.getElementById("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} document.getElementById("play").textContent="Играть"; }
+function step(){ if(pos<SCRIPTS[mode].length-1){pos++;render();} }
+function setMode(m){ stop(); mode=m; pos=0; document.getElementById("mAwait").classList.toggle("on",m==="await"); document.getElementById("mSpin").classList.toggle("on",m==="spin"); render(); }
+document.getElementById("mAwait").onclick=()=>setMode("await");
+document.getElementById("mSpin").onclick=()=>setMode("spin");
+document.getElementById("step").onclick=()=>{stop();step();};
+document.getElementById("play").onclick=()=>{ if(timer){stop();return;} document.getElementById("play").textContent="Пауза"; timer=setInterval(step,1500); };
+document.getElementById("reset").onclick=()=>setMode(mode);
+render();
+</script>
+</body>
+</html>

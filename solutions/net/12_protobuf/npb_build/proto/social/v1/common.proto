@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package social.v1;
+
+message Author {
+  uint64 id = 1;
+  string handle = 2;
+}

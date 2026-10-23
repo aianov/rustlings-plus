@@ -1,0 +1,14 @@
+test_command = ["cargo", "make", "check"]
+requires = ["postgres", "nats"]
+hint.ru = [
+"""Друзья это пары, где подписка есть в обе стороны: `follows mine JOIN follows theirs ON theirs.follower = mine.followee
+AND theirs.followee = mine.follower`. Курсор по id (`u.id > $2 ORDER BY u.id LIMIT $3`) вместо OFFSET.""",
+"""Счётчики профиля не собирай одним JOIN подписчиков, подписок и постов: строки перемножатся. Каждое число это
+отдельный скалярный подзапрос в SELECT.""",
+"""«Ты лайкнул» это `LEFT JOIN likes l ON l.post = p.id AND l.user_id = $2` и `(l.user_id IS NOT NULL)`. Скрытых
+авторов убирай `NOT EXISTS (SELECT 1 FROM unnest($3::bigint[]) ...)`, а порядок по списку id восстанавливай в коде.""",
+"""Пустые дни берутся из календаря: `generate_series(начало, сегодня, interval '1 day')` слева и подсчёт за каждый день.""",
+]
+story.ru = """Соцсеть спрашивает базу, а не перебирает память: друзья это взаимные подписки, карточка профиля
+считает подписчиков, посты и лайки одним запросом, лента знает, что ты лайкнул, а админ видит неделю по дням с
+пустыми днями."""

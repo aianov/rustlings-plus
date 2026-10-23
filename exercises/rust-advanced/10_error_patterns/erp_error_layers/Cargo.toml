@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/ledger-store", "crates/ledger-core", "crates/ledger-cli"]
+resolver = "3"

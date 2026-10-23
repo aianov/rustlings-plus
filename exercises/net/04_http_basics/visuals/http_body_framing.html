@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Где кончается тело</title>
+<style>
+:root {
+  --bg: #fafaf7; --fg: #1d1f24; --muted: #6b7078; --card: #ffffff; --line: #c9ccd2;
+  --ok: #1f8a5b; --bad: #c0392b; --accent: #7c3aed; --shadow: rgba(0,0,0,.08); --ghost: #e7e8ec; --msg: #2b6cd9;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --fg: #e8eaee; --muted: #9aa0aa; --card: #1d2026; --line: #3a3f48;
+    --ok: #4fd197; --bad: #ff8a7a; --accent: #b794ff; --shadow: rgba(0,0,0,.4); --ghost: #2a2e36; --msg: #6ea3ff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 820px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 14px; color: var(--muted); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.counter { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stage { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 8px var(--shadow); padding: 14px; display: grid; gap: 14px; }
+.zone h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; min-height: 44px; align-items: center; }
+.pkt0 { min-width: 48px; height: 38px; padding: 0 8px; display: grid; place-items: center; font: 600 14px ui-monospace, Menlo, monospace; color: #fff; background: var(--msg); border-radius: 6px; }
+.pkt.ghost { background: var(--ghost); color: var(--muted); }
+.pkt.lost { background: transparent; border: 2px dashed var(--bad); color: var(--bad); }
+.pkt.dup { background: var(--accent); }
+.pkt.late { outline: 2px solid var(--bad); }
+.pipe { border: 2px solid var(--line); border-radius: 10px; padding: 8px; min-height: 54px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: linear-gradient(90deg, transparent, var(--ghost) 40%, transparent); }
+.empty { color: var(--muted); font-size: 13px; }
+.legend { font-size: 13px; color: var(--muted); }
+.caption { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--accent); background: var(--card); border-radius: 0 8px 8px 0; min-height: 3.4em; }
+</style>
+<style>
+.raw { font: 15px/1.7 ui-monospace, Menlo, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; white-space: pre-wrap; word-break: break-all; }
+.raw span { padding: 1px 0; border-radius: 3px; }
+.raw .on { outline: 2px solid var(--accent); }
+.c0 { background: color-mix(in srgb, #2b6cd9 28%, transparent); }
+.c1 { background: color-mix(in srgb, #1f8a5b 28%, transparent); }
+.c2 { background: color-mix(in srgb, #c2410c 28%, transparent); }
+.c3 { background: color-mix(in srgb, #7c3aed 28%, transparent); }
+.c4 { background: color-mix(in srgb, #b45309 28%, transparent); }
+.ctl { color: var(--accent); font-weight: 700; }
+.names { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 13px; }
+.names b { padding: 2px 8px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Где кончается тело</h1>
+  <p class="sub">Три способа сказать «сообщение закончилось». Парсер обязан знать, по какому из них идёт.</p>
+  <div class="bar">
+    <button id="sc-a" class="on">Content-Length</button>
+    <button id="sc-b">chunked</button>
+    <button id="sc-c">Закрытие</button>
+    <span style="width:12px"></span>
+    <button id="prev">Назад</button>
+    <button id="next">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="stage">
+    <div class="zone"><h2>Поток байтов с одного соединения</h2><div class="raw" id="raw"></div></div>
+    <div class="zone"><h2>Что знает парсер</h2><div class="legend" id="state"></div></div>
+  </div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const SC = {
+  a: [
+    { raw: [], state: "Голова ещё не пришла.", t: "Ответ с Content-Length: 5. Парсер читает голову, пока не увидит пустую строку." },
+    { raw: [["c3","Content-Length: 5"],["ctl","\\r\\n\\r\\n"]], state: "Голова закончилась. Тело: ровно 5 байтов.", t: "Конец головы найден. Из заголовка парсер знает длину тела заранее." },
+    { raw: [["c3","Content-Length: 5"],["ctl","\\r\\n\\r\\n"],["c4","hel"]], state: "Получено 3 из 5. Нужно ещё 2 (missing = 2).", t: "Пока пришло меньше, ждём. Это ответ Partial, а не ошибка." },
+    { raw: [["c3","Content-Length: 5"],["ctl","\\r\\n\\r\\n"],["c4","hello"],["c2","GET /next HT"]], state: "Тело готово: ровно 5 байтов. Остальное принадлежит следующему сообщению.", t: "Тело закончилось по счёту. Всё, что после, не наше: на keep-alive это начало следующего запроса." }
+  ],
+  b: [
+    { raw: [], state: "Голова ещё не пришла.", t: "Ответ с Transfer-Encoding: chunked. Длина заранее неизвестна." },
+    { raw: [["c3","Transfer-Encoding: chunked"],["ctl","\\r\\n\\r\\n"],["c1","4"],["ctl","\\r\\n"],["c4","Wiki"],["ctl","\\r\\n"]], state: "Кусок размером 4 (hex) получен. Ждём следующий размер.", t: "Каждый кусок: размер в hex, CRLF, данные, CRLF." },
+    { raw: [["c3","Transfer-Encoding: chunked"],["ctl","\\r\\n\\r\\n"],["c1","4"],["ctl","\\r\\n"],["c4","Wiki"],["ctl","\\r\\n"],["c1","5"],["ctl","\\r\\n"],["c4","pedia"],["ctl","\\r\\n"]], state: "Получено 9 байтов тела. Следующий кусок может быть любого размера.", t: "Данные куска могут содержать CRLF, поэтому границу задаёт размер, а не поиск перевода строки." },
+    { raw: [["c3","Transfer-Encoding: chunked"],["ctl","\\r\\n\\r\\n"],["c1","4"],["ctl","\\r\\n"],["c4","Wiki"],["ctl","\\r\\n"],["c1","5"],["ctl","\\r\\n"],["c4","pedia"],["ctl","\\r\\n"],["c2","0"],["ctl","\\r\\n\\r\\n"]], state: "Кусок нулевого размера и пустая строка: тело закончено, итого Wikipedia.", t: "Нулевой кусок закрывает тело. Перед пустой строкой могут быть трейлеры." }
+  ],
+  c: [
+    { raw: [], state: "Голова ещё не пришла.", t: "Ответ без Content-Length и без chunked. Клиент не знает, сколько ждать." },
+    { raw: [["c3","Connection: close"],["ctl","\\r\\n\\r\\n"],["c4","поток данных..."]], state: "Конец тела неизвестен. Читаем, пока соединение открыто.", t: "Единственный сигнал конца: закрытие соединения сервером." },
+    { raw: [["c3","Connection: close"],["ctl","\\r\\n\\r\\n"],["c4","поток данных..."],["c2","[EOF]"]], state: "EOF: тело закончено. Соединение больше использовать нельзя.", t: "Поэтому без длины нет keep-alive. И поэтому обрыв сети неотличим от нормального конца: усечённый ответ принимается за полный." }
+  ]
+};
+let key = "a";
+const STEPS_LEN = () => SC[key].length;
+let step = 0, timer = null;
+function render() {
+  const s = SC[key][step];
+  const raw = $("raw"); raw.innerHTML = "";
+  s.raw.forEach(([c, text]) => {
+    const e = document.createElement("span"); e.className = c; e.textContent = text; raw.appendChild(e);
+    if (c === "ctl") raw.appendChild(document.createTextNode("\n"));
+  });
+  if (!s.raw.length) raw.textContent = "пусто";
+  $("state").textContent = s.state;
+  $("caption").textContent = s.t;
+  $("counter").textContent = `шаг ${step} из ${STEPS_LEN() - 1}`;
+  $("prev").disabled = step === 0;
+  $("next").disabled = step === STEPS_LEN() - 1;
+}
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+function go(n) { step = Math.max(0, Math.min(STEPS_LEN() - 1, n)); render(); }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === STEPS_LEN() - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= STEPS_LEN() - 1) return stop(); go(step + 1); }, 2600);
+};
+function pick(k) { stop(); key = k; ["a","b","c"].forEach(x => $("sc-" + x).classList.toggle("on", x === k)); go(0); }
+["a","b","c"].forEach(x => $("sc-" + x).onclick = () => pick(x));
+go(0);
+
+</script>
+</body>
+</html>

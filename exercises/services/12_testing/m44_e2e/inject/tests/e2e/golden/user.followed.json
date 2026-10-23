@@ -1,0 +1,12 @@
+{
+  "event_id": "evt-user.followed",
+  "type": "user.followed",
+  "schema": 1,
+  "version": 1,
+  "occurred_at": 1700000000000,
+  "aggregate_id": "u_2",
+  "payload": {
+    "followee_id": "u_1",
+    "follower_id": "u_2"
+  }
+}

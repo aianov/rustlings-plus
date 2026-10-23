@@ -1,0 +1,11 @@
+[package]
+name = "devctl"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "macros", "time", "sync"] }
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }

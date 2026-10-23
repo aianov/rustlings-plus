@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package likes.v1;
+
+service Likes {
+  rpc SendBatch (stream LikeRequest) returns (LikeSummary);
+}
+
+message LikeRequest {
+  oneof kind {
+    Like like = 1;
+    Commit commit = 2;
+  }
+}
+
+message Like {
+  uint64 post_id = 1;
+}
+
+message Commit {}
+
+message LikeSummary {
+  uint64 accepted = 1;
+  uint64 distinct_posts = 2;
+}

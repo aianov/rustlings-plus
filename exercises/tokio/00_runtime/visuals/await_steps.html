@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>async fn режется на шаги по .await</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #667085; --line: #d5d9e0;
+  --a: #2f6fed; --b: #d9822b; --ok: #2e9e5b; --wait: #b7791f; --run: #2f6fed;
+  --code: #f0f2f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151b; --panel: #1b2029; --ink: #e6e9ef; --muted: #98a2b3; --line: #343b49;
+    --a: #6b9bff; --b: #f0a85a; --ok: #4cc585; --wait: #e0b04f; --run: #6b9bff;
+    --code: #151a22;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 14px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+.task h2 span { font-weight: 700; }
+.task.A h2 span { color: var(--a); }
+.task.B h2 span { color: var(--b); }
+.code { background: var(--code); border-radius: 8px; padding: 6px 0; font: 13px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
+.line { padding: 1px 10px; display: flex; justify-content: space-between; gap: 8px; border-left: 3px solid transparent; }
+.line .tag { font: 11px system-ui, sans-serif; color: var(--muted); white-space: nowrap; }
+.line.done { color: var(--ok); }
+.line.done .tag::before { content: "выполнено"; }
+.line.running { background: color-mix(in srgb, var(--run) 20%, transparent); border-left-color: var(--run); }
+.line.running .tag::before { content: "выполняется"; color: var(--run); }
+.line.waiting { background: color-mix(in srgb, var(--wait) 22%, transparent); border-left-color: var(--wait); }
+.line.waiting .tag::before { content: "ждёт ответа"; color: var(--wait); }
+.status { margin-top: 8px; font-size: 13px; color: var(--muted); min-height: 20px; }
+.thread { margin-top: 12px; }
+.lane { display: flex; gap: 4px; flex-wrap: wrap; min-height: 34px; align-items: center; }
+.seg { padding: 4px 9px; border-radius: 6px; color: #fff; font: 600 12px system-ui, sans-serif; }
+.seg.A { background: var(--a); }
+.seg.B { background: var(--b); }
+.seg.fresh { outline: 2px solid var(--ink); }
+.empty { color: var(--muted); font-size: 13px; }
+.queue { display: flex; gap: 6px; min-height: 30px; align-items: center; }
+.chip { padding: 3px 10px; border-radius: 12px; border: 2px solid; font: 600 12px system-ui, sans-serif; }
+.chip.A { border-color: var(--a); color: var(--a); }
+.chip.B { border-color: var(--b); color: var(--b); }
+.caption { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); min-height: 64px; }
+.caption b { color: var(--ink); }
+.controls { margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button { font: 600 14px system-ui, sans-serif; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:disabled { opacity: .45; cursor: default; }
+.counter { color: var(--muted); font-size: 13px; margin-left: auto; }
+</style>
+</head>
+<body>
+<h1>async fn режется на шаги по .await</h1>
+<p class="sub">Две задачи, один поток. Следи, кто выполняется, пока другая ждёт ответа.</p>
+
+<div class="grid">
+  <div class="panel task A"><h2>Задача <span>A</span>: profile(1)</h2><div class="code" id="codeA"></div><div class="status" id="stA"></div></div>
+  <div class="panel task B"><h2>Задача <span>B</span>: profile(2)</h2><div class="code" id="codeB"></div><div class="status" id="stB"></div></div>
+</div>
+
+<div class="grid thread">
+  <div class="panel"><h2>Поток рантайма: кто на нём выполнялся</h2><div class="lane" id="lane"></div></div>
+  <div class="panel"><h2>Очередь готовых к poll</h2><div class="queue" id="queue"></div></div>
+</div>
+
+<div class="caption" id="caption"></div>
+
+<div class="controls">
+  <button id="step">Шаг</button>
+  <button id="play">Играть</button>
+  <button id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+
+<script>
+const CODE = [
+  "async fn profile(id: u32) -> String {",
+  "    let user = load_user(id).await;",
+  "    let posts = load_posts(id).await;",
+  "    format!(\"{user}: {posts}\")",
+  "}"
+];
+const OPS = ["pollA","pendA","pollB","pendB","wakeA","pollA","pendA","wakeB","pollB","pendB","wakeA","pollA","wakeB","pollB"];
+const TEXT = {
+  load: ["", "load_user", "load_posts", "format!"]
+};
+
+function fresh() {
+  return { A: { stage: 0, status: "queued" }, B: { stage: 0, status: "queued" }, queue: ["A", "B"], lane: [], caption: "Обе задачи только что созданы и стоят в очереди. Пока ни одна не начала работу: Future ленив.", last: null };
+}
+let st = fresh(), pos = 0, timer = null;
+
+function apply(op) {
+  const who = op.slice(-1), kind = op.slice(0, -1), t = st[who];
+  if (kind === "poll") {
+    st.queue = st.queue.filter(x => x !== who);
+    t.stage += 1;
+    t.status = "running";
+    st.lane.push({ who, stage: t.stage });
+    st.last = st.lane.length - 1;
+    if (t.stage === 3) {
+      t.status = "done";
+      st.caption = `<b>Рантайм вызывает poll(${who}).</b> Код выполняется до конца: ответы уже получены, остался только format!. poll возвращает Ready, задача завершена.`;
+    } else {
+      st.caption = `<b>Рантайм вызывает poll(${who}).</b> Код идёт до ${t.stage}-го .await и дальше пройти не может: ответа ещё нет. Всё это время поток принадлежит задаче ${who}.`;
+    }
+  } else if (kind === "pend") {
+    t.status = "waiting";
+    const other = who === "A" ? "B" : "A";
+    const o = st[other];
+    let tail = "";
+    if (st.queue.length) tail = ` Поток свободен, рантайм берёт следующую из очереди: ${st.queue[0]}.`;
+    else tail = " В очереди пусто: рантайм ждёт событий (ответы хранилища, таймеры).";
+    st.caption = `<b>poll(${who}) вернул Pending.</b> Задача ${who} запомнила своё место и отдала поток.${tail}`;
+    void o;
+  } else if (kind === "wake") {
+    t.status = "queued";
+    st.queue.push(who);
+    st.caption = `<b>Пришёл ответ для ${who}.</b> Waker будит задачу: она снова встаёт в очередь. Продолжит не с начала, а с того самого .await.`;
+  }
+}
+
+function render() {
+  for (const w of ["A", "B"]) {
+    const t = st[w], el = document.getElementById("code" + w);
+    el.innerHTML = CODE.map((text, i) => {
+      let cls = "line", tag = "";
+      if (i >= 1 && i <= 3) {
+        if (t.status === "done" || i < t.stage) cls += " done";
+        else if (i === t.stage && t.status === "running") cls += " running";
+        else if (i === t.stage && t.status === "waiting") cls += " waiting";
+      }
+      const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      return `<div class="${cls}"><span>${esc}</span><span class="tag"></span></div>`;
+    }).join("");
+    const label = { queued: t.stage === 0 ? "ещё не начата" : "в очереди, ответ пришёл", running: "выполняется на потоке", waiting: "спит до ответа, поток ей не нужен", done: "готово" }[t.status];
+    document.getElementById("st" + w).textContent = "Состояние: " + label;
+  }
+  const lane = document.getElementById("lane");
+  lane.innerHTML = st.lane.length ? st.lane.map((s, i) => `<span class="seg ${s.who}${i === st.last ? " fresh" : ""}">${s.who}${s.stage}</span>`).join("") : `<span class="empty">пока пусто</span>`;
+  const q = document.getElementById("queue");
+  q.innerHTML = st.queue.length ? st.queue.map(w => `<span class="chip ${w}">${w}</span>`).join("") : `<span class="empty">пусто</span>`;
+  document.getElementById("caption").innerHTML = st.caption;
+  document.getElementById("counter").textContent = `шаг ${pos} из ${OPS.length}`;
+  document.getElementById("step").disabled = pos >= OPS.length;
+  document.getElementById("play").disabled = pos >= OPS.length;
+  if (pos >= OPS.length) {
+    stop();
+    document.getElementById("caption").innerHTML += "<br><b>Итог:</b> пока A ждала хранилище, поток обслуживал B, и наоборот. Задач две, поток один, а простоя почти не было. Сегмент A1 это код A до первого .await, A2 между двумя .await, A3 после последнего.";
+  }
+}
+function step() { if (pos < OPS.length) { apply(OPS[pos]); pos++; render(); } }
+function stop() { if (timer) { clearInterval(timer); timer = null; } document.getElementById("play").textContent = "Играть"; }
+document.getElementById("step").onclick = () => { stop(); step(); };
+document.getElementById("play").onclick = () => {
+  if (timer) { stop(); return; }
+  document.getElementById("play").textContent = "Пауза";
+  timer = setInterval(step, 1300);
+};
+document.getElementById("reset").onclick = () => { stop(); st = fresh(); pos = 0; render(); };
+render();
+</script>
+</body>
+</html>

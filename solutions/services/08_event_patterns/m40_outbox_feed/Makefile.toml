@@ -1,0 +1,101 @@
+env_files = [{ path = ".env", defaults_only = true }]
+
+[config]
+default_to_workspace = false
+
+[tasks.fmt]
+clear = true
+command = "cargo"
+args = ["fmt", "--all", "--check"]
+
+[tasks.lint]
+clear = true
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
+
+[tasks.test]
+clear = true
+command = "cargo"
+args = ["test", "--workspace"]
+
+[tasks.check]
+clear = true
+dependencies = ["fmt", "lint", "test"]
+
+[tasks.run]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "${SERVICE}"]
+
+[tasks.certs]
+clear = true
+command = "cargo"
+args = ["xtask", "certs", "--keep"]
+
+[tasks.build-all]
+clear = true
+command = "cargo"
+args = ["build", "--quiet", "--workspace", "--bins"]
+
+[tasks.user-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "user-service"]
+
+[tasks.post-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "post-service"]
+
+[tasks.chat-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "chat-service"]
+
+[tasks.auth-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "auth-service"]
+
+[tasks.api-gateway]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "api-gateway"]
+
+[tasks.notify-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "notify-service"]
+
+[tasks.feed-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "feed-service"]
+
+[tasks.run-all]
+clear = true
+dependencies = ["build-all", "certs"]
+run_task = { name = ["user-service", "post-service", "chat-service", "auth-service", "notify-service", "feed-service", "api-gateway"], parallel = true }
+
+[tasks.demo]
+clear = true
+dependencies = ["build-all", "certs"]
+script_runner = "@shell"
+script = '''
+cargo run --quiet -p user-service &
+users=$!
+cargo run --quiet -p post-service &
+posts=$!
+cargo run --quiet -p chat-service &
+chat=$!
+cargo run --quiet -p auth-service &
+auth=$!
+cargo run --quiet -p notify-service &
+notify=$!
+cargo run --quiet -p feed-service &
+feed=$!
+cargo run --quiet -p api-gateway &
+gateway=$!
+trap 'kill -TERM $gateway $feed $notify $auth $chat $posts $users 2>/dev/null; wait' EXIT
+cargo run --quiet -p social-cli
+'''

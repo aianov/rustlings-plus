@@ -1,0 +1,3 @@
+ALTER TABLE posts VALIDATE CONSTRAINT posts_body_present;
+ALTER TABLE posts ALTER COLUMN body SET NOT NULL;
+ALTER TABLE posts DROP CONSTRAINT posts_body_present;

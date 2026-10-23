@@ -1,0 +1,53 @@
+[chapter]
+title.en = "Enums"
+title.ru = "Перечисления"
+
+[[exercises]]
+name = "enums1"
+test = false
+hint.en = """
+No hints this time ;)"""
+hint.ru = """В этот раз без подсказок ;)"""
+
+[[exercises]]
+name = "enums2"
+test = false
+hint.en = """
+Enum variants can be defined using three different forms: struct-, tuple- and
+unit-like. Here's an example enum definition, which uses all three forms:
+
+enum EnumUsingAllVariantForms {
+    StructLike { named_field: bool },
+    TupleLike(bool),
+    UnitLike,
+}"""
+hint.ru = """Варианты enum можно определять тремя способами: как структуру, как кортеж и
+как unit. Вот пример определения enum, где используются все три формы:
+
+enum EnumUsingAllVariantForms {
+    StructLike { named_field: bool },
+    TupleLike(bool),
+    UnitLike,
+}"""
+
+[[exercises]]
+name = "enums3"
+hint.en = """
+As a first step, define enums to compile the code without errors.
+
+Then, create a match expression in `process()`.
+
+Note that you need to deconstruct some message variants in the match expression
+to get the variant's values."""
+hint.ru = """Сначала определи enum, чтобы код скомпилировался без ошибок.
+
+Затем создай выражение match в `process()`.
+
+Обрати внимание: в выражении match некоторые варианты сообщений нужно разобрать
+на части, чтобы получить значения варианта."""
+
+[[exercises]]
+name = "m01_user_post"
+kind = "milestone"
+journey = "backend"
+quiz = true

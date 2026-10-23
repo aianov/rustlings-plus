@@ -1,0 +1,249 @@
+syntax = "proto3";
+
+package social.v1;
+
+import "social/v1/common.proto";
+
+// Сервис постов: посты, лайки, комментарии, тренды и лента.
+// Про пользователей и подписки он спрашивает сервис Users.
+// Автор, читатель и тот, кто лайкает, приходят в метаданных x-user-id.
+service Posts {
+  // Поля проверяются все сразу: INVALID_ARGUMENT с x-error-code validation и путями
+  // вроде links[1].url. Автора нет в Users: тоже INVALID_ARGUMENT (поле author),
+  // Users недоступен: UNAVAILABLE.
+  rpc CreatePost(CreatePostRequest) returns (Post);
+  // Публичный пост по id.
+  rpc GetPost(GetPostRequest) returns (Post);
+  rpc Like(PostAction) returns (LikeReply);
+  // Текст правит только автор. Удаляет автор или роль с правом удалять чужое
+  // (moderator, admin); роль приходит в метаданных x-user-role. Чужое: PERMISSION_DENIED.
+  rpc EditPost(EditPostRequest) returns (Post);
+  rpc DeletePost(PostAction) returns (Changed);
+  // Страница ленты: page с единицы, size постов на странице.
+  rpc Feed(FeedRequest) returns (FeedReply);
+  // Последние limit постов одного автора, новые первыми. Для экрана профиля.
+  rpc AuthorPosts(AuthorPostsRequest) returns (FeedReply);
+  rpc Comment(CommentRequest) returns (CommentReply);
+  // Посты по списку id в том же порядке: гидрация ленты; удалённые и авторы из hidden пропускаются.
+  rpc GetPosts(PostsByIds) returns (FeedReply);
+  // Посты автора и лайки, которые он получил, одним запросом без размножения строк.
+  rpc AuthorCounters(AuthorPostsRequest) returns (AuthorTotals);
+  // Посты и лайки по дням за последние days дней, пустые дни тоже.
+  rpc DailyStats(DailyRequest) returns (DailyReply);
+  // Ветка комментариев поста в порядке дерева, не глубже max_depth.
+  rpc Thread(ThreadRequest) returns (ThreadReply);
+  // Авторы недели по полученным лайкам: места с ничьими и сдвиг от прошлой недели.
+  rpc TopAuthors(TopRequest) returns (TopReply);
+  // Закрепить пост автора: не больше трёх, без write skew под замком строки автора.
+  rpc Pin(PostAction) returns (Changed);
+  rpc Unpin(PostAction) returns (Changed);
+  // Закреплённые посты автора, новые первыми.
+  rpc PinnedPosts(AuthorPostsRequest) returns (FeedReply);
+  // Лайк комментария идемпотентен; likes это счётчик после лайка.
+  rpc LikeComment(CommentAction) returns (CommentLikeReply);
+  // Удалить комментарий может его автор или автор поста; чужой получает FORBIDDEN.
+  rpc DeleteComment(CommentAction) returns (Changed);
+  // Черновики видит и трогает только владелец из x-user-id: чужой id это NOT_FOUND,
+  // чтобы перебором нельзя было узнать, какие черновики существуют.
+  rpc SaveDraft(DraftRequest) returns (DraftReply);
+  rpc GetDraft(DraftAction) returns (DraftReply);
+  rpc DeleteDraft(DraftAction) returns (Changed);
+  rpc Trends(TrendsRequest) returns (TrendsReply);
+  // Живая лента: recent последних постов (history), отметка caught_up,
+  // потом новые посты подписок (live), пока клиент не закроет поток.
+  rpc Watch(WatchRequest) returns (stream FeedEvent);
+}
+
+message Post {
+  uint64 id = 1;
+  uint64 author_id = 2;
+  string author_name = 3;
+  string text = 4;
+  uint64 likes = 5;
+  repeated string tags = 6;
+  repeated Link links = 7;
+  // Лайкнул ли пост тот, кто спрашивает (x-user-id); без него false.
+  bool liked = 8;
+  // Три последних комментария под постом: только в GetPosts.
+  repeated LatestComment latest = 9;
+}
+
+message LatestComment {
+  uint64 id = 1;
+  uint64 author_id = 2;
+  string text = 3;
+}
+
+message Link {
+  string url = 1;
+  // Пустая строка: без подписи.
+  string title = 2;
+}
+
+message CreatePostRequest {
+  reserved 1;
+  reserved "author_id";
+  string text = 2;
+  repeated string tags = 3;
+  repeated Link links = 4;
+  string idempotency_key = 5;
+}
+
+message EditPostRequest {
+  uint64 post_id = 1;
+  string text = 2;
+}
+
+message GetPostRequest {
+  uint64 post_id = 1;
+}
+
+message PostAction {
+  reserved 1;
+  reserved "user_id";
+  uint64 post_id = 2;
+}
+
+message LikeReply {
+  bool changed = 1;
+  uint64 author_id = 2;
+}
+
+message FeedRequest {
+  reserved 1;
+  reserved "viewer_id";
+  uint32 page = 2;
+  uint32 size = 3;
+  string cursor = 4;
+}
+
+message FeedReply {
+  repeated Post posts = 1;
+  string next = 2;
+}
+
+message AuthorPostsRequest {
+  uint64 author_id = 1;
+  uint32 limit = 2;
+}
+
+message CommentRequest {
+  reserved 1;
+  reserved "author_id";
+  uint64 post_id = 2;
+  string text = 3;
+  // Ответ на комментарий; 0 значит комментарий к самому посту.
+  uint64 parent_id = 4;
+}
+
+message PostsByIds {
+  repeated uint64 ids = 1;
+  repeated uint64 hidden_authors = 2;
+}
+
+message AuthorTotals {
+  uint64 posts = 1;
+  uint64 likes = 2;
+}
+
+message DailyRequest {
+  uint32 days = 1;
+}
+
+message Day {
+  string day = 1;
+  uint64 posts = 2;
+  uint64 likes = 3;
+}
+
+message DailyReply {
+  repeated Day days = 1;
+}
+
+message CommentAction {
+  uint64 comment_id = 1;
+}
+
+message DraftRequest {
+  string text = 1;
+}
+
+message DraftAction {
+  uint64 draft_id = 1;
+}
+
+message DraftReply {
+  uint64 draft_id = 1;
+  string text = 2;
+}
+
+message CommentReply {
+  uint64 comment_id = 1;
+}
+
+message TrendsRequest {
+  uint32 limit = 1;
+}
+
+message Trend {
+  uint64 post_id = 1;
+  uint64 likes = 2;
+}
+
+message TrendsReply {
+  repeated Trend trends = 1;
+}
+
+message WatchRequest {
+  uint32 recent = 1;
+}
+
+message CaughtUp {}
+
+message FeedEvent {
+  oneof kind {
+    Post history = 1;
+    CaughtUp caught_up = 2;
+    Post live = 3;
+  }
+}
+
+message ThreadRequest {
+  uint64 post_id = 1;
+  uint32 max_depth = 2;
+}
+
+message ThreadNode {
+  uint64 id = 1;
+  uint64 parent_id = 2;
+  uint64 author_id = 3;
+  string text = 4;
+  uint32 depth = 5;
+  uint64 replies = 6;
+  bool deleted = 7;
+}
+
+message ThreadReply {
+  repeated ThreadNode nodes = 1;
+}
+
+message TopRequest {
+  uint32 limit = 1;
+}
+
+message AuthorRank {
+  uint64 author_id = 1;
+  string author_name = 2;
+  uint64 place = 3;
+  uint64 likes = 4;
+  sint64 shift = 5;
+}
+
+message TopReply {
+  repeated AuthorRank authors = 1;
+}
+
+message CommentLikeReply {
+  bool changed = 1;
+  uint64 likes = 2;
+}

@@ -1,0 +1,19 @@
+[package]
+name = "admin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+contracts.workspace = true
+http-engine.workspace = true
+service-runtime.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+social-cli.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

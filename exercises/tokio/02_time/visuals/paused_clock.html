@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Замороженные часы прыгают к ближайшему таймеру</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+@media (max-width:700px) { .grid { grid-template-columns:1fr; } }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.code { background:var(--code); border-radius:8px; padding:6px 0; font:13px/1.55 ui-monospace,"SF Mono",Menlo,monospace; }
+.code div { padding:0 10px; border-left:3px solid transparent; white-space:pre; }
+.code div.cur { background:color-mix(in srgb,var(--a) 20%,transparent); border-left-color:var(--a); }
+.clock { font:700 26px ui-monospace,Menlo,monospace; }
+.clock small { display:block; font:12px system-ui,sans-serif; color:var(--muted); font-weight:400; }
+.row { display:flex; justify-content:space-between; gap:10px; margin-bottom:8px; }
+.chip { display:inline-block; padding:3px 10px; border-radius:12px; border:2px solid; font:600 12px system-ui,sans-serif; margin:2px; }
+.chip.A { border-color:var(--a); color:var(--a); } .chip.B { border-color:var(--b); color:var(--b); }
+.chip.done { border-color:var(--ok); color:var(--ok); }
+.state { padding:4px 10px; border-radius:8px; font:600 13px system-ui,sans-serif; display:inline-block; }
+.state.busy { background:color-mix(in srgb,var(--a) 22%,transparent); color:var(--a); }
+.state.idle { background:color-mix(in srgb,var(--b) 22%,transparent); color:var(--b); }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+</style>
+</head>
+<body>
+<h1>Замороженные часы прыгают к ближайшему таймеру</h1>
+<p class="sub">#[tokio::test(start_paused = true)]: время стоит, пока есть работа, и перематывается, когда все ждут.</p>
+
+<div class="grid">
+  <div class="panel"><h2>Тест</h2><div class="code" id="code"></div></div>
+  <div class="panel">
+    <div class="row"><div class="clock" id="virt"></div><div class="clock" id="real"></div></div>
+    <h2>Рантайм</h2><div id="state"></div>
+    <h2 style="margin-top:12px">Таймеры (задача: срок на часах рантайма)</h2><div id="timers"></div>
+    <h2 style="margin-top:12px">Готовы к работе</h2><div id="ready"></div>
+  </div>
+</div>
+
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button id="step">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+
+<script>
+const CODE = [
+  "#[tokio::test(start_paused = true)]",
+  "async fn t() {",
+  "    let std_start = std::time::Instant::now();",
+  "    let a = tokio::spawn(async { sleep(1 час).await; });",
+  "    let b = tokio::spawn(async { sleep(10 мин).await; });",
+  "    a.await.unwrap();",
+  "    b.await.unwrap();",
+  "    // tokio Instant::elapsed() = ?   std_start.elapsed() = ?",
+  "}"
+];
+const S = [
+  { line:1, virt:"0 с", real:"0 мс", std:"0 мс", busy:true, timers:[], ready:["test"], cap:"Тест стартует. Часы рантайма заморожены на нуле. Тест готов к работе." },
+  { line:2, virt:"0 с", real:"0 мс", std:"0 мс", busy:true, timers:[], ready:["test"], cap:"Тест запоминает старт по <b>std</b>-часам. Это настоящее время, оно рантайму неподвластно." },
+  { line:4, virt:"0 с", real:"0 мс", std:"0 мс", busy:true, timers:[["A","1 час"],["B","10 мин"]], ready:["test"], cap:"Две задачи встали на таймеры: A на час, B на десять минут. Таймеры регистрируются по часам рантайма, срок отсчитывается от виртуального «сейчас»." },
+  { line:5, virt:"0 с", real:"0 мс", std:"0 мс", busy:false, timers:[["A","1 час"],["B","10 мин"]], ready:[], cap:"Тест ждёт A.await, обе задачи ждут таймеров. Готовых к работе задач нет: рантайму делать <b>нечего</b>. Вот момент, когда он перематывает часы." },
+  { line:5, virt:"10 мин", real:"1 мс", std:"1 мс", busy:true, timers:[["A","1 час"]], ready:["B"], cap:"Часы <b>прыгнули</b> к ближайшему сроку (10 минут), реально прошла лишь пара миллисекунд. Таймер B сработал, задача B готова." },
+  { line:5, virt:"10 мин", real:"1 мс", std:"1 мс", busy:false, timers:[["A","1 час"]], ready:[], cap:"B доработала. Теперь остался один таймер, у A, и снова нечего делать." },
+  { line:5, virt:"1 час", real:"2 мс", std:"2 мс", busy:true, timers:[], ready:["A"], cap:"Второй прыжок: к часу. A проснулась, тест получает a.await." },
+  { line:7, virt:"1 час", real:"2 мс", std:"2 мс", busy:true, timers:[], ready:["test"], cap:"Итог. <b>tokio::time::Instant::elapsed()</b> покажет ровно 1 час (виртуальное время). <b>std_start.elapsed()</b> покажет около 2 мс: стандартные часы замораживание не затронуло, они ничего «не заметили». Поэтому в таких тестах мерят только часами tokio." }
+];
+let pos = 0, timer = null;
+function render() {
+  const s = S[pos];
+  document.getElementById("code").innerHTML = CODE.map((t,i)=>`<div class="${i===s.line?"cur":""}">${t.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</div>`).join("");
+  document.getElementById("virt").innerHTML = `${s.virt}<small>часы рантайма (tokio::time::Instant)</small>`;
+  document.getElementById("real").innerHTML = `${s.std}<small>настоящее время (std::time::Instant)</small>`;
+  document.getElementById("state").innerHTML = `<span class="state ${s.busy?"busy":"idle"}">${s.busy?"есть готовые задачи: время стоит":"все ждут таймеров: можно перематывать"}</span>`;
+  document.getElementById("timers").innerHTML = s.timers.length ? s.timers.map(t=>`<span class="chip ${t[0]}">${t[0]}: ${t[1]}</span>`).join("") : `<span style="color:var(--muted);font-size:13px">нет</span>`;
+  document.getElementById("ready").innerHTML = s.ready.length ? s.ready.map(t=>`<span class="chip ${t==="test"?"done":t}">${t}</span>`).join("") : `<span style="color:var(--muted);font-size:13px">нет</span>`;
+  document.getElementById("caption").innerHTML = s.cap;
+  document.getElementById("counter").textContent = `шаг ${pos} из ${S.length-1}`;
+  const end = pos >= S.length-1;
+  document.getElementById("step").disabled = end; document.getElementById("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} document.getElementById("play").textContent="Играть"; }
+function step(){ if(pos<S.length-1){pos++;render();} }
+document.getElementById("step").onclick=()=>{stop();step();};
+document.getElementById("play").onclick=()=>{ if(timer){stop();return;} document.getElementById("play").textContent="Пауза"; timer=setInterval(step,1600); };
+document.getElementById("reset").onclick=()=>{stop();pos=0;render();};
+render();
+</script>
+</body>
+</html>

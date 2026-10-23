@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package feed.v1;
+
+service Feed {
+  rpc Subscribe (SubscribeRequest) returns (stream Event);
+}
+
+message SubscribeRequest {
+  uint64 user_id = 1;
+}
+
+message Event {
+  uint64 user_id = 1;
+  string text = 2;
+}

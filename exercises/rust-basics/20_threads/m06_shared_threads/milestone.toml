@@ -1,0 +1,16 @@
+hint.ru = [
+"""Начни с `SharedNetwork` без уведомлений: поле `network: Arc<Mutex<Network<U, P>>>`, приватный
+`fn lock(&self) -> MutexGuard<'_, Network<U, P>>` и методы в одну строку вроде
+`self.lock().register(name)`. Когда заработают клоны и десять потоков, добавляй почтальона.""",
+"""Почтальон: `let (sender, receiver) = mpsc::channel();`, ящики в
+`Arc<Mutex<HashMap<UserId, Vec<Notification>>>>`, одну копию `Arc` отдай потоку:
+`thread::Builder::new().name(String::from("notify")).spawn(move || ...)?`.
+Поток это `for message in receiver { ... }`: цикл закончится сам, когда все отправители исчезнут.
+Отправитель (`Sender`) клонируется, его можно хранить в каждой ручке.""",
+"""Канал несёт не только события. Заведи `enum Message { Event(...), Flush(Sender<()>) }`. В `inbox`
+создай одноразовый канал, отправь `Message::Flush(tx)` и подожди `rx.recv()`: раз поток ответил,
+всё, что пришло до Flush, уже в ящиках. Для `normalize_name` хватит
+`if trimmed.chars().any(char::is_uppercase)`.""",
+]
+story.ru = """Соцсеть выдержала первую толпу: десять человек разом, и ни один лайк не потерялся.
+А фоновый почтальон уже разносит «на тебя подписались»."""

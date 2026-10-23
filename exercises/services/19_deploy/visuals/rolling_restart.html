@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Выкат по одному без потерь</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Выкат по одному без потерь</h1>
+  <p class="sub">Почему «останови и запусти» роняет запросы и как выкатывать экземпляры по одному.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Останови и запусти",
+  "boxes": [
+   "Балансировщик",
+   "post-1",
+   "post-2",
+   "post-3",
+   "Запросы"
+  ],
+  "steps": [
+   {
+    "t": "Три экземпляра в круге, у каждого по два запроса в работе.",
+    "s": [
+     [
+      [
+       "post-1",
+       "ok"
+      ],
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "2 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "2 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "2 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "потерь нет",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Скрипт выкатывает v2 и сразу шлёт SIGKILL первому экземпляру. Он всё ещё в круге.",
+    "s": [
+     [
+      [
+       "post-1",
+       "warn"
+      ],
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "убит",
+       "bad"
+      ],
+      [
+       "2 запроса оборваны",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "2 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "2 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "2 ответа потеряны",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Балансировщик ещё не знает о смерти и продолжает слать в post-1 каждый третий запрос.",
+    "s": [
+     [
+      [
+       "post-1",
+       "bad"
+      ],
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "запускается v2",
+       "warn"
+      ],
+      [
+       "новый запрос: отказ",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "3 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "3 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "ещё ошибка 502",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Пока v2 прогревается, /ready ещё отвечает 503, а запросы уже идут. Пользователи видят ошибки на каждом шаге выката.",
+    "s": [
+     [
+      [
+       "post-1",
+       "bad"
+      ],
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v2, не готов",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "итого: 4 ошибки за один экземпляр",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Выкат по одному",
+  "boxes": [
+   "Балансировщик",
+   "post-1",
+   "post-2",
+   "post-3",
+   "Запросы"
+  ],
+  "steps": [
+   {
+    "t": "Три экземпляра в круге, у каждого по два запроса в работе.",
+    "s": [
+     [
+      [
+       "post-1",
+       "ok"
+      ],
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "2 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "2 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "2 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "потерь нет",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Шаг 1: post-1 выходит из круга. Новые запросы идут только в post-2 и post-3.",
+    "s": [
+     [
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "вне круга",
+       "warn"
+      ],
+      [
+       "2 запроса дорабатываются",
+       "info"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "3 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ],
+      [
+       "3 запроса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "потерь нет",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Шаг 2: ждём, пока счётчик запросов в работе у post-1 станет нулём. Срок слива ограничен, чтобы зависший запрос не держал выкат вечно.",
+    "s": [
+     [
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "вне круга",
+       "warn"
+      ],
+      [
+       "0 запросов",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "оба ответа дошли",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Шаг 3: только теперь SIGTERM, остановка и запуск v2. Никого не обрывают: у экземпляра нет работы.",
+    "s": [
+     [
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v2 запускается",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "потерь нет",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Шаг 4: ждём /ready от v2 и только потом возвращаем его в круг.",
+    "s": [
+     [
+      [
+       "post-1",
+       "ok"
+      ],
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v2, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v1, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "потерь нет",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Тот же цикл для post-2 и post-3. В круге всё время два готовых экземпляра, старая и новая версии живут вместе, поэтому контракт между ними должен быть совместим.",
+    "s": [
+     [
+      [
+       "post-1",
+       "ok"
+      ],
+      [
+       "post-2",
+       "ok"
+      ],
+      [
+       "post-3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v2, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v2, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "v2, в круге",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "выкат без единой ошибки",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ETag, 304 и Range</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ETag, 304 и Range</h1>
+  <p class="sub">Условный запрос экономит передачу всего тела, Range позволяет докачать только недостающее.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "ETag и 304",
+  "boxes": [
+   "Клиент",
+   "Запрос",
+   "Сервер",
+   "Ответ"
+  ],
+  "steps": [
+   {
+    "t": "Первый запрос: у клиента ничего нет.",
+    "s": [
+     [
+      [
+       "пусто",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "GET /profile",
+       "info"
+      ]
+     ],
+     [
+      [
+       "версия профиля v7",
+       "info"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Сервер отдаёт полное тело и ETag, отпечаток версии. Cache-Control: no-cache значит «хранить можно, но перед использованием спроси».",
+    "s": [
+     [
+      [
+       "сохранил тело и ETag \"v7\"",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "считает ETag",
+       "info"
+      ]
+     ],
+     [
+      [
+       "200 OK, 4 КБ, ETag: \"v7\"",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Через пять секунд клиент спрашивает снова и показывает свою версию.",
+    "s": [
+     [
+      [
+       "есть \"v7\"",
+       "info"
+      ]
+     ],
+     [
+      [
+       "GET /profile",
+       "info"
+      ],
+      [
+       "If-None-Match: \"v7\"",
+       "info"
+      ]
+     ],
+     [
+      [
+       "сверяет с текущей версией",
+       "info"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Версия не изменилась: 304 без тела. По сети едет несколько сотен байт, а не 4 КБ.",
+    "s": [
+     [
+      [
+       "берёт копию из кеша",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "v7 == v7",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "304 Not Modified, без тела",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Профиль изменили. Клиент спрашивает с тем же \"v7\", но у сервера уже v8: полный ответ с новым ETag.",
+    "s": [
+     [
+      [
+       "получил новое тело, ETag \"v8\"",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "If-None-Match: \"v7\"",
+       "info"
+      ]
+     ],
+     [
+      [
+       "v7 != v8",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "200 OK, 4 КБ, ETag: \"v8\"",
+       "warn"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Range, 206 и 416",
+  "boxes": [
+   "Клиент",
+   "Запрос",
+   "Сервер (файл 1000 байт)",
+   "Ответ"
+  ],
+  "steps": [
+   {
+    "t": "Видео качается, связь оборвалась на 600 байте. Скачано 0..599.",
+    "s": [
+     [
+      [
+       "есть 600 из 1000",
+       "warn"
+      ]
+     ],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Клиент просит остаток: Range: bytes=600-.",
+    "s": [
+     [
+      [
+       "продолжает",
+       "info"
+      ]
+     ],
+     [
+      [
+       "GET /video",
+       "info"
+      ],
+      [
+       "Range: bytes=600-",
+       "info"
+      ]
+     ],
+     [
+      [
+       "открытый диапазон: до конца",
+       "info"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Сервер отвечает 206 Partial Content и Content-Range: bytes 600-999/1000. Клиент знает, что кусок последний.",
+    "s": [
+     [
+      [
+       "дописал, всего 1000",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "отдаёт 400 байт",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "206, Content-Range: bytes 600-999/1000",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Запрос «последние 100 байт»: Range: bytes=-100. Это тоже допустимо.",
+    "s": [
+     [
+      [
+       "хочет конец файла",
+       "info"
+      ]
+     ],
+     [
+      [
+       "Range: bytes=-100",
+       "info"
+      ]
+     ],
+     [
+      [
+       "start = 1000 - 100 = 900",
+       "info"
+      ]
+     ],
+     [
+      [
+       "206, bytes 900-999/1000",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Начало за концом файла: bytes=2000-. Это корректный, но невыполнимый запрос: 416 и настоящий размер в Content-Range.",
+    "s": [
+     [
+      [
+       "ошибка 416",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "Range: bytes=2000-",
+       "info"
+      ]
+     ],
+     [
+      [
+       "начало 2000 >= 1000",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "416, Content-Range: bytes */1000",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "А испорченный диапазон (bytes=900-100) сервер не отвергает, а игнорирует: 200 и файл целиком.",
+    "s": [
+     [
+      [
+       "получил весь файл",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "Range: bytes=900-100",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "конец раньше начала: игнорирую",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "200 OK, 1000 байт, Accept-Ranges: bytes",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

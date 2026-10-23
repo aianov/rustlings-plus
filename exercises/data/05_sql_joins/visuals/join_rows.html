@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JOIN: строки ищут пары</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --accent-bg:#dbe7ff; --hit:#e8f6ec; --null:#fff4cc; --drop:#fde8e8; --drop-text:#b42318; --code-bg:#eef1f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --accent-bg:#23365e; --hit:#1c3326; --null:#4a3f12; --drop:#3b2024; --drop-text:#ff8a80; --code-bg:#242b38; } }
+* { box-sizing: border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:940px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1fr 1.3fr; gap:12px; }
+@media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.cur td { background:var(--accent-bg); }
+tr.hit td { background:var(--hit); }
+tr.nul td { background:var(--null); }
+tr.drop td { background:var(--drop); color:var(--drop-text); text-decoration:line-through; }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.note { min-height:3.4em; } .note b { color:var(--accent); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Как строки находят пары</h1>
+  <p class="lead">Каждая строка левой таблицы ищет подходящие строки справа. Выбери вид соединения и посмотри, что остаётся в результате, особенно когда условие стоит в ON, а когда в WHERE.</p>
+  <div class="card controls">
+    <select id="mode">
+      <option value="inner">INNER JOIN</option>
+      <option value="left">LEFT JOIN</option>
+      <option value="on">LEFT JOIN, условие reposts &gt; 5 в ON</option>
+      <option value="where">LEFT JOIN, условие reposts &gt; 5 в WHERE</option>
+    </select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card"><pre id="sql"></pre></div>
+  <div class="card grid">
+    <div><h3>users (слева)</h3><table id="lt"></table></div>
+    <div><h3>posts (справа)</h3><table id="rt"></table></div>
+    <div><h3>результат</h3><table id="res"></table></div>
+  </div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var users = [[1, 'alice'], [2, 'bob'], [3, 'eve']];
+  var posts = [[10, 1, 10], [11, 1, 3], [12, 2, 8]];
+  var sqls = {
+    inner: 'SELECT u.username, p.id, p.reposts\nFROM users u\nJOIN posts p ON p.author_id = u.id',
+    left: 'SELECT u.username, p.id, p.reposts\nFROM users u\nLEFT JOIN posts p ON p.author_id = u.id',
+    on: 'SELECT u.username, p.id, p.reposts\nFROM users u\nLEFT JOIN posts p ON p.author_id = u.id AND p.reposts > 5',
+    where: 'SELECT u.username, p.id, p.reposts\nFROM users u\nLEFT JOIN posts p ON p.author_id = u.id\nWHERE p.reposts > 5'
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var steps, i, timer;
+  function build() {
+    var m = $('mode').value, s = [], rows = [];
+    users.forEach(function (u) {
+      var all = posts.filter(function (p) { return p[1] === u[0]; });
+      var ok = (m === 'on') ? all.filter(function (p) { return p[2] > 5; }) : all;
+      var added = [];
+      if (ok.length) ok.forEach(function (p) { added.push({ u: u[1], p: p, k: 'hit' }); });
+      else if (m !== 'inner') added.push({ u: u[1], p: null, k: 'nul' });
+      var txt;
+      if (ok.length) txt = '<b>' + u[1] + '</b> находит ' + ok.length + ' подходящих поста: в результате ' + ok.length + ' ' + (ok.length === 1 ? 'строка' : 'строки') + '.';
+      else if (m === 'inner') txt = '<b>' + u[1] + '</b> не находит ни одной пары: при INNER JOIN строка пропадает.';
+      else if (m === 'on' && all.length) txt = '<b>' + u[1] + '</b>: посты есть, но условие reposts &gt; 5 в ON их не пропустило. Пары нет, и LEFT JOIN оставляет пользователя с NULL.';
+      else txt = '<b>' + u[1] + '</b> не находит пар: LEFT JOIN оставляет его строку, справа NULL.';
+      rows = rows.concat(added);
+      s.push({ cur: u[0], hit: ok.map(function (p) { return p[0]; }), rows: rows.slice(), note: txt });
+    });
+    if (m === 'where') {
+      var final = rows.map(function (r) { return { u: r.u, p: r.p, k: (r.p && r.p[2] > 5) ? r.k : 'drop' }; });
+      s.push({ cur: 0, hit: [], rows: final, note: '<b>WHERE</b> работает после соединения. У строк с NULL условие NULL &gt; 5 не истинно, у постов с 3 лайками ложно: все они вычеркнуты. Eve пропала вместе с остальными, LEFT JOIN превратился в INNER.' });
+    }
+    return s;
+  }
+  function cell(v) { return v === null ? 'NULL' : v; }
+  function render() {
+    var st = i > 0 ? steps[i - 1] : { cur: 0, hit: [], rows: [], note: 'Нажми «Шаг»: пользователи по очереди ищут посты.' };
+    $('sql').textContent = sqls[$('mode').value];
+    $('lt').innerHTML = '<tr><th>id</th><th>username</th></tr>' + users.map(function (u) { return '<tr' + (st.cur === u[0] ? ' class="cur"' : '') + '><td>' + u[0] + '</td><td>' + u[1] + '</td></tr>'; }).join('');
+    $('rt').innerHTML = '<tr><th>id</th><th>author_id</th><th>reposts</th></tr>' + posts.map(function (p) { return '<tr' + (st.hit.indexOf(p[0]) >= 0 ? ' class="hit"' : '') + '><td>' + p[0] + '</td><td>' + p[1] + '</td><td>' + p[2] + '</td></tr>'; }).join('');
+    $('res').innerHTML = '<tr><th>username</th><th>p.id</th><th>reposts</th></tr>' + st.rows.map(function (r) { return '<tr class="' + r.k + '"><td>' + r.u + '</td><td>' + cell(r.p ? r.p[0] : null) + '</td><td>' + cell(r.p ? r.p[2] : null) + '</td></tr>'; }).join('');
+    $('note').innerHTML = st.note;
+    $('counter').textContent = 'шаг ' + i + ' из ' + steps.length;
+    $('step').disabled = i >= steps.length;
+    if (i >= steps.length) stop();
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function reset() { stop(); steps = build(); i = 0; render(); }
+  $('step').onclick = function () { if (i < steps.length) { i++; render(); } };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () { if (timer) { stop(); return; } if (i >= steps.length) i = 0; $('play').textContent = 'Пауза'; timer = setInterval(function () { i++; render(); }, 1500); i++; render(); };
+  reset();
+})();
+</script>
+</body>
+</html>

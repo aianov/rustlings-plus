@@ -1,0 +1,8 @@
+[workspace]
+resolver = "3"
+members = [
+  "src/crates/contracts",
+  "src/microservices/user-service",
+  "src/microservices/post-service",
+  "src/microservices/gateway",
+]

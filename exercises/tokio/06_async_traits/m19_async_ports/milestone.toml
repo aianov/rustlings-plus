@@ -1,0 +1,26 @@
+test_command = ["cargo", "make", "check"]
+requires = []
+hint.ru = [
+"""Начни с портов и памяти, а фасад перепиши потом. `BoxFuture` это одна строка типа. Метод порта берёт `&self`
+и владение аргументами и отдаёт `BoxFuture<'_, T>`: `Box::pin(async move { self.lock().follow(who, whom) })`.
+Guard живёт до конца выражения и не переживает `.await`, поэтому future остаётся `Send`. Одна структура `MemRepo`
+реализует все три трейта, а `MemRepo::repos` раздаёт один `Arc` трём полям `Repos`: `Arc<MemRepo<U, P>>`
+сам превращается в `Arc<dyn UserRepo>` при присваивании.""",
+"""Фасад: каждое место, где было `self.lock().x()`, становится вызовом порта с `.await`. События теперь создаёт сам
+`App`: после `follow` с `true` вызови `emit(Event::Followed { .. })`, а `emit` отдаёт событие уведомителям
+(`notifiers.deliver`) и в broadcast. Конструкторы над памятью (`App::new`, `with_notifiers`, `start`) переезжают в
+`storage/mem/app.rs`: impl-блок типа можно писать в любом модуле крейта, и `app/` не узнает про storage.""",
+"""Таблица: `route<F, Fut>(&mut self, method: &'static str, handler: F)` с границами `F: Fn(App, Command) -> Fut +
+Send + Sync + 'static` и `Fut: Future<Output = Result<String, CommandError>> + Send + 'static`; внутри
+`Box::new(move |app, command| Box::pin(handler(app, command)))`. Владение App и Command в аргументах и есть
+причина, почему тут хватает `'static`: future ничего не занимает. `social_table` строит таблицу один раз через
+`static TABLE: OnceLock<CommandTable>`, иначе каждая команда платила бы за двадцать коробок.""",
+"""Рекурсивная ветка: `fn branch<'a>(&'a self, .., thread: &'a mut Vec<(usize, Comment)>) -> BoxFuture<'a, Result<(),
+AppError>>` и тело `Box::pin(async move { .. self.branch(.., depth + 1, thread).await?; .. })`. Без коробки
+компилятор не посчитает размер future, который содержит сам себя. Если упираешься в бюджет аллокаций ленты,
+проверь, что `PostItem` не копирует строки: ник и текст лежат в `Arc<str>`, а `Vec` под страницу создаётся
+`with_capacity`.""",
+]
+story.ru = """Ядро больше не знает, где лежат данные: пользователи, посты и переписка спрятаны за портами, команды живут
+в таблице обычных async fn, а медленные фейки доказывают, что карточка профиля не ждёт свои части по очереди.
+Можно звать базы."""

@@ -1,0 +1,30 @@
+test_command = ["cargo", "make", "check"]
+requires = []
+hint.ru = [
+"""Начни с крейта: пока у src/crates/test-support нет Cargo.toml, cargo ругается на весь воркспейс, потому что маска
+`src/crates/*` уже видит папку с тестами. Манифест: общие поля через `.workspace = true`, `[features] test-util =
+["dep:contracts", "dep:social-core"]`, обе зависимости `{ workspace = true, optional = true }`, а вместо `[lints]
+workspace = true` свои `[lints.rust] unsafe_code = "deny"` и `[lints.clippy] unwrap_used = "deny"`. Ядру нужна строка
+в `[dev-dependencies]`, не в `[dependencies]`: test-support сам зависит от ядра.""",
+"""Часы: трейт `Clock` и `SystemClock` переезжают в contracts, ядро держит `clock: Box<dyn Clock>` в `Network`.
+`with_clock(mut self, clock: impl Clock + 'static)` кладёт `Box::new(clock)` и отдаёт `self`. `publish` и `like` зовут
+`self.now()`, команда `trends` тоже. `FakeClock` это `Arc<AtomicU64>` внутри: `#[derive(Clone)]` даёт клон с той же
+стрелкой, поэтому тест двигает свой клон, а сеть видит новое время. Фейковые хранилища проще всего собрать вокруг
+`MemUserStore`/`MemPostStore`: всё, кроме `next_id`, передаётся внутрь, а id выдаёт `SeqIds`.""",
+"""Счётчик аллокаций это проект perf_speed_up, только в крейте: `thread_local! { static ALLOCATIONS: Cell<usize> =
+const { Cell::new(0) }; }`, в `alloc`, `alloc_zeroed` и `realloc` прибавь единицу через `try_with` (поток может уже
+умирать) и передай работу `System`. Весь `unsafe impl GlobalAlloc` под одним `#[allow(unsafe_code)]`.
+`#[global_allocator]` ставит не крейт, а тестовый файл, и это разрешено даже под общим `forbid`: сам атрибут не unsafe.""",
+"""Бюджет ленты не сходится? Посчитай, кто просит память: `format!` на каждую строку, ещё один `format!` на ник,
+`Vec<String>`, `join`, и `Vec::new()` в `pages`, который растёт 4, 8, 16, 32, 64. Пиши ответ в одну
+`String::with_capacity(строк * 128)` через `write!`, ник выводи обёрткой `struct Name<'a>` с `Display`, а для
+отступов в `thread` хватит `{:width$}` с пустой строкой. В `Pages::next` резервируй `size.min(верхняя граница
+size_hint)`, тогда `pages(usize::MAX)` на коротком итераторе не попросит гигабайты.""",
+"""Медиана и p99 по ближайшему рангу: отсортируй замеры, ранг это `(p * n).div_ceil(100)`, элемент `ранг - 1`. Для
+ста замеров 1..=100 мкс медиана 50, p99 99. В `xtask bench` достаточно повторить `check`: найти корень, взять cargo
+из `CARGO` и запустить `run --release --quiet --package social-core --example feed_bench`; вывод примера идёт прямо
+в терминал, потому что `status()` наследует stdout.""",
+]
+story.ru = """Сутки в тестах теперь проходят за одну строку `clock.advance(TRENDS_WINDOW)`, а лента, которая просила у кучи
+по три строки на пост, укладывается в пять аллокаций на всю страницу. `cargo xtask bench` печатает медиану и p99, и
+«вроде шустрая» наконец стало числом."""

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Рамка окна: ROWS и RANGE</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --g1:#e8f6ec; --g2:#fff4cc; --g3:#fde8e8; --g4:#e6e9fb; --bad:#b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --g1:#1c3326; --g2:#4a3f12; --g3:#3b2024; --g4:#262c52; --bad:#ff8a80; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:960px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.cur td { outline:2px solid var(--accent); outline-offset:-2px; }
+tr.a0 td { background:var(--g1); } tr.a1 td { background:var(--g2); } tr.a2 td { background:var(--g3); } tr.a3 td { background:var(--g4); }
+tr.out td { color:var(--muted); text-decoration:line-through; }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.note { min-height:3.6em; } .note b { color:var(--accent); } .note b.bad { color:var(--bad); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Рамка окна: какие строки видит текущая</h1>
+  <p class="lead">Для каждой строки окно берёт рамку: набор соседей, по которому считается агрегат. Переключи режим и сравни, как ROWS и RANGE обращаются с равными ключами.</p>
+  <div class="card controls">
+    <select id="mode"><option value="range">SUM(v) OVER (ORDER BY k), рамка по умолчанию RANGE</option><option value="rows">SUM(v) OVER (ORDER BY k ROWS UNBOUNDED PRECEDING)</option><option value="moving">SUM(v) OVER (ORDER BY k ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)</option></select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card"><pre id="sql"></pre></div>
+  <div class="card"><h3>строки, отсортированные по k: рамка выделена цветом, текущая строка обведена</h3><table id="src"></table></div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var i = 0, timer = null, total = 4;
+  var rows = [[1, 10], [2, 20], [2, 30], [3, 40]];
+  function frame(mode, cur) {
+    var lo = 0, hi = cur;
+    if (mode === 'range') { while (hi + 1 < rows.length && rows[hi + 1][0] === rows[cur][0]) hi++; }
+    if (mode === 'moving') lo = Math.max(0, cur - 1);
+    return [lo, hi];
+  }
+  function sum(f) { var s = 0; for (var k = f[0]; k <= f[1]; k++) s += rows[k][1]; return s; }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function render() {
+    var mode = $('mode').value;
+    var texts = { range: 'SELECT k, v, sum(v) OVER (ORDER BY k) AS s FROM t', rows: 'SELECT k, v, sum(v) OVER (ORDER BY k ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS s FROM t', moving: 'SELECT k, v, sum(v) OVER (ORDER BY k ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS s FROM t' };
+    $('sql').textContent = texts[mode];
+    var cur = i === 0 ? -1 : i - 1, f = cur >= 0 ? frame(mode, cur) : null;
+    var html = '<tr><th>k</th><th>v</th><th>s (результат)</th></tr>';
+    rows.forEach(function (r, idx) {
+      var inF = f && idx >= f[0] && idx <= f[1];
+      var cls = (inF ? 'a1' : '') + (idx === cur ? ' cur' : '');
+      var done = idx < cur ? sum(frame(mode, idx)) : (idx === cur ? sum(f) : '');
+      html += '<tr class="' + cls + '"><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + done + '</td></tr>';
+    });
+    $('src').innerHTML = html;
+    var note;
+    if (cur < 0) note = 'Нажми «Шаг»: текущая строка будет спускаться по таблице, а рамка показывать, что агрегат видит для неё.';
+    else if (mode === 'range') note = 'Строка ' + (cur + 1) + ': рамка RANGE включает все строки до текущей <b>и всех с тем же k</b> (' + rows[cur][0] + '). ' + (frame(mode, cur)[1] > cur ? 'Поэтому уже на строке с первым k = 2 в рамке обе двойки: сумма <b>' + sum(f) + '</b>, и у равных строк результат одинаковый.' : 'Сумма ' + sum(f) + '.');
+    else if (mode === 'rows') note = 'Строка ' + (cur + 1) + ': ROWS считает физические строки от начала до текущей, сумма <b>' + sum(f) + '</b>. Равные k больше не склеиваются, но какая из равных строк идёт первой, при неуникальном k не определено.';
+    else note = 'Строка ' + (cur + 1) + ': рамка из текущей строки и одной предыдущей, сумма <b>' + sum(f) + '</b>. Так считают скользящие окна (среднее за N точек).';
+    $('note').innerHTML = note;
+    $('counter').textContent = 'шаг ' + i + ' из ' + total;
+    $('step').disabled = i >= total;
+    if (i >= total) stop();
+  }
+  function reset() { stop(); i = 0; render(); }
+  $('step').onclick = function () { if (i < total) { i++; render(); } };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () {
+    if (timer) { stop(); return; }
+    if (i >= total) i = 0;
+    $('play').textContent = 'Пауза';
+    timer = setInterval(function () { if (i >= total) { stop(); return; } i++; render(); }, 1200);
+    i++; render();
+  };
+  reset();
+})();
+</script>
+</body>
+</html>

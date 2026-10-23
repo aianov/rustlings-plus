@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RESP на проводе</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --g1:#e8f6ec; --g2:#fff4cc; --g3:#fde8e8; --g4:#e6e9fb; --bad:#b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --g1:#1c3326; --g2:#4a3f12; --g3:#3b2024; --g4:#262c52; --bad:#ff8a80; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:960px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.a1 td { background:var(--g1); } tr.a2 td { background:var(--g3); }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.note { min-height:3.6em; } .note b { color:var(--accent); } .note b.bad { color:var(--bad); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>RESP на проводе</h1>
+  <p class="lead">Команда превращается в байты, ответ собирается из кусков. Выбери сценарий и жми «Шаг».</p>
+  <div class="card controls">
+    <select id="mode"><option value="cmd">Команда уходит на сервер</option><option value="chunks">Ответ приходит кусками</option></select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card grid">
+    <div><h3>что происходит</h3><pre id="log"></pre></div>
+    <div><h3 id="thead">состояние</h3><table id="tbl"></table></div>
+  </div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var SC = {"cmd": {"name": "Команда уходит на сервер", "table": "байты на проводе", "head": ["часть", "байты"], "start": {"rows": [["(пока ничего)", ""]], "note": "Клиент хочет выполнить <b>INCRBY visits:42 5</b>. Это три слова, и каждое станет bulk-строкой."}, "steps": [{"ev": "считаем слова: INCRBY, visits:42, 5", "rows": [["заголовок массива", "*3\\r\\n"]], "hl": [0], "note": "Команда это <b>массив</b>. Первым идёт число слов: <b>*3</b> и CRLF. Всё остальное по порядку, без разделителей."}, {"ev": "слово INCRBY: длина 6", "rows": [["заголовок массива", "*3\\r\\n"], ["слово 1", "$6\\r\\nINCRBY\\r\\n"]], "hl": [1], "note": "Слово это <b>bulk-строка</b>: <b>$</b>, длина в байтах, CRLF, ровно столько байтов и снова CRLF."}, {"ev": "слово visits:42: длина 9", "rows": [["заголовок массива", "*3\\r\\n"], ["слово 1", "$6\\r\\nINCRBY\\r\\n"], ["слово 2", "$9\\r\\nvisits:42\\r\\n"]], "hl": [2], "note": "Длину считаем в байтах. Для ключа с русскими буквами она была бы вдвое больше числа символов."}, {"ev": "слово 5: число тоже строка", "rows": [["заголовок массива", "*3\\r\\n"], ["слово 1", "$6\\r\\nINCRBY\\r\\n"], ["слово 2", "$9\\r\\nvisits:42\\r\\n"], ["слово 3", "$1\\r\\n5\\r\\n"]], "hl": [3], "note": "У команд все аргументы строки, даже числа. Число сервер разберёт сам, когда дойдёт до выполнения."}, {"ev": "всё отправлено одной записью в сокет", "rows": [["на проводе", "*3\\r\\n$6\\r\\nINCRBY\\r\\n$9\\r\\nvisits:42\\r\\n$1\\r\\n5\\r\\n"]], "hl": [0], "note": "Ответ придёт коротким кадром <b>:47\\r\\n</b>: двоеточие значит «целое число»."}]}, "chunks": {"name": "Ответ приходит кусками", "table": "буфер клиента и решение парсера", "head": ["буфер", "решение"], "start": {"rows": [["(пусто)", "ждём"]], "note": "Сервер отвечает на <b>LRANGE</b> массивом из двух строк, а TCP режет его как хочет."}, "steps": [{"ev": "пришло: *2\\r\\n$3\\r\\nab", "rows": [["*2\\r\\n$3\\r\\nab", "неполно: Ok(None), буфер не тронут"]], "bad": [0], "note": "Заголовок массива есть, первый элемент заявил 3 байта, а пришло 2. Парсер <b>ничего не убирает</b> из буфера."}, {"ev": "пришло: c\\r\\n$2\\r", "rows": [["*2\\r\\n$3\\r\\nabc\\r\\n$2\\r", "неполно: Ok(None), второй элемент оборван"]], "bad": [0], "note": "Первый элемент готов, но массив нет: нужен ещё второй. Парсер снова начинает с самого начала буфера и снова останавливается."}, {"ev": "пришло: \\nxy\\r\\n+OK", "rows": [["*2\\r\\n$3\\r\\nabc\\r\\n$2\\r\\nxy\\r\\n+OK", "готово: массив из «abc» и «xy»"]], "hl": [0], "note": "Теперь массив целый. Парсер возвращает значение и использованные байты: <b>advance</b> ровно на кадр."}, {"ev": "в буфере остаётся хвост", "rows": [["+OK", "неполно: ждём CRLF"]], "bad": [0], "note": "Начало следующего кадра осталось нетронутым и дождётся продолжения. Если бы парсер отдал или потерял эти байты, следующий ответ был бы испорчен."}, {"ev": "пришло: \\r\\n", "rows": [["+OK\\r\\n", "готово: Simple(OK)"]], "hl": [0], "note": "Разбор по кускам даёт тот же результат, что разбор целиком. Именно это проверяют тесты со случайными разрезами."}]}};
+  var $ = function (id) { return document.getElementById(id); };
+  var i = 0, timer = null, total = 0;
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function render() {
+    var sc = SC[$('mode').value]; total = sc.steps.length;
+    var log = [];
+    for (var k = 0; k < i; k++) log.push((k === i - 1 ? '> ' : '  ') + sc.steps[k].ev);
+    $('log').textContent = log.join('\n') || '(пока ничего)';
+    var st = i > 0 ? sc.steps[i - 1] : sc.start;
+    $('thead').textContent = sc.table;
+    $('tbl').innerHTML = '<tr>' + sc.head.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr>' + st.rows.map(function (r, idx) {
+      var cls = (st.hl || []).indexOf(idx) >= 0 ? 'a1' : ((st.bad || []).indexOf(idx) >= 0 ? 'a2' : '');
+      return '<tr class="' + cls + '">' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    $('note').innerHTML = st.note;
+    $('counter').textContent = 'шаг ' + i + ' из ' + total;
+    $('step').disabled = i >= total;
+    if (i >= total) stop();
+  }
+  function reset() { stop(); i = 0; render(); }
+  $('step').onclick = function () { if (i < total) { i++; render(); } };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () {
+    if (timer) { stop(); return; }
+    if (i >= total) i = 0;
+    $('play').textContent = 'Пауза';
+    timer = setInterval(function () { if (i >= total) { stop(); return; } i++; render(); }, 1400);
+    i++; render();
+  };
+  reset();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+// Показываем дату регистрации «по местному времени пользователя». Пользователь kenji
+// зарегистрировался в 23:30 по UTC первого марта, а в Токио к этому моменту уже второе марта.
+// Запрос ниже отдаёт всем дату по UTC. Это не ошибка Postgres: время хранится верно, мы лишь
+// не сказали, в каком поясе его показывать.
+// TODO: Почини joined_on и допиши tokyo_time.
+
+fn joined_on() -> &'static str {
+    "SELECT username, created_at::date AS joined FROM users"
+}
+
+fn tokyo_time() -> &'static str {
+    // TODO: username и время регистрации по токийскому времени (Asia/Tokyo) под именем local
+    "SELECT username, created_at AS local FROM users"
+}
+
+fn main() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use course_support::pg::{Table, TestDb};
+
+    const SEED: &str = include_str!("seed.sql");
+
+    fn row<'a>(t: &'a Table, key: &str) -> &'a Vec<String> {
+        t.rows
+            .iter()
+            .find(|r| r[0] == key)
+            .unwrap_or_else(|| panic!("в результате нет строки с ключом {key}:\n{t}"))
+    }
+
+    #[tokio::test]
+    async fn date_in_user_zone() {
+        let db = TestDb::with_sql(SEED).await;
+        let t = db.table(joined_on()).await;
+        assert_eq!(row(&t, "kenji")[1], "2024-03-02", "для kenji в Токио уже 2 марта:\n{t}");
+        assert_eq!(row(&t, "bob")[1], "2024-02-29", "для bob в Нью-Йорке ещё 29 февраля:\n{t}");
+        assert_eq!(row(&t, "alice")[1], "2024-01-10");
+    }
+
+    #[tokio::test]
+    async fn local_wall_clock() {
+        let db = TestDb::with_sql(SEED).await;
+        let t = db.table(tokyo_time()).await;
+        assert_eq!(row(&t, "kenji")[1], "2024-03-02 08:30:00", "23:30 UTC это 08:30 следующего дня в Токио (UTC+9):\n{t}");
+    }
+}

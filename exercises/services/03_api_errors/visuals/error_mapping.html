@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Путь ошибки до клиента</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+svg .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+#caption { margin-top: 12px; min-height: 90px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Путь ошибки до клиента</h1>
+  <p class="sub">Ошибка проходит слои, и каждый переводит её на свой язык. Выбери случай и жми «Шаг».</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 420" role="img" aria-label="Путь ошибки">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const LAYERS = ["соседний сервис / база", "сервис (домен)", "контроллер", "HTTP и gRPC", "лог и клиент"];
+const SCEN = {
+  author: {
+    title: "автора нет (три перехода)",
+    cells: [
+      ["user-service", "gRPC NotFound", "«user 77 not found»"],
+      ["post-service", "AuthorNotFound(77)", "ошибка запроса, не «нет поста»"],
+      ["ApiError", "post.author_not_found", "поле author_id"],
+      ["gRPC InvalidArgument", "HTTP 422", "тело: конверт с кодом"],
+      ["лог: Info", "клиент: код + текст", "request_id"]
+    ],
+    texts: [
+      "user-service ответил по-своему: NotFound, и текст про пользователя 77. Это описание вызова между сервисами, а не ответ клиенту.",
+      "post-service переводит по смыслу: клиент просил создать пост и указал несуществующего автора. Это AuthorNotFound, а не «пост не найден».",
+      "Контроллер превращает доменную ошибку в ApiError с кодом из каталога. Код стабильный: клиент ветвится по нему.",
+      "Из кода выводятся оба статуса: gRPC InvalidArgument для сервисов и 422 для HTTP. Таблица в одном месте.",
+      "Клиент видит код, понятный текст и request_id. В лог идёт одна спокойная запись уровня Info: это не авария."
+    ],
+    log: "info  req-41 post.author_not_found", body: '{"error":{"code":"post.author_not_found","message":"автор не найден","request_id":"req-41"}}'
+  },
+  down: {
+    title: "база не отвечает",
+    cells: [
+      ["репозиторий", "Timeout", "(sqlx: pool timed out)"],
+      ["сервис", "Unavailable", "«временно недоступно»"],
+      ["ApiError", "service.unavailable", "retry_after = 2"],
+      ["gRPC Unavailable", "HTTP 503", "заголовок Retry-After: 2"],
+      ["лог: Error", "клиент: общий текст", "request_id"]
+    ],
+    texts: [
+      "Репозиторий отвечает на языке базы: таймаут пула. Клиенту это слово ничего не говорит.",
+      "Сервис знает смысл: это временное состояние. Если бы он назвал это «не найдено», клиент выбросил бы живые данные.",
+      "В каталоге для этого свой код. Пауза повтора хранится в самой ошибке, чтобы её не придумывали в каждом слое.",
+      "503 и заголовок Retry-After говорят клиенту: подожди две секунды и повтори. Мониторинг видит 5xx, а не клиентскую ошибку.",
+      "В лог идёт вся цепочка причин. Клиент получает общий текст и номер запроса."
+    ],
+    log: "error req-42 service.unavailable; caused by: pool timed out", body: '{"error":{"code":"service.unavailable","message":"сервис временно недоступен","request_id":"req-42"}}'
+  },
+  secret: {
+    title: "ошибка с секретом",
+    cells: [
+      ["репозиторий", "Io(path)", "/var/lib/uploads/42/a.png"],
+      ["сервис", "Internal(cause)", "причина сохранена в Box"],
+      ["ApiError", "internal", "сообщение это константа"],
+      ["gRPC Internal", "HTTP 500", "без подробностей"],
+      ["лог: Error", "клиент: «внутренняя ошибка»", "request_id"]
+    ],
+    texts: [
+      "Ошибка ввода-вывода знает путь к файлу. Это полезно инженеру и опасно показывать наружу.",
+      "Сервис не умеет это лечить и кладёт исходную ошибку в Internal целиком, не превращая в строку: цепочка причин останется.",
+      "Для внутренних ошибок текст берётся из константы каталога. Никакого to_string() от ошибки в ответ.",
+      "Статус 500. Заголовки и details тоже проверены: путь не должен попасть ни в одно место ответа.",
+      "Лог получает всё: путь, цепочку, request_id. Клиент получает «внутренняя ошибка» и номер: по нему поддержка найдёт запись."
+    ],
+    log: "error req-43 internal; caused by: open /var/lib/uploads/42/a.png: permission denied", body: '{"error":{"code":"internal","message":"внутренняя ошибка","request_id":"req-43"}}'
+  },
+  panic: {
+    title: "паника в обработчике",
+    cells: [
+      ["обработчик", "items[0] на пустом", "panic!"],
+      ["граница сервера", "catch_unwind", "ловит и вызов, и future"],
+      ["ApiError", "internal", "текст паники только в лог"],
+      ["gRPC Internal", "HTTP 500", "соединение не оборвано"],
+      ["лог: Error", "клиент: «внутренняя ошибка»", "request_id"]
+    ],
+    texts: [
+      "Обработчик паникует: индекс на пустом списке. Без перехвата задача умрёт, а клиент получит оборванное соединение без статуса.",
+      "Сервер ловит панику на границе. Ловить надо и сам вызов обработчика (он мог упасть до возврата future), и ожидание future.",
+      "Паника становится обычной внутренней ошибкой. Её текст может содержать секреты, поэтому он идёт только в лог.",
+      "Клиент получает нормальный ответ 500 с конвертом, а соседние запросы живут дальше.",
+      "В логе текст паники и request_id. Клиент получает «внутренняя ошибка» и номер запроса."
+    ],
+    log: "error req-45 panic: index out of bounds: the len is 0 but the index is 0", body: '{"error":{"code":"internal","message":"внутренняя ошибка","request_id":"req-45"}}'
+  },
+  perm: {
+    title: "у сервиса нет прав",
+    cells: [
+      ["user-service", "gRPC PermissionDenied", "«service token expired»"],
+      ["post-service", "Internal", "текст соседа сохранён для лога"],
+      ["ApiError", "internal", "не auth.forbidden"],
+      ["gRPC Internal", "HTTP 500", "а не 403"],
+      ["лог: Error", "клиент: «внутренняя ошибка»", "request_id"]
+    ],
+    texts: [
+      "Сосед отказал: протух служебный токен post-service. Права самого пользователя проверены раньше и в порядке.",
+      "Если передать PermissionDenied дальше, клиент решит, что у него нет прав. Но сломалась наша настройка, и сервис переводит это во внутреннюю ошибку.",
+      "В каталоге для этого случая нет клиентского кода. Это не auth.forbidden: клиент ничего не нарушал.",
+      "500, а не 403. 403 соврал бы клиенту и спрятал настоящую поломку.",
+      "В лог попадает ответ соседа и оба request_id, дежурный увидит протухший токен. Клиент видит общую ошибку."
+    ],
+    log: "error req-44 internal; upstream: PermissionDenied «service token expired»", body: '{"error":{"code":"internal","message":"внутренняя ошибка","request_id":"req-44"}}'
+  }
+};
+const scene = document.getElementById("scene");
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const stage = idx + 1;
+  const w = 170, gap = 20;
+  LAYERS.forEach((name, i) => {
+    const x = 10 + i * (w + gap);
+    const on = i < stage;
+    const cur = i === idx;
+    el("rect", { x, y: 30, width: w, height: 140, rx: 10, fill: on ? "var(--box)" : "var(--panel)", stroke: cur ? "var(--accent)" : "var(--boxline)", "stroke-width": cur ? 3 : 1 }, scene);
+    el("text", { x: x + w / 2, y: 22, "text-anchor": "middle", class: "muted" }, scene, name);
+    if (on) {
+      const c = sc.cells[i];
+      el("text", { x: x + 10, y: 60, style: "font-weight:700" }, scene, c[0]);
+      el("text", { x: x + 10, y: 98, class: "mono" }, scene, c[1]);
+      el("text", { x: x + 10, y: 130, class: "muted" }, scene, c[2]);
+    }
+    if (i < 4) el("text", { x: x + w + 3, y: 106, "font-size": "16" }, scene, on && i + 1 < stage ? "→" : "");
+  });
+  el("rect", { x: 10, y: 200, width: 940, height: 90, rx: 10, fill: "var(--panel)", stroke: "var(--boxline)" }, scene);
+  el("text", { x: 22, y: 222, class: "muted" }, scene, "что получит клиент");
+  if (stage >= 5) el("text", { x: 22, y: 254, class: "mono", style: "fill:var(--ok)" }, scene, sc.body);
+  el("rect", { x: 10, y: 310, width: 940, height: 90, rx: 10, fill: "var(--panel)", stroke: "var(--boxline)" }, scene);
+  el("text", { x: 22, y: 332, class: "muted" }, scene, "что запишет сервер в лог");
+  if (stage >= 5) el("text", { x: 22, y: 364, class: "mono", style: "fill:var(--warn)" }, scene, sc.log);
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из 5</span><br>Выбери случай и нажми «Шаг»: ошибка пойдёт слева направо.'
+    : '<span class="step">Шаг ' + (idx + 1) + ' из 5: ' + LAYERS[idx] + '</span><br>' + sc.texts[idx];
+  finish();
+}
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+const TOTAL = 5;
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < TOTAL - 1) { idx++; render(); } else stop(); }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= TOTAL - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2800);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() {
+  btnPrev.disabled = idx < 0;
+  btnNext.disabled = idx >= TOTAL - 1;
+}
+render();
+</script>
+</body>
+</html>

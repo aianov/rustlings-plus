@@ -1,0 +1,92 @@
+fn main() {}
+
+fn plain_token(token: &str) -> bool {
+    !token.is_empty() && token.chars().all(|c| c.is_ascii_graphic() && c != '*' && c != '>')
+}
+
+pub fn is_valid_subject(subject: &str) -> bool {
+    subject.split('.').all(plain_token)
+}
+
+pub fn is_valid_pattern(pattern: &str) -> bool {
+    let tokens: Vec<&str> = pattern.split('.').collect();
+    let last = tokens.len() - 1;
+    tokens.iter().enumerate().all(|(i, t)| plain_token(t) || *t == "*" || (*t == ">" && i == last))
+}
+
+pub fn matches(pattern: &str, subject: &str) -> bool {
+    if !is_valid_pattern(pattern) || !is_valid_subject(subject) {
+        return false;
+    }
+    let mut want = pattern.split('.');
+    let mut have = subject.split('.');
+    loop {
+        match (want.next(), have.next()) {
+            (Some(">"), Some(_)) => return true,
+            (Some("*"), Some(_)) => {}
+            (Some(w), Some(h)) if w == h => {}
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exact_subjects() {
+        assert!(matches("social.post.created", "social.post.created"), "одинаковые темы совпадают");
+        assert!(!matches("social.post.created", "social.post"), "короче шаблона не совпадает");
+        assert!(!matches("social.post.created", "social.post.created.alice"), "длиннее шаблона тоже");
+        assert!(!matches("social.post.created", "Social.post.created"), "регистр различается");
+    }
+
+    #[test]
+    fn star_is_exactly_one_token() {
+        assert!(matches("social.*.created", "social.post.created"), "звёздочка в середине");
+        assert!(matches("*.*", "a.b"), "две звёздочки подряд");
+        assert!(matches("*", "alice"), "одна звёздочка и одно слово");
+        assert!(!matches("*", "a.b"), "звёздочка не берёт два слова");
+        assert!(!matches("social.*", "social"), "звёздочка не берёт ноль слов");
+        assert!(!matches("social.*.created", "social.created"), "и в середине не берёт ноль слов");
+        assert!(!matches("social.*", "social.post.created"), "звёздочка не берёт хвост");
+    }
+
+    #[test]
+    fn tail_wildcard_needs_at_least_one_token() {
+        assert!(matches("social.>", "social.post"), "один токен хвоста");
+        assert!(matches("social.>", "social.post.liked.alice"), "много токенов хвоста");
+        assert!(matches(">", "anything.at.all"), "одна треугольная скобка берёт всё");
+        assert!(matches("social.*.>", "social.post.liked"), "звёздочка и хвост вместе");
+        assert!(!matches("social.>", "social"), "хвост не берёт ноль слов");
+        assert!(!matches("social.>", "notify.post"), "начало должно совпасть");
+        assert!(!matches("social.post.>", "social.user.followed"), "и середина тоже");
+    }
+
+    #[test]
+    fn what_the_broker_would_reject_matches_nothing() {
+        for pattern in ["", "a..b", ".a", "a.", "a.>.b", ">.a", "a.b*", "a.*b", "a b", "a.>x", "a\r\nb"] {
+            assert!(!is_valid_pattern(pattern), "{pattern:?} не шаблон");
+            for subject in ["a.b", "a", "", "a..b"] {
+                assert!(!matches(pattern, subject), "негодный шаблон {pattern:?} не совпадает с {subject:?}");
+            }
+        }
+        for subject in ["", "a..b", "a.", ".a", "a.*", "a.>", "*", "a b", "a\tb", "a\r\nb"] {
+            assert!(!is_valid_subject(subject), "{subject:?} не тема для публикации");
+            assert!(!matches(">", subject), "негодная тема {subject:?} не совпадает даже с `>`");
+            assert!(!matches("a.*", subject), "негодная тема {subject:?} не совпадает с `a.*`");
+        }
+    }
+
+    #[test]
+    fn valid_shapes_are_accepted() {
+        for pattern in ["a", "a.b", "*", ">", "a.*", "a.>", "*.*.>", "social.post.created.*", "a-b.c_d.9"] {
+            assert!(is_valid_pattern(pattern), "{pattern:?} годный шаблон");
+        }
+        for subject in ["a", "a.b", "social.post.created.alice", "a-b.c_d.9"] {
+            assert!(is_valid_subject(subject), "{subject:?} годная тема");
+        }
+    }
+}

@@ -1,0 +1,42 @@
+[chapter]
+title.en = "Modules"
+title.ru = "Модули"
+
+[[exercises]]
+name = "modules1"
+test = false
+hint.en = """
+Everything is private in Rust by default. But there's a keyword we can use
+to make something public!"""
+hint.ru = """В Rust всё по умолчанию приватно. Но есть ключевое слово, которым
+можно сделать что-то публичным!"""
+
+[[exercises]]
+name = "modules2"
+test = false
+hint.en = """
+The `delicious_snacks` module is trying to present an external interface that
+is different than its internal structure (the `fruits` and `veggies` modules
+and associated constants). Complete the `use` statements to fit the uses in
+`main` and find the one keyword missing for both constants.
+
+Learn more in The Book:
+https://doc.rust-lang.org/book/ch07-04-bringing-paths-into-scope-with-the-use-keyword.html#re-exporting-names-with-pub-use"""
+hint.ru = """Модуль `delicious_snacks` пытается показать наружу интерфейс, отличающийся
+от его внутреннего устройства (модули `fruits` и `veggies` и связанные с ними
+константы). Дополни инструкции `use` так, чтобы они подходили к использованию
+в `main`, и найди одно ключевое слово, недостающее обеим константам.
+
+Подробнее в книге:
+https://doc.rust-lang.ru/book/ch07-04-bringing-paths-into-scope-with-the-use-keyword.html"""
+
+[[exercises]]
+name = "modules3"
+test = false
+hint.en = """
+`UNIX_EPOCH` and `SystemTime` are declared in the `std::time` module. Add a
+`use` statement for these two to bring them into scope. You can use nested
+paths to bring these two in using only one line."""
+hint.ru = """`UNIX_EPOCH` и `SystemTime` объявлены в модуле `std::time`. Добавь для них
+инструкцию `use`, чтобы подключить их в область видимости. С вложенными путями
+обе можно подключить одной строкой."""

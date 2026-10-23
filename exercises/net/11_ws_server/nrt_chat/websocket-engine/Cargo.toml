@@ -1,0 +1,14 @@
+[package]
+name = "websocket-engine"
+version = "0.2.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+http-engine = { path = "http-engine" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "sync"] }
+bytes = "1"
+sha1 = "0.10"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }

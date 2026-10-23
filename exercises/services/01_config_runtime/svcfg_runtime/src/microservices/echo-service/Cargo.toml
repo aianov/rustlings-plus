@@ -1,0 +1,9 @@
+[package]
+name = "echo-service"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+service-runtime = { path = "../../crates/service-runtime" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "net", "io-util"] }

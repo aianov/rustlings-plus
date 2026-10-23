@@ -1,0 +1,3 @@
+[workspace]
+resolver = "3"
+members = ["src/crates/events", "src/microservices/user-service", "src/microservices/feed-service"]

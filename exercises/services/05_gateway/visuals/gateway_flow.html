@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Путь кадра через шлюз</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+svg .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+#caption { margin-top: 12px; min-height: 90px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Путь кадра через шлюз</h1>
+  <p class="sub">Кадр клиента проходит таблицу маршрутов, проверку Principal и gRPC-вызов с metadata.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 420" role="img" aria-label="Путь кадра через шлюз">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene");
+
+const LANES = ["клиент (WebSocket)", "шлюз", "user-service (gRPC)"];
+const X = [150, 480, 810];
+const SCEN = {
+  pub: { title: "публичный метод", steps: [
+    { from: 0, to: 1, label: "{id:7, service:user, method:get, data:{id:5}}", rows: [["кадр", "id=7"]], text: "Клиент шлёт кадр с id. Шлюз разбирает JSON и ищет пару (user, get) в таблице маршрутов, которую собрали при старте." },
+    { from: 1, to: 1, label: "маршрут найден, data → GetUserRequest", rows: [["кадр", "id=7"], ["маршрут", "user.get"], ["Principal", "не нужен"]], text: "Типизированная обёртка превращает JSON в запрос. Неподходящие данные дали бы invalid_argument, не 500." },
+    { from: 1, to: 2, label: "gRPC GetUser, metadata x-request-id=gw-1", rows: [["кадр", "id=7"], ["маршрут", "user.get"], ["metadata", "x-request-id=gw-1"]], text: "Вызов идёт по общему каналу с дедлайном. Шлюз добавляет request-id; user-id у анонима нет вовсе." },
+    { from: 2, to: 1, label: "User {id:5, name}", rows: [["кадр", "id=7"], ["маршрут", "user.get"], ["ответ", "ok"]], text: "Сервис ответил." },
+    { from: 1, to: 0, label: "{id:7, ok:true, data:{...}, request_id:gw-1}", rows: [["кадр", "id=7"], ["ответ", "id=7, request_id=gw-1"]], text: "Ответ несёт тот же id, по нему клиент находит свой запрос, и request_id для поддержки." }
+  ]},
+  authed: { title: "защищённый метод без токена", steps: [
+    { from: 0, to: 1, label: "{id:8, service:post, method:create, data:{...}}", rows: [["соединение", "анонимное"]], text: "Соединение открыто без токена: при подключении шлюз проверил, что токена нет, и пометил соединение анонимным." },
+    { from: 1, to: 1, label: "маршрут post.create зарегистрирован через route_authed", rows: [["соединение", "анонимное"], ["маршрут", "route_authed"], ["Principal", "нет"]], text: "Проверку делает шлюз, не обработчик. Данные кадра ещё даже не разбирались." },
+    { from: 1, to: 0, label: "{id:8, ok:false, error:{code:unauthenticated}}", rows: [["соединение", "анонимное"], ["обработчик", "не вызывался"]], text: "Анонима вернули с кодом unauthenticated. Обработчик не запускался, и подробности схемы метода остались при шлюзе.", bad: true }
+  ]},
+  forged: { title: "подделка x-user-id", steps: [
+    { from: 0, to: 1, label: "кадр с meta:{x-user-id:u-999, x-trace-id:t-1}", rows: [["соединение", "u-1 (токен)"]], text: "Вошедший пользователь u-1 пытается назваться другим: кладёт свой x-user-id в meta кадра." },
+    { from: 1, to: 1, label: "forward_metadata: белый список", rows: [["соединение", "u-1 (токен)"], ["x-user-id клиента", "отброшен"], ["x-trace-id", "пропущен"]], text: "Внутренние ключи клиент задавать не может. Пропускаются только ключи из белого списка (например, x-trace-id)." },
+    { from: 1, to: 2, label: "metadata: x-user-id=u-1 (из Principal), x-trace-id=t-1", rows: [["x-user-id", "u-1 (Principal)"], ["x-trace-id", "t-1"]], text: "Сервису уходит user-id из проверенного токена. Сервисы позади шлюза могут ему верить." }
+  ]}
+};
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  LANES.forEach((name, i) => {
+    el("text", { x: X[i], y: 24, "text-anchor": "middle", style: "font-weight:700" }, scene, name);
+    el("line", { x1: X[i], y1: 36, x2: X[i], y2: 250, stroke: "var(--boxline)", "stroke-dasharray": "4 4" }, scene);
+  });
+  for (let s = 0; s <= idx; s++) {
+    const st = sc.steps[s];
+    const y = 70 + s * 36;
+    const x1 = X[st.from], x2 = X[st.to];
+    const cur = s === idx;
+    const color = st.bad ? "var(--bad)" : cur ? "var(--accent)" : "var(--muted)";
+    if (st.from === st.to) {
+      el("rect", { x: x1 - 150, y: y - 14, width: 300, height: 22, rx: 6, fill: "var(--box)", stroke: color }, scene);
+      el("text", { x: x1, y: y + 2, "text-anchor": "middle", class: cur ? "" : "muted" }, scene, st.label);
+    } else {
+      el("line", { x1, y1: y, x2: x2 + (x2 > x1 ? -6 : 6), y2: y, stroke: color, "stroke-width": cur ? 2.5 : 1.5 }, scene);
+      el("path", { d: "M" + x2 + " " + y + " l" + (x2 > x1 ? -9 : 9) + " -5 l0 10 z", fill: color }, scene);
+      el("text", { x: (x1 + x2) / 2, y: y - 6, "text-anchor": "middle", class: cur ? "" : "muted", style: "font-size:11px" }, scene, st.label);
+    }
+  }
+  el("rect", { x: 10, y: 262, width: 940, height: 140, rx: 10, fill: "var(--panel)", stroke: "var(--boxline)" }, scene);
+  el("text", { x: 22, y: 284, class: "muted" }, scene, "контекст запроса");
+  const rows = idx >= 0 ? sc.steps[idx].rows : [];
+  rows.forEach((r, i) => {
+    el("text", { x: 30, y: 312 + i * 24, class: "mono" }, scene, r[0]);
+    el("text", { x: 330, y: 312 + i * 24, class: "mono", style: "fill:var(--accent)" }, scene, r[1]);
+  });
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>Выбери случай и нажми «Шаг».'
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + sc.steps[idx].text;
+  finish();
+}
+
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function total() { return SCEN[sel.value].steps.length; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < total() - 1) { idx++; render(); } else stop(); }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= total() - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2800);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() { btnPrev.disabled = idx < 0; btnNext.disabled = idx >= total() - 1; }
+render();
+</script>
+</body>
+</html>

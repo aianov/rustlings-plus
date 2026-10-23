@@ -1,0 +1,8 @@
+[package]
+name = "slug-kit"
+version = "0.1.0"
+edition = "2024"
+
+# TODO: сюда нужна секция [lints], а потом придётся навести порядок в src/lib.rs. См. README.md.
+
+[workspace]

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mpsc: очередь заполнилась, отправитель ждёт</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+.lbl { color:var(--muted); font-size:13px; min-width:150px; }
+.slot { width:54px; height:44px; border-radius:8px; border:2px dashed var(--line); display:flex; align-items:center; justify-content:center; font:600 16px ui-monospace,Menlo,monospace; }
+.slot.full { border-style:solid; border-color:var(--a); background:color-mix(in srgb,var(--a) 14%,transparent); }
+.slot.new { border-color:var(--ok); background:color-mix(in srgb,var(--ok) 16%,transparent); }
+.slot.lost { border-style:solid; border-color:var(--bad); color:var(--bad); background:color-mix(in srgb,var(--bad) 12%,transparent); }
+.chip { min-width:40px; height:34px; padding:0 8px; border-radius:17px; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font:600 14px ui-monospace,Menlo,monospace; }
+.chip.live { border-color:var(--a); } .chip.gone { opacity:.5; text-decoration:line-through; border-style:dashed; }
+.chip.ptr { box-shadow:0 0 0 3px color-mix(in srgb,var(--b) 55%,transparent); }
+.badge { padding:4px 12px; border-radius:12px; font:600 13px system-ui,sans-serif; border:2px solid var(--line); }
+.badge.on { border-color:var(--ok); color:var(--ok); } .badge.bad { border-color:var(--bad); color:var(--bad); } .badge.wait { border-color:var(--b); color:var(--b); }
+code { font:13px ui-monospace,Menlo,monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+</style>
+</head>
+<body>
+<h1>mpsc: очередь заполнилась, отправитель ждёт</h1>
+<p class="sub">Ограниченный канал на три места, медленный получатель. Сравни send().await и try_send.</p>
+<div class="modes"><button class="mode on" data-m="wait">send(x).await<small>ждёт места</small></button><button class="mode" data-m="try">try_send(x)<small>сразу возвращает Full</small></button></div>
+<div class="panel" id="view"></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+<script>
+
+const CAP = 3;
+const SC = {
+  wait: [
+    { q:[], pend:null, drop:null, prod:"ещё ничего не отправлено", cons:"ждёт на recv()", cap:"Канал на три места: <code>mpsc::channel(3)</code>. Очередь пуста, получатель ждёт сообщение." },
+    { q:[1], pend:null, drop:null, prod:"send(1).await: принято", cons:"ждёт на recv()", cap:"Первое сообщение легло в очередь. Место было, поэтому <code>send</code> завершился сразу." },
+    { q:[1,2], pend:null, drop:null, prod:"send(2).await: принято", cons:"занят: обрабатывает медленно", cap:"Получатель занят и в очередь не заглядывает. Отправитель продолжает: место ещё есть." },
+    { q:[1,2,3], pend:null, drop:null, prod:"send(3).await: принято", cons:"занят", cap:"Очередь заполнена: три места из трёх. Дальше отправителю придётся подождать." },
+    { q:[1,2,3], pend:4, drop:null, prod:"send(4).await: ЖДЁТ места", cons:"занят", wait:true, cap:"<b>send(4).await</b> не может положить сообщение, и задача-отправитель засыпает (поток при этом свободен, рантайм занят другими задачами). Это и есть backpressure: медленный получатель притормаживает быстрого производителя." },
+    { q:[2,3], pend:4, drop:null, prod:"всё ещё ждёт", cons:"взял 1 из очереди", cap:"Получатель вызвал <code>recv()</code> и забрал сообщение 1. В очереди появилось свободное место, и отправителя уже будят." },
+    { q:[2,3,4], pend:null, drop:null, prod:"send(4).await: принято", cons:"обрабатывает 1", cap:"Сообщение 4 заняло освободившееся место, отправитель продолжает. Производитель идёт ровно со скоростью получателя, очередь не растёт выше трёх, память не раздувается. Никакое сообщение не потеряно." }
+  ],
+  try: [
+    { q:[], pend:null, drop:null, prod:"ещё ничего не отправлено", cons:"ждёт на recv()", cap:"Тот же канал на три места, но отправитель использует <code>try_send</code>: он никогда не ждёт." },
+    { q:[1,2,3], pend:null, drop:null, prod:"try_send(1), (2), (3): Ok", cons:"занят", cap:"Три сообщения легли в очередь, получатель занят. Пока всё как раньше." },
+    { q:[1,2,3], pend:null, drop:4, prod:"try_send(4): Err(Full(4))", cons:"занят", bad:true, cap:"<b>try_send(4)</b> сразу вернул ошибку <code>Full</code> вместе с сообщением. Отправитель не уснул, но сообщение 4 теперь на совести вызывающего: он решает, выбросить его, записать в счётчик потерь или повторить позже. Если проигнорировать ошибку, сообщение потеряно." },
+    { q:[2,3], pend:null, drop:null, prod:"продолжает работать", cons:"взял 1 из очереди", cap:"Получатель забрал сообщение 1. Место освободилось, но сообщение 4 уже не вернуть." },
+    { q:[2,3,5], pend:null, drop:null, prod:"try_send(5): Ok", cons:"обрабатывает 1", cap:"Следующее сообщение прошло. Так делают там, где задержка отправителя страшнее потери: метрики, телеметрия, превью. Для данных, которые терять нельзя, берут <code>send().await</code>." }
+  ]
+};
+function slots(q, drop) {
+  let h = '';
+  for (let i=0;i<CAP;i++) h += `<div class="slot ${i<q.length?'full':''}">${i<q.length?q[i]:''}</div>`;
+  return h;
+}
+function view(s) {
+  const pend = s.pend ? `<span class="badge wait">ждёт: ${s.pend}</span>` : '';
+  const drop = s.drop ? `<span class="badge bad">выброшено: ${s.drop}</span>` : '';
+  return `<h2>Отправитель</h2><div class="row"><span class="badge ${s.wait?'wait':'on'}">${s.prod}</span>${pend}${drop}</div>
+  <h2>Очередь (${CAP} места)</h2><div class="row">${slots(s.q)}</div>
+  <h2>Получатель</h2><div class="row"><span class="badge">${s.cons}</span></div>`;
+}
+
+
+let mode = Object.keys(SC)[0], pos = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SC[mode], s = sc[pos];
+  $("view").innerHTML = view(s);
+  $("caption").innerHTML = s.cap;
+  $("counter").textContent = `шаг ${pos} из ${sc.length-1}`;
+  const end = pos >= sc.length-1;
+  $("step").disabled = end; $("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} $("play").textContent="Играть"; }
+function step(){ if(pos<SC[mode].length-1){pos++;render();} }
+function setMode(m){ stop(); mode=m; pos=0; document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("on",b.dataset.m===m)); render(); }
+document.querySelectorAll(".mode").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+$("step").onclick=()=>{stop();step();};
+$("play").onclick=()=>{ if(timer){stop();return;} $("play").textContent="Пауза"; timer=setInterval(step,1800); };
+$("reset").onclick=()=>setMode(mode);
+render();
+
+</script>
+</body>
+</html>

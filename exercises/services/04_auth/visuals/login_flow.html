@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вход и refresh-токены</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+svg .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+#caption { margin-top: 12px; min-height: 90px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Вход, обновление и кража токена</h1>
+  <p class="sub">Три рассказа о refresh-токене: обычный обмен, повтор украденного и выход на всех устройствах.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 420" role="img" aria-label="Вход, обновление и кража токена">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene");
+
+const LANES = ["клиент (телефон)", "auth-service", "таблица сессий"];
+const X = [150, 480, 810];
+const SCEN = {
+  normal: { title: "вход и обновление", steps: [
+    { from: 0, to: 1, label: "POST /login: ник и пароль", rows: [], text: "Клиент отправляет пароль по HTTP. Пароль проверяется argon2 в spawn_blocking: рантайм не замирает." },
+    { from: 1, to: 2, label: "записать хеш refresh R1", rows: [["R1", "в ходу"]], text: "Сервис хранит не сам токен, а его хеш. Утечка таблицы не даёт войти." },
+    { from: 1, to: 0, label: "access A1 (15 мин) + refresh R1", rows: [["R1", "в ходу"]], text: "Клиент получает короткий access и долгий refresh. Access подписан, его проверяют без обращения к таблице." },
+    { from: 0, to: 1, label: "POST /refresh: R1", rows: [["R1", "в ходу"]], text: "Через 15 минут access протух. Клиент меняет R1 на новую пару." },
+    { from: 1, to: 2, label: "R1 использован, добавить R2", rows: [["R1", "использован"], ["R2", "в ходу"]], text: "Проверка и пометка делаются одной неделимой операцией. R1 остаётся в таблице как использованный: это пригодится." },
+    { from: 1, to: 0, label: "access A2 + refresh R2", rows: [["R1", "использован"], ["R2", "в ходу"]], text: "Теперь у клиента R2, а R1 больше не работает." }
+  ]},
+  theft: { title: "повтор украденного refresh", steps: [
+    { from: 0, to: 1, label: "вор: POST /refresh с украденным R1", rows: [["R1", "в ходу"]], text: "У вора копия R1. Он успел первым." },
+    { from: 1, to: 2, label: "R1 использован, добавить R2", rows: [["R1", "использован"], ["R2", "у вора"]], text: "Сервис не знает, кто пришёл: токен верный. Выдаёт пару вору." },
+    { from: 0, to: 1, label: "телефон Алисы: POST /refresh с R1", rows: [["R1", "использован"], ["R2", "у вора"]], text: "Алиса открыла приложение и предъявляет тот же R1. Использованный токен предъявлен второй раз." },
+    { from: 1, to: 2, label: "погасить всё семейство", rows: [["R1", "погашен"], ["R2", "погашен"]], text: "Кто из двоих настоящий, сервис не знает. Он гасит всю цепочку, включая R2 у вора, и отзывает связанные access." },
+    { from: 1, to: 0, label: "401: войди заново", rows: [["R1", "погашен"], ["R2", "погашен"]], text: "Алисе придётся ввести пароль. У вора токенов больше нет. Другие устройства Алисы (другие семейства) не тронуты.", bad: true }
+  ]},
+  all: { title: "выход на всех устройствах", steps: [
+    { from: 0, to: 1, label: "POST /logout-all (Bearer A1)", rows: [["R1 телефон", "в ходу"], ["R7 ноутбук", "в ходу"]], text: "Телефон потерян, Алиса нажала «выйти везде» с ноутбука." },
+    { from: 1, to: 2, label: "погасить все семейства Алисы", rows: [["R1 телефон", "погашен"], ["R7 ноутбук", "погашен"]], text: "Все refresh Алисы погашены. Семейства других пользователей не затронуты." },
+    { from: 1, to: 2, label: "jti всех access в denylist до exp", rows: [["R1 телефон", "погашен"], ["R7 ноутбук", "погашен"], ["jti-A1, jti-A7", "denylist до exp"]], text: "Access подписан и живёт 15 минут. Чтобы он не работал, его jti кладут в список отозванных ровно до срока токена." },
+    { from: 1, to: 0, label: "204", rows: [["R1 телефон", "погашен"], ["R7 ноутбук", "погашен"], ["jti-A1, jti-A7", "denylist до exp"]], text: "Готово. Через 15 минут записи denylist удалит purge: охранять уже нечего." }
+  ]}
+};
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  LANES.forEach((name, i) => {
+    el("text", { x: X[i], y: 24, "text-anchor": "middle", style: "font-weight:700" }, scene, name);
+    el("line", { x1: X[i], y1: 36, x2: X[i], y2: 250, stroke: "var(--boxline)", "stroke-dasharray": "4 4" }, scene);
+  });
+  const upto = idx;
+  for (let s = 0; s <= upto; s++) {
+    const st = sc.steps[s];
+    const y = 70 + s * 32;
+    const x1 = X[st.from], x2 = X[st.to];
+    const cur = s === upto;
+    const color = st.bad ? "var(--bad)" : cur ? "var(--accent)" : "var(--muted)";
+    el("line", { x1, y1: y, x2: x2 + (x2 > x1 ? -6 : 6), y2: y, stroke: color, "stroke-width": cur ? 2.5 : 1.5 }, scene);
+    el("path", { d: "M" + x2 + " " + y + " l" + (x2 > x1 ? -9 : 9) + " -5 l0 10 z", fill: color }, scene);
+    el("text", { x: (x1 + x2) / 2, y: y - 6, "text-anchor": "middle", class: cur ? "" : "muted" }, scene, st.label);
+  }
+  el("rect", { x: 10, y: 262, width: 940, height: 140, rx: 10, fill: "var(--panel)", stroke: "var(--boxline)" }, scene);
+  el("text", { x: 22, y: 284, class: "muted" }, scene, "таблица сессий");
+  const rows = idx >= 0 ? sc.steps[idx].rows : [];
+  rows.forEach((r, i) => {
+    const bad = /погашен|denylist/.test(r[1]);
+    const thief = /вора/.test(r[1]);
+    el("text", { x: 30, y: 312 + i * 26, class: "mono" }, scene, r[0]);
+    el("rect", { x: 300, y: 298 + i * 26, width: 190, height: 20, rx: 10, fill: bad ? "var(--bad)" : thief ? "var(--warn)" : r[1] === "использован" ? "var(--boxline)" : "var(--ok)" }, scene);
+    el("text", { x: 395, y: 313 + i * 26, "text-anchor": "middle", style: "fill:#fff;font-size:12px;font-weight:700" }, scene, r[1]);
+  });
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>Выбери случай и нажми «Шаг».'
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + sc.steps[idx].text;
+  finish();
+}
+
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function total() { return SCEN[sel.value].steps.length; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < total() - 1) { idx++; render(); } else stop(); }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= total() - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2800);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() { btnPrev.disabled = idx < 0; btnNext.disabled = idx >= total() - 1; }
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+src/microservices/api-gateway/src/http/auth.rs
+src/microservices/api-gateway/src/media
+src/microservices/api-gateway/src/routes/domain.rs

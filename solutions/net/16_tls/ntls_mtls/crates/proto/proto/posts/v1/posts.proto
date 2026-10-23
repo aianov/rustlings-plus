@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package posts.v1;
+
+service Posts {
+  rpc GetPost (GetPostRequest) returns (Post);
+}
+
+message GetPostRequest {
+  uint64 id = 1;
+}
+
+message Post {
+  uint64 id = 1;
+  string text = 2;
+}

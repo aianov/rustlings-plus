@@ -1,0 +1,11 @@
+[package]
+name = "guard"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "macros", "time", "sync"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+futures = "0.3"

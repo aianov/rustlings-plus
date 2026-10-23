@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>guard через .await держит очередь остальных задач</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --c:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --c:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.row { display:grid; grid-template-columns:90px repeat(12, 1fr); gap:3px; margin-bottom:4px; align-items:stretch; }
+.row .name { align-self:center; font-size:13px; color:var(--muted); }
+.cell { min-height:26px; border-radius:5px; background:color-mix(in srgb,var(--muted) 12%,transparent); font:600 10px system-ui,sans-serif; color:#fff; display:flex; align-items:center; justify-content:center; }
+.cell.hold { background:var(--a); } .cell.wait { background:color-mix(in srgb,var(--bad) 55%,transparent); } .cell.work { background:var(--c); } .cell.cur { outline:2px solid var(--ink); }
+.axis .cell { background:none; color:var(--muted); font-weight:400; min-height:14px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+.legend { font-size:12px; color:var(--muted); margin-top:6px; } .legend b { display:inline-block; width:10px; height:10px; border-radius:2px; margin:0 4px 0 10px; vertical-align:middle; }
+@media (max-width:640px) { .row { grid-template-columns:60px repeat(12,1fr); } }
+</style>
+</head>
+<body>
+<h1>guard через .await держит очередь остальных задач</h1>
+<p class="sub">Три задачи хотят один замок. Каждая делает короткое дело под замком и долгое .await. Где это .await, определяет всё.</p>
+
+<div class="modes">
+  <button class="mode on" id="mHold">let g = m.lock().await;<small>долгое .await под замком</small></button>
+  <button class="mode" id="mFree">let v = m.lock().await.clone();<small>замок отпущен до .await</small></button>
+</div>
+
+<div class="panel">
+  <h2>Время (такты)</h2>
+  <div class="row axis" id="axis"></div>
+  <div class="row" id="rA"></div><div class="row" id="rB"></div><div class="row" id="rC"></div>
+  <div class="legend"><b style="background:var(--a)"></b>держит замок<b style="background:color-mix(in srgb,var(--bad) 55%,transparent)"></b>ждёт замок<b style="background:var(--c)"></b>работает без замка</div>
+</div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+
+<script>
+const T = 12;
+// каждая задача: 1 такт под замком (чтение), потом 3 такта долгого .await
+function simulate(hold) {
+  const lanes = { A: [], B: [], C: [] };
+  const order = ["A","B","C"];
+  let lockFreeAt = 0;
+  for (const name of order) {
+    let t = 0, lane = lanes[name];
+    const start = Math.max(t, lockFreeAt);
+    for (let i = 0; i < start; i++) lane.push("wait");
+    t = start;
+    const holdLen = hold ? 4 : 1;
+    for (let i = 0; i < holdLen; i++) lane.push("hold");
+    lockFreeAt = t + holdLen;
+    if (!hold) for (let i = 0; i < 3; i++) lane.push("work");
+    while (lane.length < T) lane.push("");
+  }
+  return lanes;
+}
+let hold = true, lanes = simulate(true), pos = 0, timer = null;
+function caption() {
+  if (pos === 0) return hold ? "Все три задачи пришли за замком одновременно. A получает его первой." : "Все три задачи пришли за замком одновременно. A получает его первой.";
+  if (hold) {
+    if (pos < 5) return "A держит замок все 4 такта, включая долгое .await. B и C стоят в очереди и ничего не делают.";
+    return pos < 9 ? "Только когда A отпустила замок, B берёт его и снова держит через своё .await. C продолжает ждать." : "Замок идёт по цепочке: задачи выполняются строго одна за другой, хотя работа у них независима. Всего 12 тактов.";
+  }
+  if (pos < 3) return "A берёт замок на один такт, копирует нужное и отпускает. Дальше её долгое .await идёт без замка.";
+  return pos < 8 ? "B и C берут замок сразу один за другим (по такту), а их долгие .await идут параллельно с A." : "Все три закончили за 6 тактов вместо 12. Замок мешает только пока его держат.";
+}
+function render() {
+  const mk = (cls, txt, cur) => `<div class="cell ${cls||""} ${cur?"cur":""}">${txt||""}</div>`;
+  let axis = '<div class="name"></div>';
+  for (let t = 0; t < T; t++) axis += mk("", t);
+  document.getElementById("axis").innerHTML = axis;
+  for (const n of ["A","B","C"]) {
+    let html = `<div class="name">задача ${n}</div>`;
+    for (let t = 0; t < T; t++) html += t < pos ? mk(lanes[n][t], lanes[n][t] ? "" : "", t === pos-1) : mk("", "", false);
+    document.getElementById("r"+n).innerHTML = html;
+  }
+  document.getElementById("caption").innerHTML = caption();
+  document.getElementById("counter").textContent = `такт ${pos} из ${T}`;
+  const end = pos >= T;
+  document.getElementById("step").disabled = end; document.getElementById("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} document.getElementById("play").textContent="Играть"; }
+function step(){ if(pos<T){pos++;render();} }
+function setMode(h){ stop(); hold=h; lanes=simulate(h); pos=0; document.getElementById("mHold").classList.toggle("on",h); document.getElementById("mFree").classList.toggle("on",!h); render(); }
+document.getElementById("mHold").onclick=()=>setMode(true);
+document.getElementById("mFree").onclick=()=>setMode(false);
+document.getElementById("step").onclick=()=>{stop();step();};
+document.getElementById("play").onclick=()=>{ if(timer){stop();return;} document.getElementById("play").textContent="Пауза"; timer=setInterval(step,700); };
+document.getElementById("reset").onclick=()=>setMode(hold);
+render();
+</script>
+</body>
+</html>

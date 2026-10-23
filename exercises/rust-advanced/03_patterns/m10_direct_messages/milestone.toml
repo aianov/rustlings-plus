@@ -1,0 +1,18 @@
+test_command = ["cargo", "make", "check"]
+hint.ru = [
+"""Иди снизу вверх и после каждого слоя запускай `cargo test -p <пакет>`: сначала contracts
+(`ChatCommand`, `Input`, новые варианты `Command` и `ParseError`), потом social-core (модуль chat,
+`send_message`, `history`, две ветки в `execute`), и только потом терминал. Тесты каждого слоя
+лежат в tests/ его пакета.""",
+"""Разбор: `let [first, args @ ..] = words.as_slice() else { ... }`, потом
+`let Some(name) = first.strip_prefix('/') else { ... }`, потом один `match (name, args)`. Порядок веток
+решает приоритет ошибок: точные формы (`("msg", [_])`) ставь выше общих (`("msg", [to, text @ ..])`),
+а `(other, _)` в самый низ. В ядре у переписки двоих один ключ: упорядоченная пара id, тогда
+alice с bob и bob с alice попадают в одну историю.""",
+"""Автомат: `match (self, command)`, где `self` это `&Session`, а команда по значению. Состояния с
+одинаковым поведением склеивай: `Session::LoggedIn { user } | Session::Chatting { user, .. }`.
+Терминал сначала зовёт `step`, потом исполняет действие, и только если оба шага прошли, пишет
+`self.session = next`. Поэтому `/login ghost` и `/msg ghost ...` сессию не меняют.""",
+]
+story.ru = """В соцсети можно шептаться: `/login`, `/msg bob привет`, `/say как дела?`, `/history bob`.
+Терминал помнит, кто ты и с кем говоришь, а на запрещённое честно отвечает, что делать вместо этого."""

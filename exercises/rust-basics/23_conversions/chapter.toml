@@ -1,0 +1,76 @@
+[chapter]
+title.en = "Conversions"
+title.ru = "Преобразования типов"
+
+[[exercises]]
+name = "conversions1"
+hint.en = """
+Use the `as` operator to cast one of the operands in the last line of the
+`average` function into the expected return type."""
+hint.ru = """Используй оператор `as`, чтобы привести один из операндов в последней строке
+функции `average` к ожидаемому возвращаемому типу."""
+
+[[exercises]]
+name = "conversions2"
+hint.en = """
+The formula for converting from Fahrenheit to Celsius is: C = (F - 32) / 1.8
+This can be derived from the first formula:
+
+             F = C * 1.8 + 32   // now subtract 32 on both sides
+        F - 32 = C * 1.8        // then divide by 1.8
+(F - 32) / 1.8 = C
+"""
+hint.ru = """Формула перевода из Фаренгейтов в Цельсии: C = (F - 32) / 1.8
+Её можно получить из первой формулы:
+
+             F = C * 1.8 + 32   // вычтем 32 из обеих частей
+        F - 32 = C * 1.8        // затем разделим на 1.8
+(F - 32) / 1.8 = C
+"""
+
+[[exercises]]
+name = "conversions3"
+hint.en = """
+The implementation of `FromStr` should return an `Ok` with a `Person` object,
+or an `Err` with an error if the string is not valid.
+
+Another hint: You can use the `map_err` method of `Result` with a function or a
+closure to wrap the error from `parse::<u8>`.
+
+Yet another hint: If you would like to propagate errors by using the `?`
+operator in your solution, you might want to look at
+https://doc.rust-lang.org/stable/rust-by-example/error/multiple_error_types/reenter_question_mark.html"""
+hint.ru = """Реализация `FromStr` должна возвращать `Ok` с объектом `Person` или `Err` с
+ошибкой, если строка некорректна.
+
+Ещё подсказка: можно использовать метод `map_err` у `Result` с функцией или
+замыканием, чтобы обернуть ошибку из `parse::<u8>`.
+
+И ещё одна: если хочешь передавать ошибки дальше оператором `?`, загляни на
+https://doc.rust-lang.org/stable/rust-by-example/error/multiple_error_types/reenter_question_mark.html"""
+
+[[exercises]]
+name = "conversions4"
+hint.en = """
+Is there an implementation of `TryFrom` in the standard library that can both do
+the required integer conversion and check the range of the input?
+
+Challenge: Can you make the `TryFrom` implementations generic over many integer
+types?"""
+hint.ru = """Есть ли в стандартной библиотеке реализация `TryFrom`, которая и преобразует
+целое число, и проверяет диапазон входного значения?
+
+Задача со звёздочкой: можешь сделать реализации `TryFrom` обобщёнными по многим
+целым типам?"""
+
+[[exercises]]
+name = "conversions5"
+hint.en = """
+Add `AsRef<str>` or `AsMut<u32>` as a trait bound to the functions."""
+hint.ru = """Добавь `AsRef<str>` или `AsMut<u32>` как ограничение трейта к функциям."""
+
+[[exercises]]
+name = "m07_text_commands"
+kind = "milestone"
+journey = "backend"
+quiz = true

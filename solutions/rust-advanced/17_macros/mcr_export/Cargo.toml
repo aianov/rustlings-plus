@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/social-macros", "crates/feed-app"]
+resolver = "3"

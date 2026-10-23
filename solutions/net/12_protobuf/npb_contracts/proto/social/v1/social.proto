@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package social.v1;
+
+import "google/protobuf/timestamp.proto";
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_MEMBER = 1;
+  ROLE_MODERATOR = 2;
+}
+
+message User {
+  reserved 4;
+  reserved "legacy_flag";
+
+  uint64 id = 1;
+  string handle = 2;
+  uint64 followers = 3;
+  optional string bio = 5;
+  Role role = 6;
+}
+
+message Post {
+  uint64 id = 1;
+  uint64 author_id = 2;
+  string text = 3;
+  int64 like_count = 4;
+  repeated string hashtags = 5;
+  map<string, uint32> reactions = 6;
+  oneof media {
+    string image_url = 7;
+    string video_url = 8;
+  }
+}
+
+message ChatMessage {
+  uint64 id = 1;
+  uint64 sender = 2;
+  uint64 to = 3;
+  string body = 4;
+  google.protobuf.Timestamp sent_at = 5;
+}

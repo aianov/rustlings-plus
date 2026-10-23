@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дедлок: два замка в разном порядке</title>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--line:#c9c7bd;--acc:#c2410c;--ok:#15803d;--okbg:#dcfce7;--bad:#b91c1c;--badbg:#fee2e2;--warn:#a16207;--warnbg:#fef9c3;--btn:#1d1d1b;--btnfg:#fff;--hot:#fff1e6}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#ecebe6;--mut:#9a9a92;--card:#201f1d;--line:#46443f;--acc:#fb923c;--ok:#4ade80;--okbg:#14301d;--bad:#f87171;--badbg:#3a1a1a;--warn:#facc15;--warnbg:#3a3312;--btn:#ecebe6;--btnfg:#161614;--hot:#33241a}}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--mut);margin:0 0 14px}
+.panel{max-width:860px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;min-height:150px}
+.row{display:flex;gap:10px;align-items:center;font:13px ui-monospace,Menlo,Consolas,monospace;border:2px solid var(--line);border-radius:8px;padding:7px 10px;margin:6px 0}
+.row.ok{border-color:var(--ok);background:var(--okbg)}
+.row.no{border-color:var(--bad);background:var(--badbg);text-decoration:line-through;opacity:.75}
+.row.hot{border-color:var(--warn);background:var(--warnbg)}
+.row .tag{margin-left:auto;font:12px system-ui,sans-serif;color:var(--mut);text-decoration:none}
+.box{display:inline-block;font:13px ui-monospace,Menlo,Consolas,monospace;border:2px solid var(--line);border-radius:8px;padding:8px 12px;margin:4px 6px 4px 0;vertical-align:top}
+.box.ok{border-color:var(--ok);background:var(--okbg)}
+.box.hot{border-color:var(--warn);background:var(--warnbg)}
+.box.no{border-color:var(--bad);background:var(--badbg)}
+.box small{display:block;color:var(--mut);font:12px system-ui,sans-serif}
+.arrow{display:inline-block;margin:0 4px;color:var(--mut);font-size:18px;vertical-align:middle}
+.note{margin:12px 0;padding:12px 14px;border-left:4px solid var(--acc);background:var(--card);border-radius:0 8px 8px 0;min-height:76px;max-width:860px}
+.bar2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:860px}
+button{font:inherit;padding:7px 14px;border-radius:8px;border:0;background:var(--btn);color:var(--btnfg);cursor:pointer}
+button.alt{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button:disabled{opacity:.4;cursor:default}
+.cnt{color:var(--mut);margin-left:auto}
+</style>
+</head>
+<body>
+<h1>Дедлок: два замка в разном порядке</h1>
+<p class="sub">Круг ожиданий и общий порядок захвата</p>
+<div class="panel" id="panel"></div>
+<div class="note" id="note"></div>
+<div class="bar2">
+  <button id="step">Шаг</button>
+  <button id="play" class="alt">Играть</button>
+  <button id="reset" class="alt">Сначала</button>
+  <span class="cnt" id="cnt"></span>
+</div>
+<script>
+const steps=[{"p": "<div style=\"margin:8px 0 10px\"><span class=\"box ok\" style=\"margin:0 8px 0 0\">замок m1: свободен</span><span class=\"box ok\" style=\"margin:0 8px 0 0\">замок m2: свободен</span></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток A</b></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток B</b></div>", "n": "Два замка и два потока. Поток A берёт их в порядке m1, потом m2. Поток B в обратном: m2, потом m1."}, {"p": "<div style=\"margin:8px 0 10px\"><span class=\"box hot\" style=\"margin:0 8px 0 0\">замок m1: у A</span><span class=\"box ok\" style=\"margin:0 8px 0 0\">замок m2: свободен</span></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток A</b><div class=\"box ok\" style=\"margin:0\">взял m1</div></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток B</b></div>", "n": "A взял m1."}, {"p": "<div style=\"margin:8px 0 10px\"><span class=\"box hot\" style=\"margin:0 8px 0 0\">замок m1: у A</span><span class=\"box hot\" style=\"margin:0 8px 0 0\">замок m2: у B</span></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток A</b><div class=\"box ok\" style=\"margin:0\">взял m1</div></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток B</b><div class=\"box ok\" style=\"margin:0\">взял m2</div></div>", "n": "B взял m2. Пока всё разрешено: замки разные."}, {"p": "<div style=\"margin:8px 0 10px\"><span class=\"box hot\" style=\"margin:0 8px 0 0\">замок m1: у A</span><span class=\"box hot\" style=\"margin:0 8px 0 0\">замок m2: у B</span></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток A</b><div class=\"box ok\" style=\"margin:0\">взял m1</div><div class=\"box no\" style=\"margin:0\">ждёт m2</div></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток B</b><div class=\"box ok\" style=\"margin:0\">взял m2</div></div>", "n": "A идёт за вторым замком и видит, что m2 занят. Он ждёт B."}, {"p": "<div style=\"margin:8px 0 10px\"><span class=\"box no\" style=\"margin:0 8px 0 0\">замок m1: у A</span><span class=\"box no\" style=\"margin:0 8px 0 0\">замок m2: у B</span></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток A</b><div class=\"box ok\" style=\"margin:0\">взял m1</div><div class=\"box no\" style=\"margin:0\">ждёт m2</div></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток B</b><div class=\"box ok\" style=\"margin:0\">взял m2</div><div class=\"box no\" style=\"margin:0\">ждёт m1</div></div>", "n": "B идёт за m1 и видит, что он у A. Каждый держит то, что нужно другому, и ждёт чужое. Это дедлок: никто не продвинется никогда, ни паники, ни ошибки."}, {"p": "<div style=\"margin:8px 0 10px\"><span class=\"box ok\" style=\"margin:0 8px 0 0\">замок m1: свободен</span><span class=\"box ok\" style=\"margin:0 8px 0 0\">замок m2: свободен</span></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток A</b><div class=\"box ok\" style=\"margin:0\">m1</div><div class=\"box ok\" style=\"margin:0\">m2</div></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток B</b><div class=\"box hot\" style=\"margin:0\">ждёт m1</div></div>", "n": "Лечение: общий порядок. Все берут сначала m1, потом m2. Если A успел первым, B встаёт на m1 и ждёт."}, {"p": "<div style=\"margin:8px 0 10px\"><span class=\"box ok\" style=\"margin:0 8px 0 0\">замок m1: свободен</span><span class=\"box ok\" style=\"margin:0 8px 0 0\">замок m2: свободен</span></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток A</b><div class=\"box ok\" style=\"margin:0\">m1</div><div class=\"box ok\" style=\"margin:0\">m2</div><div class=\"box ok\" style=\"margin:0\">готово</div></div><div style=\"display:flex;gap:6px;align-items:center;margin:6px 0\"><b style=\"width:90px\">поток B</b><div class=\"box hot\" style=\"margin:0\">ждёт m1</div><div class=\"box ok\" style=\"margin:0\">m1</div><div class=\"box ok\" style=\"margin:0\">m2</div><div class=\"box ok\" style=\"margin:0\">готово</div></div>", "n": "A закончил и отпустил оба, B прошёл следом. Цикл ожидания невозможен, потому что замок с большим номером никогда не ждёт замок с меньшим."}];
+let i=0,timer=null;
+function stop(){if(timer){clearInterval(timer);timer=null;}document.getElementById('play').textContent='Играть';}
+function frame(){document.getElementById('panel').innerHTML=steps[i].p;document.getElementById('note').textContent=steps[i].n;document.getElementById('cnt').textContent='шаг '+(i+1)+' из '+steps.length;document.getElementById('step').disabled=i>=steps.length-1;if(i>=steps.length-1)stop();}
+document.getElementById('step').onclick=()=>{if(i<steps.length-1){i++;frame();}};
+document.getElementById('reset').onclick=()=>{stop();i=0;frame();};
+document.getElementById('play').onclick=()=>{if(timer){stop();return;}if(i>=steps.length-1){i=0;frame();}document.getElementById('play').textContent='Пауза';timer=setInterval(()=>{if(i<steps.length-1){i++;frame();}else stop();},3000);};
+frame();
+</script>
+</body>
+</html>

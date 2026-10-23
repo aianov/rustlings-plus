@@ -1,0 +1,14 @@
+{
+  "event_id": "evt-post.commented",
+  "type": "post.commented",
+  "schema": 1,
+  "version": 1,
+  "occurred_at": 1700000000000,
+  "aggregate_id": "p_10",
+  "payload": {
+    "author_id": "u_1",
+    "comment_id": "c_3",
+    "commenter_id": "u_2",
+    "post_id": "p_10"
+  }
+}

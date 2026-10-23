@@ -1,0 +1,70 @@
+[chapter]
+title.en = "Intro"
+title.ru = "Введение"
+
+[[chapter.visuals]]
+file = "visuals/flow.html"
+title = "Flow"
+
+[[exercises]]
+name = "compilation_success"
+test = false
+
+[[exercises]]
+name = "compilation_failure"
+test = false
+
+[[exercises]]
+name = "test_success"
+hint.en = "English hint"
+hint.ru = "Русская подсказка"
+
+[[exercises]]
+name = "test_failure"
+hint = "The answer to everything: 42"
+why.en = "Returning the value directly is the simplest correct answer."
+why.ru = "Вернуть значение напрямую проще всего."
+
+[[exercises]]
+name = "reads_input"
+test = false
+input_files = ["data.txt"]
+style = "todo"
+hint.en = ["First step.", "Second step."]
+hint.ru = ["Первая ступень.", "Вторая ступень."]
+
+[[exercises]]
+name = "q_order"
+kind = "question"
+question.en = """What does this print?
+```rust
+println!("{}", 1 + 1);
+```"""
+question.ru = """Что напечатает программа?
+```rust
+println!("{}", 1 + 1);
+```"""
+options = ["1", "2", "11"]
+answer = [1]
+explain.en = "Integers add up, so it prints 2."
+explain.ru = "Целые числа складываются, поэтому будет 2."
+
+[[exercises]]
+name = "q_multi"
+kind = "question"
+question = "Which of these are integer types?"
+options = ["i32", "f64", "u8"]
+answer = [0, 2]
+explain = "i32 and u8 are integers, f64 is a float."
+
+[[exercises]]
+name = "q_text"
+kind = "question"
+question = "The answer to everything?"
+answer_text = ["42", "forty two"]
+explain = "Douglas Adams said so."
+
+[[exercises]]
+name = "needs_pg"
+test = false
+requires = ["postgres"]

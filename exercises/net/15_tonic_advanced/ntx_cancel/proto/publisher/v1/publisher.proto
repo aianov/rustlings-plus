@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package publisher.v1;
+
+service Publisher {
+  rpc Publish (PublishRequest) returns (PublishReply);
+}
+
+message PublishRequest {
+  string text = 1;
+}
+
+message PublishReply {
+  uint64 id = 1;
+}

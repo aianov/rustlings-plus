@@ -1,0 +1,77 @@
+[workspace]
+resolver = "3"
+members = ["src/crates/*", "src/microservices/*", "tools/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[workspace.dependencies]
+contracts = { path = "src/crates/contracts" }
+framing = { path = "src/crates/framing" }
+http-engine = { path = "src/crates/http-engine" }
+http-client = { path = "src/crates/http-client" }
+websocket-engine = { path = "src/crates/websocket-engine" }
+sha1 = "0.10"
+minifuzz = { path = "src/crates/minifuzz" }
+getrandom = "0.3"
+social-cli = { path = "tools/social-cli" }
+bytes = "1"
+service-runtime = { path = "src/crates/service-runtime" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+proto = { path = "src/crates/proto" }
+grpc-kit = { path = "src/crates/grpc-kit" }
+journal = { path = "src/crates/journal" }
+admin = { path = "src/crates/admin" }
+validation = { path = "src/crates/validation" }
+certgen = { path = "src/crates/certgen" }
+tls-edge = { path = "src/crates/tls-edge" }
+chat-service = { path = "src/microservices/chat-service" }
+auth-service = { path = "src/microservices/auth-service" }
+user-service = { path = "src/microservices/user-service" }
+post-service = { path = "src/microservices/post-service" }
+notify-service = { path = "src/microservices/notify-service" }
+feed-service = { path = "src/microservices/feed-service" }
+nats-engine = { path = "src/crates/nats-engine" }
+jobs = { path = "src/crates/jobs" }
+files = { path = "src/crates/files" }
+async-nats = "=0.36.0"
+futures = "0.3"
+prost = "=0.14.4"
+tonic = { version = "=0.14.6", features = ["tls-ring"] }
+tonic-prost = "=0.14.6"
+tonic-prost-build = "=0.14.6"
+tokio-stream = { version = "0.1", features = ["net"] }
+tonic-health = "=0.14.6"
+tower = { version = "0.5", default-features = false }
+http = "1"
+rcgen = { version = "=0.13.2", default-features = false, features = ["ring", "pem"] }
+x509-parser = "0.16"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pki-types = "1"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+argon2 = "0.5"
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "macros", "io-util", "fs", "net", "signal"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
+
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.release]
+lto = true
+codegen-units = 1

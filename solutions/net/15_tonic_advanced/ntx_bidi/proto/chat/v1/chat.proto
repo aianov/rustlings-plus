@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package chat.v1;
+
+service Chat {
+  rpc Talk (stream ChatIn) returns (stream ChatOut);
+}
+
+message ChatIn {
+  oneof kind {
+    Join join = 1;
+    Say say = 2;
+  }
+}
+
+message Join {
+  string name = 1;
+}
+
+message Say {
+  string text = 1;
+}
+
+message ChatOut {
+  string from = 1;
+  string text = 2;
+}

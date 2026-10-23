@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Блокировки строк: ожидание и дедлок</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --g1:#e8f6ec; --g2:#fff4cc; --g3:#fde8e8; --g4:#e6e9fb; --bad:#b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --g1:#1c3326; --g2:#4a3f12; --g3:#3b2024; --g4:#262c52; --bad:#ff8a80; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:960px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.cur td { outline:2px solid var(--accent); outline-offset:-2px; }
+tr.a0 td { background:var(--g1); } tr.a1 td { background:var(--g2); } tr.a2 td { background:var(--g3); } tr.a3 td { background:var(--g4); }
+tr.out td { color:var(--muted); text-decoration:line-through; }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.note { min-height:3.6em; } .note b { color:var(--accent); } .note b.bad { color:var(--bad); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Блокировки строк</h1>
+  <p class="lead">Писатели одной строки выстраиваются в очередь, а при встречном порядке образуется цикл ожиданий.</p>
+  <div class="card controls">
+    <select id="mode"><option value="wait">ожидание на блокировке строки</option><option value="deadlock">дедлок встречных обновлений</option></select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card grid">
+    <div><h3>что выполняют сессии</h3><pre id="log"></pre></div>
+    <div><h3 id="thead">состояние</h3><table id="tbl"></table></div>
+  </div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var SC = {"wait": {"name": "ожидание на блокировке строки", "table": "блокировка строки posts (id = 1)", "head": ["сессия", "состояние"], "start": {"note": "Две сессии хотят изменить один и тот же пост.", "rows": [["A", "свободна"], ["B", "свободна"]]}, "steps": [{"ev": "A: BEGIN; UPDATE posts SET body = 'x' WHERE id = 1", "note": "A изменила строку и <b>держит блокировку</b> до конца своей транзакции.", "rows": [["A", "держит строку 1"], ["B", "свободна"]], "hl": [0], "bad": []}, {"ev": "B: UPDATE posts SET body = 'y' WHERE id = 1", "note": "B запросила ту же строку и <b>встала в ожидание</b>. Сама строка читается всеми (читатели не блокируются), ждут только писатели. pg_blocking_pids(B) вернёт номер процесса A.", "rows": [["A", "держит строку 1"], ["B", "ждёт A"]], "hl": [0], "bad": [1]}, {"ev": "A: COMMIT", "note": "Блокировка снята, B просыпается и выполняет свой UPDATE поверх изменения A.", "rows": [["A", "закончила"], ["B", "работает"]], "hl": [1], "bad": []}]}, "deadlock": {"name": "дедлок встречных обновлений", "table": "блокировки строк users (1 и 2)", "head": ["сессия", "держит", "ждёт"], "start": {"note": "Обе сессии обновляют пару строк, но в разном порядке: A сначала 1, потом 2; B сначала 2, потом 1.", "rows": [["A", "-", "-"], ["B", "-", "-"]]}, "steps": [{"ev": "A: UPDATE users ... WHERE id = 1", "note": "A взяла строку 1.", "rows": [["A", "1", "-"], ["B", "-", "-"]], "hl": [0], "bad": []}, {"ev": "B: UPDATE users ... WHERE id = 2", "note": "B взяла строку 2.", "rows": [["A", "1", "-"], ["B", "2", "-"]], "hl": [0, 1], "bad": []}, {"ev": "A: UPDATE users ... WHERE id = 2", "note": "A просит строку 2, которую держит B, и ждёт.", "rows": [["A", "1", "2 (держит B)"], ["B", "2", "-"]], "hl": [1], "bad": [0]}, {"ev": "B: UPDATE users ... WHERE id = 1", "note": "B просит строку 1, которую держит A. <b>Цикл ожидания</b>: каждый ждёт другого.", "rows": [["A", "1", "2 (держит B)"], ["B", "2", "1 (держит A)"]], "hl": [], "bad": [0, 1]}, {"ev": "через deadlock_timeout (1 с)", "note": "Postgres находит цикл и прерывает одну транзакцию ошибкой <b>40P01</b>; вторая продолжает. Лекарство: все берут строки в одном порядке (по возрастанию id), тогда цикл невозможен.", "rows": [["A", "прервана 40P01", "-"], ["B", "2, потом 1", "-"]], "hl": [1], "bad": [0]}]}};
+  var $ = function (id) { return document.getElementById(id); };
+  var i = 0, timer = null, total = 0;
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function render() {
+    var sc = SC[$('mode').value]; total = sc.steps.length;
+    var log = [];
+    for (var k = 0; k < i; k++) log.push((k === i - 1 ? '> ' : '  ') + sc.steps[k].ev);
+    $('log').textContent = log.join('\n') || '(пока ничего)';
+    var st = i > 0 ? sc.steps[i - 1] : sc.start;
+    $('thead').textContent = sc.table;
+    $('tbl').innerHTML = '<tr>' + sc.head.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr>' + st.rows.map(function (r, idx) {
+      var cls = (st.hl || []).indexOf(idx) >= 0 ? 'a1' : ((st.bad || []).indexOf(idx) >= 0 ? 'a2' : '');
+      return '<tr class="' + cls + '">' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    $('note').innerHTML = st.note;
+    $('counter').textContent = 'шаг ' + i + ' из ' + total;
+    $('step').disabled = i >= total;
+    if (i >= total) stop();
+  }
+  function reset() { stop(); i = 0; render(); }
+  $('step').onclick = function () { if (i < total) { i++; render(); } };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () {
+    if (timer) { stop(); return; }
+    if (i >= total) i = 0;
+    $('play').textContent = 'Пауза';
+    timer = setInterval(function () { if (i >= total) { stop(); return; } i++; render(); }, 1400);
+    i++; render();
+  };
+  reset();
+})();
+</script>
+</body>
+</html>

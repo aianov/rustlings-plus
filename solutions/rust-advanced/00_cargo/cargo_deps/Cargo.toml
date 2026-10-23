@@ -1,0 +1,15 @@
+[package]
+name = "report-tool"
+version = "0.2.0"
+edition = "2024"
+
+[dependencies]
+fmtkit = { path = "crates/fmtkit" }
+
+[dev-dependencies]
+testkit = { path = "crates/testkit" }
+
+[build-dependencies]
+stamp = { path = "crates/stamp" }
+
+[workspace]

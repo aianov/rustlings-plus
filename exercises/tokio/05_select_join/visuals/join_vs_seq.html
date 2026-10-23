@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>join! против двух await подряд на шкале времени</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+.lbl { color:var(--muted); font-size:13px; min-width:150px; }
+.slot { width:54px; height:44px; border-radius:8px; border:2px dashed var(--line); display:flex; align-items:center; justify-content:center; font:600 16px ui-monospace,Menlo,monospace; }
+.slot.full { border-style:solid; border-color:var(--a); background:color-mix(in srgb,var(--a) 14%,transparent); }
+.slot.new { border-color:var(--ok); background:color-mix(in srgb,var(--ok) 16%,transparent); }
+.slot.lost { border-style:solid; border-color:var(--bad); color:var(--bad); background:color-mix(in srgb,var(--bad) 12%,transparent); }
+.chip { min-width:40px; height:34px; padding:0 8px; border-radius:17px; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font:600 14px ui-monospace,Menlo,monospace; }
+.chip.live { border-color:var(--a); } .chip.gone { opacity:.5; text-decoration:line-through; border-style:dashed; }
+.chip.ptr { box-shadow:0 0 0 3px color-mix(in srgb,var(--b) 55%,transparent); }
+.badge { padding:4px 12px; border-radius:12px; font:600 13px system-ui,sans-serif; border:2px solid var(--line); }
+.badge.on { border-color:var(--ok); color:var(--ok); } .badge.bad { border-color:var(--bad); color:var(--bad); } .badge.wait { border-color:var(--b); color:var(--b); }
+code { font:13px ui-monospace,Menlo,monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+.bar { position:relative; height:26px; border-radius:6px; background:color-mix(in srgb,var(--line) 40%,transparent); margin:4px 0 4px 0; overflow:hidden; }
+.fill { position:absolute; left:0; top:0; bottom:0; border-radius:6px; background:color-mix(in srgb,var(--a) 35%,transparent); border:2px solid var(--a); }
+.fill.b { background:color-mix(in srgb,var(--b) 35%,transparent); border-color:var(--b); }
+.fill.won { background:color-mix(in srgb,var(--ok) 35%,transparent); border-color:var(--ok); }
+.fill.dropped { background:color-mix(in srgb,var(--bad) 18%,transparent); border-color:var(--bad); border-style:dashed; }
+.fill.idle { background:transparent; border-style:dashed; border-color:var(--line); }
+.cursor { position:absolute; top:0; bottom:0; width:2px; background:var(--ink); opacity:.7; }
+.name { font:13px ui-monospace,Menlo,monospace; color:var(--muted); margin-top:6px; }
+.log { font:13px ui-monospace,Menlo,monospace; background:var(--code); border-radius:8px; padding:8px 10px; min-height:44px; white-space:pre-wrap; }
+.axis { position:relative; height:18px; font:11px system-ui; color:var(--muted); }
+.axis span { position:absolute; transform:translateX(-50%); }
+</style>
+</head>
+<body>
+<h1>join! против await подряд</h1>
+<p class="sub">Три независимых запроса: сколько ждёт страница, если ждать по очереди, и сколько, если вместе.</p>
+<div class="modes"><button class="mode on" data-m="seq" >Два await подряд<small>время = сумма</small></button><button class="mode" data-m="join">join!<small>время = самый долгий</small></button></div>
+<div class="panel" id="view"></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+<script>
+
+const TOTAL = 200;
+const REQ = [{n:"name()      100 мс", d:100},{n:"followers() 60 мс", d:60},{n:"last_post() 40 мс", d:40}];
+function bars(ranges, now, doneAt) {
+  return ranges.map((r,i)=>({n:REQ[i].n, a:r[0], b:r[1], now, state: now>=r[1]?"won":(now>r[0]?"run":"idle")}));
+}
+const SC = {
+  seq: [
+    { now:0, r:[[0,100],[100,160],[160,200]], cap:"Три запроса записаны один за другим: <code>let name = store.name(id).await; let f = store.followers(id).await; ...</code>. Пока первый не вернулся, второй даже не начат (future ленивый)." },
+    { now:100, r:[[0,100],[100,160],[160,200]], cap:"На 100 мс вернулся первый. Только теперь стартует второй." },
+    { now:160, r:[[0,100],[100,160],[160,200]], cap:"На 160 мс вернулся второй, стартует третий." },
+    { now:200, r:[[0,100],[100,160],[160,200]], cap:"Страница готова через 200 мс: сумма времён. Хотя запросы друг от друга не зависят." }
+  ],
+  join: [
+    { now:0, r:[[0,100],[0,60],[0,40]], cap:"<code>tokio::join!(store.name(id), store.followers(id), store.last_post(id))</code>: все три future стартуют вместе и опрашиваются по очереди одной задачей." },
+    { now:40, r:[[0,100],[0,60],[0,40]], cap:"На 40 мс готов самый короткий запрос. Результат ждёт остальных внутри <code>join!</code>." },
+    { now:60, r:[[0,100],[0,60],[0,40]], cap:"На 60 мс готов второй." },
+    { now:100, r:[[0,100],[0,60],[0,40]], cap:"Страница готова через 100 мс: время самого долгого запроса. Отдельных задач нет, всё в одной, поэтому future могут брать данные по ссылке." }
+  ]
+};
+
+
+function view(s) {
+  const rows = s.r.map((r,i)=>{
+    const st = s.now>=r[1]?"won":(s.now>r[0]?"":"idle");
+    const w = Math.max(0, Math.min(s.now, r[1]) - r[0]);
+    return `<div class="name">${REQ[i].n}</div><div class="bar"><div class="fill ${st}" style="left:${r[0]/TOTAL*100}%;width:${Math.max(0.8,w/TOTAL*100)}%"></div><div class="cursor" style="left:${s.now/TOTAL*100}%"></div></div>`;
+  }).join('');
+  let axis = "";
+  for (let t=0; t<=200; t+=50) axis += `<span style="left:${t/TOTAL*100}%">${t} мс</span>`;
+  return `<h2>Время: ${s.now} мс</h2>${rows}<div class="axis">${axis}</div>`;
+}
+
+let mode = Object.keys(SC)[0], pos = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SC[mode], s = sc[pos];
+  $("view").innerHTML = view(s);
+  $("caption").innerHTML = s.cap;
+  $("counter").textContent = `шаг ${pos} из ${sc.length-1}`;
+  const end = pos >= sc.length-1;
+  $("step").disabled = end; $("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} $("play").textContent="Играть"; }
+function step(){ if(pos<SC[mode].length-1){pos++;render();} }
+function setMode(m){ stop(); mode=m; pos=0; document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("on",b.dataset.m===m)); render(); }
+document.querySelectorAll(".mode").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+$("step").onclick=()=>{stop();step();};
+$("play").onclick=()=>{ if(timer){stop();return;} $("play").textContent="Пауза"; timer=setInterval(step,1800); };
+$("reset").onclick=()=>setMode(mode);
+render();
+</script>
+</body>
+</html>

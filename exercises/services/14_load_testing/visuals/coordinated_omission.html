@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Скоординированное упущение</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+#caption { margin-top: 12px; min-height: 84px; }
+.step { color: var(--muted); font-size: 13px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Скоординированное упущение</h1>
+  <p class="sub">Закрытый генератор молчит вместе с сервером и не замечает простоя, открытый шлёт по расписанию и считает от назначенного момента.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 430" role="img" aria-label="Скоординированное упущение"><g id="scene"></g></svg>
+    <div class="legend"><span><i class="sw" style="background:var(--accent)"></i>момент по расписанию</span><span><i class="sw" style="background:var(--ok)"></i>быстрый ответ</span><span><i class="sw" style="background:var(--warn)"></i>замер закрытого цикла</span><span><i class="sw" style="background:var(--bad)"></i>простой сервера и ожидание в очереди</span></div>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+const SCEN = {"co": {"title": "сервер замер на секунду", "intro": "Запросы по расписанию каждые 100 мс. Посреди прогона сервер замер на секунду. Что увидит каждый генератор?", "steps": [{"text": "Расписание: запрос должен уходить каждые 100 мс (ось в миллисекундах). Так живут настоящие пользователи: они приходят, когда им нужно.", "show": ["sched"]}, {"text": "Сервер замирает с 300 до 1300 мс (пауза сборщика мусора, блокировка в базе). Ответ в это время не придёт ни на один запрос.", "show": ["sched", "stall"]}, {"text": "Закрытый генератор: отправил запрос в 300 мс и ждёт ответа. Следующие, назначенные на 400...1200, он не отправил, потому что занят ожиданием. В отчёте они не существуют, а замер один.", "show": ["sched", "stall", "closed"]}, {"text": "Открытый генератор: запросы уходят по расписанию, невзирая на затор. Каждый ждёт ответа и считает задержку от назначенного момента: 1020, 920, 820... до 120 мс. Десять замеров вместо одного.", "show": ["sched", "stall", "closed", "open"]}, {"text": "Сравни числа. Когда за прогон идёт 600 запросов, закрытый цикл покажет p99 около 20 мс («всё хорошо»), открытый около 420 мс, а p99.9 у открытого 1020 мс. Простой попал в отчёт только у открытого.", "show": ["sched", "stall", "closed", "open", "stats"]}]}};
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene"), cap = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btn = id => document.getElementById(id);
+let idx = -1, timer = null;
+Object.keys(SCEN).forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); });
+function caption() {
+  const sc = SCEN[sel.value];
+  const sub = idx < 0 ? sc.intro : sc.steps[idx].text;
+  cap.innerHTML = "";
+  const s = document.createElement("div"); s.className = "step"; s.textContent = idx < 0 ? "Начало" : "Шаг " + (idx + 1) + " из " + sc.steps.length; cap.appendChild(s);
+  const p = document.createElement("div"); p.textContent = sub; cap.appendChild(p);
+  btn("prev").disabled = idx < 0; btn("next").disabled = idx >= sc.steps.length - 1;
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; btn("play").textContent = "Играть"; } }
+btn("next").onclick = () => { stop(); if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } };
+btn("prev").onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btn("reset").onclick = () => { stop(); idx = -1; render(); };
+sel.onchange = () => { stop(); idx = -1; render(); };
+btn("play").onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= SCEN[sel.value].steps.length - 1) idx = -1;
+  btn("play").textContent = "Пауза";
+  timer = setInterval(() => { if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } else stop(); }, 2200);
+  if (idx < 0) { idx = 0; render(); }
+};
+btn("theme").onclick = () => {
+  const r = document.documentElement, cur = r.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  r.setAttribute("data-theme", dark ? "light" : "dark");
+};
+
+
+const X0 = 70, SCALE = 0.42, MAXT = 2000;
+const tx = t => X0 + t * SCALE;
+function bar(t0, t1, y, color, label) {
+  el("rect", { x: tx(t0), y: y, width: Math.max(2, (t1 - t0) * SCALE), height: 22, rx: 4, fill: color, opacity: 0.9 }, scene);
+  if (label) el("text", { x: tx(t0) + 4, y: y + 15, style: "fill:#fff;font-size:11px" }, scene, label);
+}
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value], step = idx >= 0 ? sc.steps[idx] : null;
+  const show = new Set(step ? step.show : []);
+  el("line", { x1: X0, y1: 330, x2: tx(MAXT), y2: 330, stroke: "var(--boxline)" }, scene);
+  for (let t = 0; t <= MAXT; t += 200) { el("text", { x: tx(t), y: 348, "text-anchor": "middle", class: "muted" }, scene, t + " мс"); }
+  const rows = { sched: 40, stall: 100, closed: 170, open: 250 };
+  el("text", { x: 4, y: 56, class: "muted" }, scene, "расписание");
+  el("text", { x: 4, y: 116, class: "muted" }, scene, "сервер");
+  el("text", { x: 4, y: 186, class: "muted" }, scene, "закрытый");
+  el("text", { x: 4, y: 266, class: "muted" }, scene, "открытый");
+  if (show.has("sched")) for (let t = 0; t < MAXT; t += 100) { el("line", { x1: tx(t), y1: 40, x2: tx(t), y2: 62, stroke: "var(--accent)", "stroke-width": 2 }, scene); }
+  if (show.has("stall")) { bar(300, 1300, 100, "var(--bad)", "замер"); }
+  else if (idx >= 0) { bar(0, MAXT, 100, "var(--ok)", ""); }
+  if (show.has("closed")) {
+    [0, 100, 200].forEach(t => bar(t, t + 20, 170, "var(--ok)", ""));
+    bar(300, 1320, 170, "var(--warn)", "ждёт ответа: 1020 мс");
+    for (let t = 1400; t < MAXT; t += 100) bar(t, t + 20, 170, "var(--ok)", "");
+    el("text", { x: tx(1330), y: 215, style: "fill:var(--muted);font-size:11px" }, scene, "9 запросов по расписанию так и не отправлены");
+  }
+  if (show.has("open")) {
+    [0, 100, 200].forEach(t => bar(t, t + 20, 250, "var(--ok)", ""));
+    for (let t = 300; t <= 1200; t += 100) { el("rect", { x: tx(t), y: 228 + (t - 300) / 100 * 7, width: (1320 - t) * SCALE, height: 5, rx: 2, fill: "var(--bad)", opacity: 0.85 }, scene); }
+    for (let t = 1300; t < MAXT; t += 100) bar(t, t + 20, 250, "var(--ok)", "");
+  }
+  if (show.has("stats")) {
+    const N = 600, fast = 20;
+    const closed = Array(N - 10).fill(fast).concat([1020]);
+    const open = Array(N - 10).fill(fast).concat([1020, 920, 820, 720, 620, 520, 420, 320, 220, 120]);
+    const q = (a, p) => { const s = a.slice().sort((x, y) => x - y); return s[Math.max(1, Math.ceil(p * s.length)) - 1]; };
+    const box = (x, title, a) => {
+      el("rect", { x, y: 365, width: 400, height: 48, rx: 8, fill: "var(--box)", stroke: "var(--boxline)" }, scene);
+      el("text", { x: x + 10, y: 384, "font-weight": "600" }, scene, title);
+      el("text", { x: x + 10, y: 404 }, scene, "замеров " + a.length + ", p99 = " + q(a, 0.99) + " мс, p99.9 = " + q(a, 0.999) + " мс");
+    };
+    box(70, "закрытый: простой не виден", closed);
+    box(490, "открытый: простой в отчёте", open);
+  }
+  caption();
+}
+
+render();
+</script>
+</body>
+</html>

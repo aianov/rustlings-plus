@@ -1,0 +1,10 @@
+src/lib.rs
+src/main.rs
+src/command
+src/domain
+src/network
+src/notify
+src/ports
+src/shared
+src/storage
+tests

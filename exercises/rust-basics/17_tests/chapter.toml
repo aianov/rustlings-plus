@@ -1,0 +1,50 @@
+[chapter]
+title.en = "Tests"
+title.ru = "Тесты"
+
+[[exercises]]
+name = "tests1"
+hint.en = """
+`assert!` is a macro that needs an argument. Depending on the value of the
+argument, `assert!` will do nothing (in which case the test will pass) or
+`assert!` will panic (in which case the test will fail).
+
+So try giving different values to `assert!` and see which ones compile, which
+ones pass, and which ones fail :)
+
+If you want to check for `false`, you can negate the result of what you're
+checking using `!`, like `assert!(!…)`."""
+hint.ru = """`assert!` это макрос, которому нужен аргумент. В зависимости от значения
+аргумента `assert!` либо ничего не делает (тест проходит), либо паникует
+(тест падает).
+
+Попробуй давать `assert!` разные значения и смотри, какие компилируются,
+какие проходят, а какие падают :)
+
+Если хочешь проверить `false`, отрицай проверяемое выражение через `!`,
+например `assert!(!…)`."""
+
+[[exercises]]
+name = "tests2"
+hint.en = """
+`assert_eq!` is a macro that takes two arguments and compares them. Try giving
+it two values that are equal! Try giving it two arguments that are different!
+Try switching which argument comes first and which comes second!"""
+hint.ru = """`assert_eq!` это макрос с двумя аргументами, которые он сравнивает. Дай ему
+два равных значения! Дай два разных! Поменяй местами первый и второй аргумент!"""
+
+[[exercises]]
+name = "tests3"
+hint.en = """
+We expect the method `Rectangle::new` to panic for negative values.
+
+To handle that, you need to add a special attribute to the test function.
+
+You can refer to the docs:
+https://doc.rust-lang.org/book/ch11-01-writing-tests.html#checking-for-panics-with-should_panic"""
+hint.ru = """Мы ожидаем, что метод `Rectangle::new` паникует на отрицательных значениях.
+
+Чтобы это проверить, нужно добавить тестовой функции специальный атрибут.
+
+Можно заглянуть в документацию:
+https://doc.rust-lang.ru/book/ch11-01-writing-tests.html#checking-for-panics-with-should_panic"""

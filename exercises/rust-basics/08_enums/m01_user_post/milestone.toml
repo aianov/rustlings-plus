@@ -1,0 +1,13 @@
+hint.ru = [
+"""Иди от первой ошибки компилятора. Тесты жалуются на тип, которого нет: опиши его. Начни с
+`struct UserId(u64);` и `struct PostId(u64);` с derive из README, потом `User`, потом перечисления,
+и только потом `Post`.""",
+"""Методы-геттеры просто отдают поле: `fn name(&self) -> &str { &self.name }`. Для `UserId` и
+`PostKind` хватит `self.id` и `self.kind`: благодаря `Copy` они копируются, а не уезжают из структуры.
+В `repost` текст пустой: `String::new()`, видимость `Visibility::Public`.""",
+"""`can_view` это `match self.visibility` с тремя ветками: `Public => true`,
+`Followers => viewer == self.author || follows_author`, `Private => viewer == self.author`.
+В `is_repost` подойдёт `match self.kind` с ветками `PostKind::Text` и `PostKind::Repost(_)`.""",
+]
+story.ru = """В соцсети появился первый житель и его первый пост. Ни сервера, ни базы, зато всё по правилам:
+личное видит только автор."""

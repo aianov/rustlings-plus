@@ -1,0 +1,11 @@
+[package]
+name = "test-support"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+contracts = { path = "../contracts" }
+
+[features]
+test-util = []

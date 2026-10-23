@@ -1,0 +1,99 @@
+[chapter]
+title.en = "Primitive types"
+title.ru = "Примитивные типы"
+
+[[exercises]]
+name = "primitive_types1"
+test = false
+hint.en = """
+In Rust, a boolean can be negated using the operator `!` before it.
+Example: `!true == false`
+This also works with boolean variables."""
+hint.ru = """В Rust булево значение можно инвертировать оператором `!` перед ним.
+Например: `!true == false`
+Это работает и с булевыми переменными."""
+
+[[exercises]]
+name = "primitive_types2"
+test = false
+hint.en = """
+No hints this time ;)"""
+hint.ru = """В этот раз без подсказок ;)"""
+
+[[exercises]]
+name = "primitive_types3"
+test = false
+hint.en = """
+There's a shorthand to initialize arrays with a certain size that doesn't
+require you to type in 100 items (but you certainly can if you want!).
+
+For example, you can do:
+```
+let array = ["Are we there yet?"; 100];
+```
+
+Bonus: what are some other things you could have that would return `true`
+for `a.len() >= 100`?"""
+hint.ru = """Есть сокращённая запись для инициализации массива заданного размера,
+которая избавляет от набора 100 элементов вручную (хотя ты, конечно, можешь и так!).
+
+Например:
+```
+let array = ["Are we there yet?"; 100];
+```
+
+Бонус: что ещё могло бы дать `true` для `a.len() >= 100`?"""
+
+[[exercises]]
+name = "primitive_types4"
+hint.en = """
+Take a look at the 'Understanding Ownership -> The Slice Type -> Other Slices'
+section of the book: https://doc.rust-lang.org/book/ch04-03-slices.html and use
+the starting and ending (plus one) indices of the items in the array that you
+want to end up in the slice.
+
+If you're curious why the first argument of `assert_eq!` does not have an
+ampersand for a reference since the second argument is a reference, take a look
+at the coercion chapter of the nomicon:
+https://doc.rust-lang.org/nomicon/coercions.html"""
+hint.ru = """Загляни в раздел книги «Понимание владения -> Тип срез -> Другие срезы»:
+https://doc.rust-lang.ru/book/ch04-03-slices.html и используй начальный
+и конечный (плюс один) индексы элементов массива, которые должны попасть в срез.
+
+Если интересно, почему у первого аргумента `assert_eq!` нет амперсанда,
+хотя второй аргумент является ссылкой, загляни в главу о приведении типов
+в Rustonomicon:
+https://doc.rust-lang.org/nomicon/coercions.html"""
+
+[[exercises]]
+name = "primitive_types5"
+test = false
+hint.en = """
+Take a look at the 'Data Types -> The Tuple Type' section of the book:
+https://doc.rust-lang.org/book/ch03-02-data-types.html#the-tuple-type
+Particularly the part about destructuring (second to last example in the
+section).
+
+You'll need to make a pattern to bind `name` and `age` to the appropriate parts
+of the tuple."""
+hint.ru = """Загляни в раздел книги «Типы данных -> Кортеж»:
+https://doc.rust-lang.ru/book/ch03-02-data-types.html
+Особенно в часть про деструктуризацию (предпоследний пример
+в разделе).
+
+Нужно составить шаблон, который привяжет `name` и `age` к нужным частям
+кортежа."""
+
+[[exercises]]
+name = "primitive_types6"
+hint.en = """
+While you could use a destructuring `let` for the tuple here, try
+indexing into it instead, as explained in the last example of the
+'Data Types -> The Tuple Type' section of the book:
+https://doc.rust-lang.org/book/ch03-02-data-types.html#the-tuple-type
+Now, you have another tool in your toolbox!"""
+hint.ru = """Для кортежа здесь можно было бы использовать деструктурирующий `let`, но попробуй
+вместо этого обратиться к элементу по индексу, как показано в последнем примере
+раздела книги «Типы данных -> Кортеж»:
+https://doc.rust-lang.ru/book/ch03-02-data-types.html
+Теперь в твоём арсенале есть ещё один инструмент!"""

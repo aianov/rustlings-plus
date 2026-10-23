@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Путь загрузки: лимит, сигнатура, хеш, rename, база</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+#caption { margin-top: 12px; min-height: 84px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Путь загрузки: лимит, сигнатура, хеш, rename, база</h1>
+  <p class="sub">Каждый шаг отвечает за одну опасность: размер, подделка, порча, гонка, сирота.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Сценарий <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 480" role="img" aria-label="Путь загрузки: лимит, сигнатура, хеш, rename, база"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs><g id="scene"></g></svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const NODES = [{"id": "cl", "x": 10, "y": 30, "w": 180, "h": 130, "label": "клиент", "sub": "приложение"}, {"id": "gw", "x": 230, "y": 30, "w": 210, "h": 130, "label": "шлюз", "sub": "лимит на лету"}, {"id": "svc", "x": 480, "y": 30, "w": 220, "h": 130, "label": "user-service", "sub": "картинка ли это"}, {"id": "st", "x": 740, "y": 30, "w": 210, "h": 130, "label": "хранилище", "sub": "ключи, не пути"}, {"id": "db", "x": 480, "y": 260, "w": 220, "h": 150, "label": "база", "sub": "ожидает и ссылка"}, {"id": "sw", "x": 740, "y": 260, "w": 210, "h": 150, "label": "уборщик", "sub": "фоновая задача"}];
+const SCEN = {"ok": {"title": "честный аватар", "intro": "PNG на 300 КБ проходит весь конвейер. Следи, где и чем защищён каждый шаг.", "steps": [{"text": "Клиент присылает тело потоком. В заголовке заявлено 300 КБ.", "hl": ["cl", "gw"], "arrows": [["cl", "gw", "PUT, 300 КБ", "n"]], "tokens": {"gw": [["заявлено 300 КБ ≤ 1 МиБ", "ok"]]}}, {"text": "Шлюз пропускает куски дальше и считает байты по ходу. Заявленному размеру он не верит: если тело окажется длиннее лимита, чтение оборвётся.", "hl": ["gw"], "arrows": [["gw", "svc", "куски", "ok"]], "tokens": {"gw": [["считаю: 300 КБ", "ok"]], "svc": [["собираю под лимитом", "n"]]}}, {"text": "Сервис смотрит на первые байты: сигнатура PNG. Читает ширину и высоту из заголовка: 640 на 480, в пределах. Расширению и Content-Type не верит.", "hl": ["svc"], "tokens": {"svc": [["сигнатура PNG", "ok"], ["640 × 480 ≤ лимита", "ok"]]}}, {"text": "Перед записью в базе появляется запись «ожидает» на временный ключ. Если процесс умрёт, по ней уборщик найдёт файл.", "hl": ["svc", "db"], "arrows": [["svc", "db", "ожидает tmp-1", "n"]], "tokens": {"db": [["ожидает: tmp-1", "warn"]]}}, {"text": "Файл пишется под временным ключом, хеш sha256 считается по ходу. Хеш готов: ключ файла 9f2c…, такого ещё нет, поэтому rename временного в 9f2c….", "hl": ["svc", "st"], "arrows": [["svc", "st", "tmp-1 → 9f2c", "ok"]], "tokens": {"st": [["9f2c… (новый файл)", "ok"]]}}, {"text": "В базе запись «ожидает» переезжает на итоговый ключ, а потом одной операцией записывается ссылка на аватар и «ожидает» снимается. Прежний файл удаляется, если больше ни на кого не ссылается.", "hl": ["svc", "db"], "arrows": [["svc", "db", "ссылка: user 1 → 9f2c", "ok"]], "tokens": {"db": [["аватар user 1 → 9f2c", "ok"]]}}, {"text": "Шлюз выдаёт ссылку: ключ, срок, имя и подпись HMAC от всего этого вместе. Скачать по ней может любой, у кого она есть, но только до срока и без правок.", "hl": ["gw", "cl"], "arrows": [["gw", "cl", "/files/9f2c?exp&name&sig", "ok"]], "tokens": {"cl": [["ссылка на час", "ok"]]}}]}, "hostile": {"title": "бомба, враль и HTML", "intro": "Три «аватара», которые нельзя принимать. Каждый ловится на своём шаге.", "steps": [{"text": "Первый клиент заявил 100 байт, а шлёт гигабайты. Шлюз считает фактические байты и на 17-м куске (лимит один мегабайт) обрывает поток ошибкой. Остаток тела не читается.", "hl": ["cl", "gw"], "arrows": [["cl", "gw", "врёт про размер", "bad"]], "tokens": {"gw": [["лимит: стоп на куске 17", "bad"]]}}, {"text": "Второй прислал файл `me.png` с Content-Type image/png, а внутри HTML со скриптом. Сервис смотрит на первые байты: это не PNG, JPEG и не WebP. Отказ, на диск ничего не попало.", "hl": ["svc"], "arrows": [["gw", "svc", "me.png", "n"]], "tokens": {"svc": [["не картинка: отказ", "bad"]], "st": [["пусто", "ok"]]}}, {"text": "Третий прислал настоящий PNG на 90 байт, но в заголовке стоит 60000 × 60000. Размеры читаются из заголовка без декодирования, площадь считается в 64 битах. Отказ: иначе разворот в память съел бы около 14 ГБ.", "hl": ["svc"], "arrows": [["gw", "svc", "PNG 90 байт", "n"]], "tokens": {"svc": [["60000 × 60000: отказ", "bad"]]}}, {"text": "Ничего из этого не дошло до хранилища и базы. Вот почему проверки стоят до записи, а не после.", "hl": ["st", "db"], "tokens": {"st": [["пусто", "ok"]], "db": [["ожидает: ничего", "ok"]]}}]}, "orphan": {"title": "сбой базы и сирота", "intro": "Файл записан, а ссылку записать не удалось. Что находит сироту?", "steps": [{"text": "Загрузка дошла до записи ссылки. Файл уже лежит под ключом 9f2c…, в базе есть запись «ожидает» на этот ключ с временем 1000.", "hl": ["svc", "st", "db"], "arrows": [["svc", "st", "9f2c записан", "ok"]], "tokens": {"st": [["9f2c…", "ok"]], "db": [["ожидает: 9f2c, t=1000", "warn"]]}}, {"text": "Запись ссылки в базу падает (отказ, процесс умер, таймаут). Ссылки на файл нет, и ни одна строка кода после этого места не выполнится.", "hl": ["svc", "db"], "arrows": [["svc", "db", "ссылка", "bad"]], "tokens": {"db": [["ссылки нет", "bad"]], "st": [["9f2c… сирота", "bad"]]}}, {"text": "Зато в базе остался след: «ожидает». Без него файл лежал бы вечно, и никто не знал бы, что он ничей.", "hl": ["db"], "tokens": {"db": [["ожидает: 9f2c, t=1000", "warn"]]}}, {"text": "Уборщик просыпается в момент 1000 + 300 и видит запись младше срока ожидания (GRACE = 600 с): загрузка может ещё идти. Не трогает.", "hl": ["sw", "db"], "arrows": [["sw", "db", "t=1300: рано", "warn"]], "tokens": {"sw": [["пропускаю свежие", "n"]]}}, {"text": "В момент 1000 + 601 запись старше. Ссылок на ключ нет. Файл удаляется, запись забывается. Если бы кто-то уже ссылался на 9f2c, файл остался бы.", "hl": ["sw", "st", "db"], "arrows": [["sw", "st", "удалить 9f2c", "ok"]], "tokens": {"st": [["пусто", "ok"]], "db": [["ожидает: ничего", "ok"]], "sw": [["убрано: 1", "ok"]]}}]}};
+const COLOR = { ok: "var(--ok)", bad: "var(--bad)", warn: "var(--warn)", n: "var(--accent)" };
+const scene = document.getElementById("scene"), cap = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btn = id => document.getElementById(id);
+let idx = -1, timer = null;
+Object.keys(SCEN).forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); });
+function center(id) { const n = NODES.find(n => n.id === id); return { x: n.x + n.w / 2, y: n.y + n.h / 2, n }; }
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const step = idx >= 0 ? sc.steps[idx] : null;
+  NODES.forEach(n => {
+    const hot = step && (step.hl || []).includes(n.id);
+    el("rect", { x: n.x, y: n.y, width: n.w, height: n.h, rx: 10, fill: "var(--box)", stroke: hot ? "var(--accent)" : "var(--boxline)", "stroke-width": hot ? 3 : 1.2 }, scene);
+    el("text", { x: n.x + 10, y: n.y + 20, "font-weight": "600" }, scene, n.label);
+    if (n.sub) el("text", { x: n.x + 10, y: n.y + 36, class: "muted" }, scene, n.sub);
+  });
+  if (step) {
+    (step.arrows || []).forEach(a => {
+      const f = center(a[0]), t = center(a[1]);
+      const dx = t.x - f.x, dy = t.y - f.y, len = Math.hypot(dx, dy) || 1;
+      const x1 = f.x + (dx > 0 ? f.n.w / 2 : dx < 0 ? -f.n.w / 2 : 0), y1 = f.y + (Math.abs(dx) < 4 ? (dy > 0 ? f.n.h / 2 : -f.n.h / 2) : 0);
+      const x2 = t.x - (dx > 0 ? t.n.w / 2 : dx < 0 ? -t.n.w / 2 : 0), y2 = t.y - (Math.abs(dx) < 4 ? (dy > 0 ? t.n.h / 2 : -t.n.h / 2) : 0);
+      const c = COLOR[a[3] || "n"];
+      el("line", { x1, y1, x2, y2, stroke: c, "stroke-width": 2.2, "marker-end": "url(#arr)", "stroke-dasharray": a[3] === "bad" ? "6 4" : "" }, scene);
+      el("text", { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 6, "text-anchor": "middle", fill: c, style: "fill:" + c + ";font-size:12px" }, scene, a[2]);
+    });
+    Object.keys(step.tokens || {}).forEach(id => {
+      const n = NODES.find(n => n.id === id);
+      step.tokens[id].forEach((t, i) => {
+        const y = n.y + 48 + i * 26;
+        const c = COLOR[t[1] || "n"];
+        el("rect", { x: n.x + 10, y, width: n.w - 20, height: 21, rx: 10, fill: "none", stroke: c, "stroke-width": 1.6 }, scene);
+        el("text", { x: n.x + 18, y: y + 15, style: "fill:" + c + ";font-size:12px" }, scene, t[0]);
+      });
+    });
+  }
+  const sub = idx < 0 ? sc.intro : sc.steps[idx].text;
+  cap.innerHTML = "";
+  const s = document.createElement("div"); s.className = "step"; s.textContent = idx < 0 ? "Начало" : "Шаг " + (idx + 1) + " из " + sc.steps.length; cap.appendChild(s);
+  const p = document.createElement("div"); p.textContent = sub; cap.appendChild(p);
+  btn("prev").disabled = idx < 0; btn("next").disabled = idx >= sc.steps.length - 1;
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; btn("play").textContent = "Играть"; } }
+btn("next").onclick = () => { stop(); if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } };
+btn("prev").onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btn("reset").onclick = () => { stop(); idx = -1; render(); };
+sel.onchange = () => { stop(); idx = -1; render(); };
+btn("play").onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= SCEN[sel.value].steps.length - 1) idx = -1;
+  btn("play").textContent = "Пауза";
+  timer = setInterval(() => { if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } else stop(); }, 1800);
+  if (idx < 0) { idx = 0; render(); }
+};
+btn("theme").onclick = () => {
+  const r = document.documentElement, cur = r.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  r.setAttribute("data-theme", dark ? "light" : "dark");
+};
+render();
+</script>
+</body>
+</html>

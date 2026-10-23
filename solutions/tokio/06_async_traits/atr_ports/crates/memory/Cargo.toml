@@ -1,0 +1,13 @@
+[package]
+name = "memory"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+ports = { path = "../ports" }
+tokio = { version = "1", features = ["time"] }
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }

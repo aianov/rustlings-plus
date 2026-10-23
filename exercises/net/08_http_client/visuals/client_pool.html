@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пул соединений HTTP-клиента</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Пул соединений HTTP-клиента</h1>
+  <p class="sub">Соединение берётся из пула, возвращается только чистым, а протухшее клиент замечает и повторяет запрос.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Взять и вернуть",
+  "boxes": [
+   "Клиент",
+   "Пул (ключ example:80)",
+   "Сервер",
+   "Решение"
+  ],
+  "steps": [
+   {
+    "t": "Первый запрос. Пул пуст, поэтому клиент открывает новое соединение. Это рукопожатие TCP, самая дорогая часть.",
+    "s": [
+     [
+      [
+       "GET /a",
+       "info"
+      ]
+     ],
+     [],
+     [
+      [
+       "accept #1",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "пула нет: подключаемся",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Ответ прочитан целиком: Content-Length ровно столько, сколько нужно, в буфере пусто, Connection: close нет. Соединение чистое.",
+    "s": [
+     [
+      [
+       "получил 200",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "200, ждёт следующий",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "чистое: можно вернуть",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Соединение уходит в пул и помечается временем возврата. Таймер простоя начинается сейчас.",
+    "s": [
+     [],
+     [
+      [
+       "conn #1, простой 0 с",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "соединение открыто",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "в пул",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Второй запрос идёт по тому же соединению: без рукопожатия. Пул отдаёт самое свежее соединение.",
+    "s": [
+     [
+      [
+       "GET /b",
+       "info"
+      ]
+     ],
+     [
+      [
+       "пусто (соединение в работе)",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "тот же accept #1",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "взяли из пула",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Много запросов подряд: сервер видел одно соединение. Вот чего стоит пул.",
+    "s": [
+     [
+      [
+       "GET /c, GET /d",
+       "info"
+      ]
+     ],
+     [
+      [
+       "conn #1",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "accept: всего 1",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "1 соединение на 4 запроса",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Нечистое соединение",
+  "boxes": [
+   "Клиент",
+   "Пул (ключ example:80)",
+   "Сервер",
+   "Решение"
+  ],
+  "steps": [
+   {
+    "t": "Клиент просит GET /video. Сервер присылает голову с Content-Length: 5000000, а клиент разрешает тело не больше 1 МБ.",
+    "s": [
+     [
+      [
+       "GET /video",
+       "info"
+      ]
+     ],
+     [],
+     [
+      [
+       "200, Content-Length 5000000",
+       "info"
+      ]
+     ],
+     [
+      [
+       "лимит 1 МБ",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент отказывается от тела и возвращает ошибку «слишком большое». Вот только 5 МБ уже летят по этому соединению.",
+    "s": [
+     [
+      [
+       "ошибка: тело слишком велико",
+       "bad"
+      ]
+     ],
+     [],
+     [
+      [
+       "шлёт байты тела",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "тело не прочитано",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Ошибочная идея: вернуть соединение в пул «как всегда». В сокете остались чужие байты.",
+    "s": [
+     [],
+     [
+      [
+       "conn #1 (грязное!)",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "всё ещё шлёт тело",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "вернули зря",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Следующий запрос берёт это соединение. Первые байты тела видео клиент читает как голову ответа и падает или, ещё хуже, принимает чужой кусок за ответ.",
+    "s": [
+     [
+      [
+       "GET /small",
+       "info"
+      ],
+      [
+       "читает: 00 7F 45 4C ...",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "пусто",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "отвечает на /small",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "чужой хвост",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Правильно: недочитанное соединение закрыть. Рукопожатие дешевле, чем чужие данные у пользователя.",
+    "s": [
+     [
+      [
+       "новое соединение",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "пусто",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "accept #2",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "закрыть, не возвращать",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Протухшее соединение",
+  "boxes": [
+   "Клиент",
+   "Пул (ключ example:80)",
+   "Сервер",
+   "Решение"
+  ],
+  "steps": [
+   {
+    "t": "Соединение лежит в пуле. Сервер ждёт, ждёт и по таймауту простоя тихо закрывает его. Клиент про это не узнаёт.",
+    "s": [
+     [],
+     [
+      [
+       "conn #1, простой 25 с",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "закрыл conn #1 (FIN)",
+       "bad"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Клиенту нужен GET /x. Он берёт conn #1 из пула и пишет запрос. Ядро принимает байты без ошибки.",
+    "s": [
+     [
+      [
+       "GET /x",
+       "info"
+      ]
+     ],
+     [
+      [
+       "conn #1 взят",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "не слушает",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "из пула: reused = да",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Читает ответ и получает конец потока без единого байта. Это не ответ сервера, а гонка с закрытием.",
+    "s": [
+     [
+      [
+       "EOF сразу",
+       "bad"
+      ]
+     ],
+     [],
+     [],
+     [
+      [
+       "протухло (Stale)",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "GET идемпотентный, соединение было из пула: повторяем один раз на новом соединении. Пользователь ничего не заметил.",
+    "s": [
+     [
+      [
+       "GET /x ещё раз",
+       "info"
+      ]
+     ],
+     [],
+     [
+      [
+       "accept #2, 200 OK",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "повтор: 1 из 1",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "А если бы это был POST /charge? Запрос мог дойти и выполниться, оборвался ответ. Повторять нельзя: ошибка уходит вызывающему.",
+    "s": [
+     [
+      [
+       "POST /charge",
+       "info"
+      ],
+      [
+       "ошибка: неизвестно, прошёл ли платёж",
+       "bad"
+      ]
+     ],
+     [],
+     [
+      [
+       "мог выполнить",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "не идемпотентный: без повтора",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+[package]
+name = "auth-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+admin.workspace = true
+argon2.workspace = true
+contracts.workspace = true
+getrandom.workspace = true
+grpc-kit.workspace = true
+http-engine.workspace = true
+journal.workspace = true
+nats-engine.workspace = true
+proto.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+service-runtime.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tonic.workspace = true
+tonic-health.workspace = true
+validation.workspace = true
+tls-edge.workspace = true
+
+[dev-dependencies]
+async-nats.workspace = true
+futures.workspace = true
+user-service.workspace = true
+
+[lints]
+workspace = true

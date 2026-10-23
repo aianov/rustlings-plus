@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package work.v1;
+
+service Work {
+  rpc Run (RunRequest) returns (RunReply);
+}
+
+message RunRequest {
+  uint64 ms = 1;
+}
+
+message RunReply {}

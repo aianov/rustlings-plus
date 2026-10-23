@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Накопительные бакеты и перцентили</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+#caption { margin-top: 12px; min-height: 84px; }
+.step { color: var(--muted); font-size: 13px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Накопительные бакеты и перцентили</h1>
+  <p class="sub">Гистограмма хранит только счётчики по корзинам. Перцентиль оценивается по ним линейной интерполяцией внутри бакета.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 400" role="img" aria-label="Бакеты гистограммы времени ответа"><g id="scene"></g></svg>
+    <div class="legend"><span><i class="sw" style="background:var(--accent)"></i>значения в бакете</span><span><i class="sw" style="background:var(--ok)"></i>накоплено (le)</span><span><i class="sw" style="background:var(--warn)"></i>искомый ранг</span></div>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const SCEN = {"good": {"title": "границы покрывают диапазон", "bounds": [0.05, 0.1, 0.25, 0.5, 1], "counts": [700, 200, 50, 35, 13, 2], "intro": "Тысяча ответов сервиса. Бакеты 0.05, 0.1, 0.25, 0.5, 1 секунда и «всё остальное» (+Inf).", "steps": [{"mode": "raw", "text": "Каждый ответ попал ровно в один бакет: первый, куда он помещается. 700 ответов быстрее 50 мс, всего 2 медленнее секунды."}, {"mode": "cum", "text": "Prometheus хранит бакеты накопительно: строка le=0.5 считает всё не больше 0.5, в том числе уже попавшее в меньшие. Последняя (+Inf) равна общему числу. Так бакеты можно складывать между экземплярами сервиса."}, {"mode": "cum", "q": 0.5, "text": "p50 это 500-й ответ из 1000. До 50 мс накоплено 700, поэтому он в первом бакете, а оценка берётся пропорцией внутри него: около 0.04 с."}, {"mode": "cum", "q": 0.95, "text": "p95 это 950-й. До 0.1 с накоплено 900, до 0.25 с уже 950: он на верхней границе второго бакета, около 0.25 с."}, {"mode": "cum", "q": 0.99, "text": "p99 это 990-й. До 0.5 с накоплено 985, до 1 с уже 998: он в бакете от 0.5 до 1 с. Интерполяция даёт около 0.69 с. Точное значение неизвестно: оценка точна до бакета."}]}, "bad": {"title": "бакеты слишком грубые и короткие", "bounds": [0.5, 1, 2], "counts": [920, 40, 20, 20], "intro": "Те же ответы, но границы выбраны не по делу: 0.5, 1 и 2 секунды.", "steps": [{"mode": "raw", "text": "920 ответов упали в первый бакет, и про них ничего не известно: быстрые они, очень быстрые или почти полсекунды."}, {"mode": "cum", "text": "Накопительно получилось почти плоско. Различать нечего, график p50 и p95 будет прыгать внутри одного бакета."}, {"mode": "cum", "q": 0.5, "text": "p50 попал в первый бакет шириной 0.5 с: оценка вышла около 0.27 с. Настоящее значение может быть и 0.01 с, и 0.4 с: бакет этого не различает."}, {"mode": "cum", "q": 0.99, "text": "p99 упёрся в потолок: он в корзине +Inf, а Prometheus честно отвечает «верхняя граница, 2 секунды». Реальные медленные ответы уже за пределами графика: сервис болеет, а дашборд спокоен."}]}};
+const scene = document.getElementById("scene"), cap = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btn = id => document.getElementById(id);
+let idx = -1, timer = null;
+Object.keys(SCEN).forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); });
+function estimate(sc, q) {
+  const total = sc.counts.reduce((a, b) => a + b, 0), rank = q * total;
+  let run = 0, prevBound = 0;
+  for (let i = 0; i < sc.counts.length; i++) {
+    const before = run; run += sc.counts[i];
+    const bound = i < sc.bounds.length ? sc.bounds[i] : Infinity;
+    if (run >= rank) {
+      if (bound === Infinity) return { value: prevBound, bucket: i, capped: true, rank };
+      return { value: prevBound + (bound - prevBound) * (rank - before) / (sc.counts[i] || 1), bucket: i, capped: false, rank };
+    }
+    prevBound = bound;
+  }
+  return { value: prevBound, bucket: sc.counts.length - 1, capped: true, rank };
+}
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const step = idx >= 0 ? sc.steps[idx] : null;
+  const n = sc.counts.length, x0 = 60, W = 860, y0 = 340, H = 280;
+  const total = sc.counts.reduce((a, b) => a + b, 0);
+  const cum = []; sc.counts.reduce((a, c, i) => (cum[i] = a + c, a + c), 0);
+  const mode = step ? step.mode : "raw";
+  const maxv = mode === "cum" ? total : Math.max(...sc.counts);
+  const bw = W / n;
+  el("line", { x1: x0, y1: y0, x2: x0 + W, y2: y0, stroke: "var(--boxline)" }, scene);
+  for (let i = 0; i < n; i++) {
+    const v = mode === "cum" ? cum[i] : sc.counts[i];
+    const h = H * v / maxv;
+    const x = x0 + i * bw + 8;
+    el("rect", { x, y: y0 - h, width: bw - 16, height: h, rx: 4, fill: mode === "cum" ? "var(--ok)" : "var(--accent)", opacity: 0.85 }, scene);
+    el("text", { x: x + (bw - 16) / 2, y: y0 - h - 6, "text-anchor": "middle" }, scene, String(v));
+    const label = i < sc.bounds.length ? "le=" + sc.bounds[i] : "le=+Inf";
+    el("text", { x: x + (bw - 16) / 2, y: y0 + 20, "text-anchor": "middle", class: "muted" }, scene, label);
+  }
+  el("text", { x: x0, y: 28, "font-weight": "600" }, scene, mode === "cum" ? "Накопительно: сколько значений не больше границы" : "Сколько значений попало в каждый бакет (без накопления)");
+  if (step && step.q) {
+    const est = estimate(sc, step.q);
+    const yr = y0 - H * est.rank / maxv;
+    if (mode === "cum") {
+      el("line", { x1: x0, y1: yr, x2: x0 + W, y2: yr, stroke: "var(--warn)", "stroke-width": 2, "stroke-dasharray": "6 4" }, scene);
+      el("text", { x: x0 + W - 4, y: yr - 6, "text-anchor": "end", style: "fill:var(--warn)" }, scene, "ранг " + est.rank + " из " + total);
+    }
+    const bx = x0 + est.bucket * bw;
+    el("rect", { x: bx + 2, y: 44, width: bw - 4, height: y0 - 44, fill: "none", stroke: "var(--warn)", "stroke-width": 2, rx: 6 }, scene);
+    const txt = est.capped ? "ответ упёрся в потолок: " + est.value + " с (настоящее больше)" : "оценка ≈ " + est.value.toFixed(2) + " с";
+    el("text", { x: bx + bw / 2, y: 62, "text-anchor": "middle", style: "fill:var(--warn);font-weight:600" }, scene, txt);
+  }
+  const sub = idx < 0 ? sc.intro : sc.steps[idx].text;
+  cap.innerHTML = "";
+  const s = document.createElement("div"); s.className = "step"; s.textContent = idx < 0 ? "Начало" : "Шаг " + (idx + 1) + " из " + sc.steps.length; cap.appendChild(s);
+  const p = document.createElement("div"); p.textContent = sub; cap.appendChild(p);
+  btn("prev").disabled = idx < 0; btn("next").disabled = idx >= sc.steps.length - 1;
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; btn("play").textContent = "Играть"; } }
+btn("next").onclick = () => { stop(); if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } };
+btn("prev").onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btn("reset").onclick = () => { stop(); idx = -1; render(); };
+sel.onchange = () => { stop(); idx = -1; render(); };
+btn("play").onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= SCEN[sel.value].steps.length - 1) idx = -1;
+  btn("play").textContent = "Пауза";
+  timer = setInterval(() => { if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } else stop(); }, 2000);
+  if (idx < 0) { idx = 0; render(); }
+};
+btn("theme").onclick = () => {
+  const r = document.documentElement, cur = r.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  r.setAttribute("data-theme", dark ? "light" : "dark");
+};
+render();
+</script>
+</body>
+</html>

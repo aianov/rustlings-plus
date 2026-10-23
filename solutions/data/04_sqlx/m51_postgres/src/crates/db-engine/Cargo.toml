@@ -1,0 +1,18 @@
+[package]
+name = "db-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+contracts.workspace = true
+serde_json.workspace = true
+service-runtime.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+
+[lints]
+workspace = true

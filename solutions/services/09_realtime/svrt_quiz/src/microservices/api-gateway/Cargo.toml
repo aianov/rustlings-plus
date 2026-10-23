@@ -1,0 +1,11 @@
+[package]
+name = "api-gateway"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+bus = { path = "../../crates/bus" }
+
+[dev-dependencies]
+chat-service = { path = "../chat-service" }

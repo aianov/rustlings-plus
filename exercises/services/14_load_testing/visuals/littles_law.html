@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Закон Литтла и насыщение</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+#caption { margin-top: 12px; min-height: 84px; }
+.step { color: var(--muted); font-size: 13px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Закон Литтла и насыщение</h1>
+  <p class="sub">Сколько запросов в системе зависит от скорости прихода и времени пребывания; у потолка время пребывания растёт почти вертикально.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 390" role="img" aria-label="Закон Литтла и насыщение"><g id="scene"></g></svg>
+    
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+const SCEN = {"little": {"title": "закон Литтла: L = λ · W", "intro": "Касса в магазине. Покупатели приходят с некоторой скоростью, проводят в магазине некоторое время, и от этих двух чисел зависит, сколько их внутри.", "steps": [{"text": "Приходят по 5 человек в минуту (λ = 5), каждый проводит 2 минуты (W = 2). Внутри в среднем 5 · 2 = 10 человек (L).", "lam": 5, "w": 2}, {"text": "Время пребывания выросло до 4 минут (очередь выросла), приход прежний. Внутри в среднем 20: те же люди просто дольше не уходят.", "lam": 5, "w": 4}, {"text": "Приход удвоился (λ = 10) при прежних 4 минутах. Внутри 40. Это то же самое, что 40 одновременных соединений: L = 10 запросов в секунду · 4 секунды.", "lam": 10, "w": 4}, {"text": "Вывод для теста: 5000 запросов в секунду при ответе 20 мс это 100 запросов в работе одновременно. Меньше соединений открывать нельзя, а потолок для заданного их числа равен соединения / время ответа.", "lam": 5000, "w": 0.02, "unit": true}]}, "sat": {"title": "насыщение: время ответа растёт вертикально", "intro": "Один обслуживающий, время обслуживания S. По горизонтали загрузка (доля времени, когда он занят), по вертикали во сколько раз время пребывания больше S.", "steps": [{"text": "Загрузка 50%: время пребывания вдвое больше времени обслуживания. Ещё спокойно.", "rho": 0.5}, {"text": "Загрузка 80%: в 5 раз. Рост уже заметен.", "rho": 0.8}, {"text": "Загрузка 90%: в 10 раз. Сервис с ответом 10 мс отвечает за 100.", "rho": 0.9}, {"text": "Загрузка 95%: в 20 раз. До 100% «всего 5%», но ответ уже в двадцать раз хуже.", "rho": 0.95}, {"text": "Загрузка 99%: в 100 раз. У самого потолка время пребывания практически не ограничено: очередь растёт быстрее, чем сервис её разбирает. Рабочая точка выбирается там, где замедление приемлемо, а не у потолка.", "rho": 0.99}]}};
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene"), cap = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btn = id => document.getElementById(id);
+let idx = -1, timer = null;
+Object.keys(SCEN).forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); });
+function caption() {
+  const sc = SCEN[sel.value];
+  const sub = idx < 0 ? sc.intro : sc.steps[idx].text;
+  cap.innerHTML = "";
+  const s = document.createElement("div"); s.className = "step"; s.textContent = idx < 0 ? "Начало" : "Шаг " + (idx + 1) + " из " + sc.steps.length; cap.appendChild(s);
+  const p = document.createElement("div"); p.textContent = sub; cap.appendChild(p);
+  btn("prev").disabled = idx < 0; btn("next").disabled = idx >= sc.steps.length - 1;
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; btn("play").textContent = "Играть"; } }
+btn("next").onclick = () => { stop(); if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } };
+btn("prev").onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btn("reset").onclick = () => { stop(); idx = -1; render(); };
+sel.onchange = () => { stop(); idx = -1; render(); };
+btn("play").onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= SCEN[sel.value].steps.length - 1) idx = -1;
+  btn("play").textContent = "Пауза";
+  timer = setInterval(() => { if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } else stop(); }, 2200);
+  if (idx < 0) { idx = 0; render(); }
+};
+btn("theme").onclick = () => {
+  const r = document.documentElement, cur = r.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  r.setAttribute("data-theme", dark ? "light" : "dark");
+};
+
+
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value], step = idx >= 0 ? sc.steps[idx] : null;
+  if (sel.value === "little") {
+    el("rect", { x: 250, y: 60, width: 460, height: 260, rx: 12, fill: "var(--box)", stroke: "var(--boxline)", "stroke-width": 1.5 }, scene);
+    el("text", { x: 262, y: 84, "font-weight": "600" }, scene, "система (магазин, сервис)");
+    if (step) {
+      const lam = step.lam, w = step.w, L = lam * w;
+      el("line", { x1: 70, y1: 190, x2: 245, y2: 190, stroke: "var(--accent)", "stroke-width": 3 }, scene);
+      el("text", { x: 150, y: 175, "text-anchor": "middle", style: "fill:var(--accent)" }, scene, step.unit ? "λ = 5000 запросов/с" : "λ = " + lam + " в минуту");
+      el("line", { x1: 715, y1: 190, x2: 890, y2: 190, stroke: "var(--ok)", "stroke-width": 3 }, scene);
+      el("text", { x: 800, y: 175, "text-anchor": "middle", style: "fill:var(--ok)" }, scene, step.unit ? "W = 20 мс" : "W = " + w + " мин");
+      const n = step.unit ? 100 : L, cols = 20;
+      for (let i = 0; i < n; i++) { el("circle", { cx: 275 + (i % cols) * 21, cy: 115 + Math.floor(i / cols) * 22, r: 8, fill: "var(--accent)", opacity: 0.85 }, scene); }
+      el("text", { x: 480, y: 300, "text-anchor": "middle", style: "font-size:15px;font-weight:600" }, scene, "внутри в среднем L = " + (step.unit ? "5000 · 0.02 = 100" : lam + " · " + w + " = " + L));
+    }
+  } else {
+    const X0 = 90, Y0 = 330, W = 780, H = 270, YMAX = 100;
+    el("line", { x1: X0, y1: Y0, x2: X0 + W, y2: Y0, stroke: "var(--boxline)" }, scene);
+    el("line", { x1: X0, y1: Y0, x2: X0, y2: Y0 - H, stroke: "var(--boxline)" }, scene);
+    const px = r => X0 + r * W, py = v => Y0 - Math.min(v, YMAX) / YMAX * H;
+    let d = "";
+    for (let r = 0; r <= 0.99; r += 0.005) d += (d ? " L " : "M ") + px(r) + " " + py(1 / (1 - r));
+    el("path", { d, fill: "none", stroke: "var(--accent)", "stroke-width": 2.5 }, scene);
+    [0, 0.25, 0.5, 0.75, 1].forEach(r => el("text", { x: px(r), y: Y0 + 20, "text-anchor": "middle", class: "muted" }, scene, Math.round(r * 100) + "%"));
+    [1, 10, 50, 100].forEach(v => el("text", { x: X0 - 8, y: py(v) + 4, "text-anchor": "end", class: "muted" }, scene, v + "×"));
+    el("text", { x: X0 + W / 2, y: Y0 + 42, "text-anchor": "middle", class: "muted" }, scene, "загрузка");
+    if (step) {
+      const v = 1 / (1 - step.rho);
+      el("line", { x1: px(step.rho), y1: Y0, x2: px(step.rho), y2: py(v), stroke: "var(--warn)", "stroke-dasharray": "5 4" }, scene);
+      el("circle", { cx: px(step.rho), cy: py(v), r: 7, fill: "var(--warn)" }, scene);
+      el("text", { x: px(step.rho) - 12, y: py(v) - 4, "text-anchor": "end", style: "fill:var(--warn);font-weight:600" }, scene, "загрузка " + Math.round(step.rho * 100) + "%: время ×" + Math.round(v));
+    }
+  }
+  caption();
+}
+
+render();
+</script>
+</body>
+</html>

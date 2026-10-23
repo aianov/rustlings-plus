@@ -1,0 +1,11 @@
+[package]
+name = "logfmt"
+version = "0.1.0"
+edition = "2024"
+
+# TODO: colorize нужен не всем, поэтому он optional. Но feature, которая его включает,
+# ещё не объявлена. Добавь секцию [features] (подробности в README.md).
+[dependencies]
+colorize = { path = "crates/colorize", optional = true }
+
+[workspace]

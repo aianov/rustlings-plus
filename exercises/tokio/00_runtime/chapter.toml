@@ -1,0 +1,243 @@
+[chapter]
+title.en = "Runtime and first async"
+title.ru = "Рантайм и первый async"
+
+[[chapter.visuals]]
+file = "visuals/await_steps.html"
+title.ru = "async fn режется на шаги по .await"
+
+[[chapter.visuals]]
+file = "visuals/blocking_worker.html"
+title.ru = "Блокирующий вызов держит воркер"
+
+[[exercises]]
+name = "rt1"
+style = "fix"
+hint.ru = """Вызов async fn возвращает Future, а не результат. Чтобы получить результат или чтобы тело вообще выполнилось, нужен `.await`. Найди все вызовы async fn в `register_all` и посмотри, у каких его нет."""
+why.ru = """Вызов async fn только создаёт Future, ни одной строчки тела он не выполняет. Если результат нужен (как у user_count), ошибка типов покажет это сразу. Если результата нет (как у save_user), код собирается и тихо ничего не делает, и единственный след это предупреждение unused_must_use. Поэтому предупреждения в async-коде читают так же внимательно, как ошибки."""
+
+[[exercises]]
+name = "rt2"
+style = "todo"
+hint.ru = """`Runtime::new()` создаёт многопоточный рантайм со всеми включёнными драйверами. У рантайма есть метод `block_on`: он принимает Future и блокирует текущий поток, пока Future не завершится, а потом возвращает его результат."""
+why.ru = """Именно это и делают #[tokio::main] и #[tokio::test]: собирают Runtime и отдают ему тело функции через block_on. Знать это нужно, чтобы уметь войти в async из обычного кода: из sync-теста, из библиотеки, из потока, который создал не tokio. Runtime::new() включает все драйверы, поэтому sleep в run работает без дополнительных настроек."""
+
+[[exercises]]
+name = "rt_q1"
+kind = "question"
+style = "bughunt"
+question.ru = '''Этот main:
+
+```rust
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    run().await;
+}
+```
+
+по смыслу равен:'''
+options.ru = [
+  "fn main() { Runtime::new().unwrap().block_on(async { run().await; }) }",
+  "fn main() { Builder::new_current_thread().enable_all().build().unwrap().block_on(async { run().await; }) }",
+  "fn main() { Builder::new_current_thread().build().unwrap().block_on(async { run().await; }) }",
+  "fn main() { Builder::new_multi_thread().worker_threads(1).build().unwrap().block_on(async { run().await; }) }",
+]
+answer = [1]
+explain.ru = """Макрос собирает рантайм нужного вида (current_thread) и включает все драйверы, поэтому в разворачивании есть enable_all. Runtime::new() это multi_thread. Вариант без enable_all получил бы панику на первом sleep или сокете. А multi_thread с одним воркером это другой планировщик: у него есть свой поток, и задачи бегут без block_on."""
+hint.ru = """Что значит слово flavor в атрибуте и какие драйверы макрос включает по умолчанию?"""
+
+[[exercises]]
+name = "rt3"
+style = "todo"
+hint.ru = [
+  """Нужно вернуть Future, внутри которого записи идут в нужном порядке. Подумай, когда выполняется код до слова async и когда код внутри блока.""",
+  """Порядок: запись "старт", .await на переданный fut, запись "конец", возврат результата. Всё это должно оказаться внутри async-блока.""",
+  """Блок вернётся из функции, поэтому ему нужны собственные копии журнала и имени (clone, to_string до блока) и `async move`.""",
+]
+why.ru = """Ленивость не нужно «включать»: она следует из того, что Future ничего не делает до опроса. Ловушка в том, что при возврате impl Future легко написать запись в журнал до async-блока: она выполнится при вызове функции, и тест nothing_happens_before_await это ловит. Всё, что должно произойти при ожидании, обязано лежать внутри блока. Порядок событий определяет порядок .await, а не порядок вызовов."""
+
+[[exercises]]
+name = "rt_q2"
+kind = "question"
+style = "bughunt"
+question.ru = '''Что напечатает программа?
+
+```rust
+async fn step(name: &str) {
+    println!("{name}");
+}
+
+#[tokio::main]
+async fn main() {
+    let a = step("a");
+    println!("b");
+    let c = step("c");
+    c.await;
+    println!("d");
+    a.await;
+}
+```'''
+options.ru = ["a b c d", "b c d a", "b d", "c d a b"]
+answer = [1]
+explain.ru = """Строка `step("a")` создаёт Future и ничего не печатает. Он ленив: тело выполнится, когда его начнут ждать. Поэтому: "b" (обычный println), "c" (c.await), "d", и только в конце "a" (a.await). Порядок вывода задаёт порядок .await, а не порядок создания."""
+hint.ru = """Вызов async fn печатает что-нибудь сам, до await?"""
+
+[[exercises]]
+name = "rt4"
+style = "fix"
+hint.ru = [
+  """Компилятор говорит: async block may outlive the current function, but it borrows. Блок без `move` берёт локальные переменные по ссылке.""",
+  """Нужно `async move`: тогда блок заберёт владение теми переменными, которые использует. Это нужно в обеих функциях.""",
+]
+why.ru = """Async-блок это Future как значение. Он живёт дольше функции, в которой создан, поэтому не может держать ссылки на её локальные переменные. async move переносит значения внутрь блока, как move в замыканиях. Во второй функции клонирование Arc и to_string делаются до блока, в замыкании map, а внутрь уезжает уже готовая собственная копия."""
+
+[[exercises]]
+name = "rt5"
+style = "fix"
+hint.ru = [
+  """`?` может преобразовать ошибку через From, а блоку не от чего оттолкнуться: ProfileError умеет собираться из двух разных типов. Ошибка компилятора просит тебя сказать тип.""",
+  """Тип ошибки можно указать у возвращаемого значения блока: на последнем Ok есть способ дописать его в турбофише.""",
+  """`Ok::<_, ProfileError>(age)`. Подчёркивание оставляет компилятору вывод типа значения.""",
+]
+why.ru = """В обычной функции тип ошибки задан сигнатурой, а у async-блока сигнатуры нет, поэтому `?` внутри не от чего оттолкнуться. Здесь два `?` с разными ошибками (ParseIntError и Underage), и оба превращаются в ProfileError через From, значит, подсказка нужна именно про итоговый тип, а не про любой из источников. Запись Ok::<_, E>(...) самый короткий способ. Альтернатива, объявить тип у let, не работает, потому что тип блока это анонимный Future."""
+
+[[exercises]]
+name = "rt6"
+style = "todo"
+hint.ru = [
+  """`Builder::new_current_thread()` и `Builder::new_multi_thread()` возвращают Builder. Число воркеров задаёт `worker_threads(n)`, имя потоков `thread_name("...")`.""",
+  """Методы Builder берут `&mut self` и возвращают `&mut Builder`, поэтому положи Builder в `let mut builder`, настрой его отдельными операторами и только потом вызови `.build()`. Метод worker_threads нужен только для multi_thread.""",
+]
+why.ru = """Runtime::new() делает multi_thread со всем включённым, но для сервисов и тестов часто нужна другая сборка: точное число воркеров, понятные имена потоков в отладчике, один поток для детерминизма. enable_all включает таймеры и сеть: без него будут паники из следующей задачи. Метод worker_threads у current_thread не имеет смысла, поэтому он вызывается только в одной ветке."""
+
+[[exercises]]
+name = "rt7"
+style = "fix"
+hint.ru = [
+  """Прочитай сообщение паники целиком: в нём написан метод Builder, который нужно вызвать.""",
+  """Таймерам нужен `enable_time()`, сокетам `enable_io()`. Если нужно и то и другое, проще `enable_all()`.""",
+]
+why.ru = """У рантайма есть драйверы (таймеров и ввода-вывода), и они включаются по отдельности. Если драйвер выключен, паника случается не при сборке рантайма, а при первом обращении, поэтому ошибка может прятаться в редком коде. net_runtime специально чинится не одним методом: в последнем тесте нужны оба драйвера сразу. Продакшн-код почти всегда берёт enable_all."""
+
+[[exercises]]
+name = "rt_q3"
+kind = "question"
+style = "bughunt"
+question.ru = '''Приложение собирает рантайм, а потом из обычного потока, запущенного через std::thread::spawn, вызывает tokio::time::sleep(d). Паника:
+
+there is no reactor running, must be called from the context of a Tokio 1.x runtime
+
+Что это значит?'''
+options.ru = [
+  "Рантайм собран без enable_io",
+  "tokio::spawn, sleep или сокет вызваны на потоке, где нет контекста рантайма",
+  "Внутри рантайма вызван block_on",
+  "В Cargo.toml нет feature rt-multi-thread",
+]
+answer = [1]
+explain.ru = """Три паники рантайма разные по смыслу. «context was found, but timers/IO are disabled»: контекст есть, но драйвер не включён (enable_time, enable_io). «there is no reactor running»: ты вообще вне рантайма, чинится Handle::enter или handle.spawn (rt11). «Cannot start a runtime from within a runtime»: вложенный block_on (rt12). Отсутствие feature ловится на этапе сборки, а не паникой."""
+hint.ru = """Контекст рантайма записывается в поток, на котором рантайм выполняет твой код. Что записано в потоке, созданном через std::thread::spawn?"""
+
+[[exercises]]
+name = "rt8"
+style = "scratch"
+hint.ru = [
+  """Для `distinct_threads`: внутри `rt.block_on` запусти `tokio::spawn` на каждую задачу; в задаче заблокируй поток на 50 мс (`std::thread::sleep`) и верни `std::thread::current().id()`. Потом дождись всех хэндлов и сложи ThreadId в HashSet.""",
+  """Для `runs_without_block_on`: `rt.spawn(...)` (метод самого Runtime) ставит флаг, потом обычный `std::thread::sleep` на 100 мс в вызывающем потоке и чтение флага.""",
+]
+why.ru = """Опыт показывает главное различие. current_thread не имеет своих потоков: задачи крутятся только пока кто-то занят block_on, и всё идёт на этом одном потоке. multi_thread держит пул воркеров, которые выполняют задачи сами. Блокирующий std::thread::sleep в задачах нужен только для опыта: он заставляет остальные воркеры подхватывать очередь."""
+
+[[exercises]]
+name = "rt_q4"
+kind = "question"
+style = "bughunt"
+question.ru = '''Что напечатает программа?
+
+```rust
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    tokio::spawn(async { println!("задача"); });
+    println!("main до");
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    println!("main после");
+}
+```'''
+options.ru = [
+  "main до, main после, задача",
+  "main до, задача, main после",
+  "main до, main после",
+  "задача, main до, main после",
+]
+answer = [2]
+explain.ru = """На current_thread единственный поток занят телом main. Задача поставлена в очередь, но ей нужен этот же поток, а main ни разу не отдаёт его (нет ни одного .await). Когда main завершился, рантайм выключается и недоспавшие задачи отбрасываются. Если добавить в конце `tokio::task::yield_now().await` (или любой await на что-то настоящее), задача успеет напечатать."""
+hint.ru = """Сколько потоков у current_thread и чем он занят, пока работает std::thread::sleep?"""
+
+[[exercises]]
+name = "rt9"
+style = "fix"
+hint.ru = [
+  """Пока `std::thread::sleep` спит, поток никому не отдан. Нужен вариант ожидания, который сообщает рантайму: «я жду, поток свободен».""",
+  """Замени `std::thread::sleep(..)` на `tokio::time::sleep(..).await`.""",
+]
+why.ru = """std::thread::sleep усыпляет поток, а не задачу. На current_thread этот поток и есть весь рантайм, поэтому все остальные задачи стоят. На multi_thread страдает один воркер из N, и проблема маскируется, пока блокирующих задач мало. tokio::time::sleep не спит вовсе: он регистрирует таймер и возвращает управление планировщику."""
+
+[[exercises]]
+name = "rt10"
+style = "bughunt"
+hint.ru = [
+  """Один из вызовов в `total_from_producer` блокирует поток, на котором должен работать производитель. Какой?""",
+  """`std::sync::mpsc::Receiver::recv()` не умеет отдавать поток. У tokio есть свой канал, чей приёмник ждётся через `.await`.""",
+  """Возьми `tokio::sync::mpsc::unbounded_channel()`: у отправителя `send` остаётся таким же, у приёмника `recv().await` вернёт None, когда отправитель закрыт.""",
+]
+why.ru = """Блокировка бывает неочевидной: нигде нет слова sleep, но recv() из std ждёт на потоке. На multi_thread задача-производитель идёт на другой воркер, и баг неделями не виден. На current_thread потоку заняться нечем, кроме ожидания, и всё встаёт. Правило: любое ожидание в async-коде делается через .await, а блокирующие API уносят в spawn_blocking (его разберём в главе про задачи)."""
+
+[[exercises]]
+name = "rt_q5"
+kind = "question"
+style = "bughunt"
+question.ru = '''Рантайм многопоточный. Сколько секунд проработает main?
+
+```rust
+#[tokio::main]
+async fn main() {
+    let started = std::time::Instant::now();
+    tokio::join!(
+        async { std::thread::sleep(std::time::Duration::from_secs(1)) },
+        async { tokio::time::sleep(std::time::Duration::from_secs(1)).await },
+    );
+    println!("{}", started.elapsed().as_secs());
+}
+```'''
+options.ru = ["0", "1", "2"]
+answer = [2]
+explain.ru = """join! выполняет обе ветки внутри одной задачи, а значит на одном потоке по очереди. Первая ветка блокирует поток на секунду, и только потом вторая впервые опрашивается и заводит свой таймер. Итого две секунды. Многопоточность рантайма не помогает: параллельно работают разные задачи, а не ветки одного join!. Поменяй ветки местами, и выйдет около секунды."""
+hint.ru = """join! запускает ветки параллельно на разных потоках, или это одна задача?"""
+
+[[exercises]]
+name = "rt11"
+style = "fix"
+hint.ru = [
+  """В обычном потоке нет «текущего рантайма», поэтому свободные `tokio::spawn` и `tokio::time::sleep` паникуют. Зато у самого рантайма есть Handle, который можно передавать куда угодно.""",
+  """Первая функция: клонируй handle до move в поток и вызови `handle.spawn(..)`. Вторая: перед созданием Sleep войди в контекст через `let _guard = handle.enter();`.""",
+]
+why.ru = """Handle это дешёвый клон ссылки на рантайм: его можно отдать в любой поток. handle.spawn ставит задачу на рантайм без контекста. handle.enter() делает рантайм «текущим» для потока, пока жив guard, и тогда все свободные функции вроде tokio::time::sleep работают. Handle::block_on из обычного потока тоже допустим, но не из потока самого рантайма (следующая задача)."""
+
+[[exercises]]
+name = "rt12"
+style = "fix"
+hint.ru = [
+  """Тебя ругают за вложенный block_on: синхронный `load_name` запускает рантайм в потоке, который уже принадлежит рантайму.""",
+  """Если внутри уже есть рантайм, просто жди Future через `.await`. Помощник load_name можно удалить: у тебя есть `fetch_name`.""",
+]
+why.ru = """block_on блокирует поток, а поток рантайма блокировать нельзя: на нём бежат чужие задачи. Поэтому tokio запрещает это паникой. Граница sync и async переходится ровно один раз, на самом верху (main, тест, поток), а ниже всё остаётся async до самых листьев. Если дальше приходится вызывать блокирующий API, его уводят в spawn_blocking, а не поднимают рантайм внутри."""
+
+[[exercises]]
+name = "rt_bootstrap"
+style = "scratch"
+quiz = true
+hint.ru = [
+  """Шаги независимы, делай по порядку: build_runtime, boot, run, report_from_thread. Тесты идут в том же порядке. Тест с start_paused проверяет время: задачи должны идти параллельно (см. раздел про замороженное время в README).""",
+  """boot: собери `Vec<JoinHandle<u32>>` через `(1..=tasks).map(|i| tokio::spawn(async move { .. }))`, потом в цикле `total += handle.await?` (From<JoinError> уже есть).""",
+  """report_from_thread: клонируй Handle, `std::thread::spawn(move || handle.block_on(boot(config)))`. run: parse_config(text)?, build_runtime(&config)?, `runtime.block_on(boot(config))`.""",
+]
+why.ru = """Это типичная форма настоящего приложения: sync main строит рантайм по конфигу, отдаёт ему async-ядро и больше не смешивает миры. Ошибки идут вверх через `?` и From, поэтому boot, run и build_runtime возвращают одну и ту же BootError. Handle::block_on в report_from_thread работает только потому, что рантайм многопоточный: на current_thread spawn-нутые внутри задачи без чьего-то block_on не поедут."""

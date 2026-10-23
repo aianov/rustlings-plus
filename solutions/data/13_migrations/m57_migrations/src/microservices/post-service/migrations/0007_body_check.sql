@@ -1,0 +1,1 @@
+ALTER TABLE posts ADD CONSTRAINT posts_body_present CHECK (body IS NOT NULL) NOT VALID;

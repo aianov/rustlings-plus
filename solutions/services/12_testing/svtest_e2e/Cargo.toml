@@ -1,0 +1,3 @@
+[workspace]
+resolver = "3"
+members = ["src/crates/testkit", "src/crates/stack", "tests/e2e"]

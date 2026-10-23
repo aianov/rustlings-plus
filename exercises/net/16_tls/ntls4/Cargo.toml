@@ -1,0 +1,15 @@
+[package]
+name = "ntls4"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rustls-pki-types = "1"
+rcgen = { version = "=0.13.2", default-features = false, features = ["ring", "pem"] }
+x509-parser = "0.16"

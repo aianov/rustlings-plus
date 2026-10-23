@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Четыре вида gRPC-вызовов</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Четыре вида gRPC-вызовов</h1>
+  <p class="sub">Один вызов, поток от сервера, поток от клиента и двунаправленный стрим: кто и сколько раз пишет в один и тот же вызов и как он закрывается.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Unary",
+  "boxes": [
+   "Клиент шлёт",
+   "Вызов (HTTP/2-поток)",
+   "Сервер шлёт",
+   "Что видит каждая сторона"
+  ],
+  "steps": [
+   {
+    "t": "Клиент отправляет одно сообщение и закрывает свою сторону: один запрос внутри вызова.",
+    "s": [
+     [
+      [
+       "запрос",
+       "info"
+      ]
+     ],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "клиент ждёт",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Сервер принял запрос, обработчик работает.",
+    "s": [
+     [],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "обработчик работает",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Сервер отправляет одно сообщение и трейлеры со статусом. Вызов закрыт с обеих сторон.",
+    "s": [
+     [],
+     [
+      [
+       "закрыт",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "ответ",
+       "ok"
+      ],
+      [
+       "grpc-status: 0",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "клиент получил Ok",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Server streaming",
+  "boxes": [
+   "Клиент шлёт",
+   "Вызов (HTTP/2-поток)",
+   "Сервер шлёт",
+   "Что видит каждая сторона"
+  ],
+  "steps": [
+   {
+    "t": "Клиент отправляет один запрос: «подпиши меня на ленту». Свою сторону он закрывает.",
+    "s": [
+     [
+      [
+       "Subscribe(user=1)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "клиент читает поток",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Обработчик возвращает поток ответов. Он будет жить, пока есть что слать и пока клиент не ушёл.",
+    "s": [
+     [],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "событие 1",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "получил событие 1",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "События приходят по мере появления: через секунду, через минуту. Вызов открыт всё это время.",
+    "s": [
+     [],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "событие 1",
+       "mute"
+      ],
+      [
+       "событие 2",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "получил события 1, 2",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Конец потока бывает двух видов. Нормальный: трейлеры grpc-status: 0, клиент видит Ok(None). Аварийный: в трейлерах ошибка, клиент видит Err. Если сервер просто замолчал, отличить это от нормального конца нельзя.",
+    "s": [
+     [],
+     [
+      [
+       "закрыт",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "трейлеры: статус",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "Ok(None) или Err(status)",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент может закрыть вызов раньше. Сервер этого сам не узнает: его задача должна следить за закрытием приёмника, иначе подписка утечёт.",
+    "s": [
+     [
+      [
+       "клиент ушёл",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "RST_STREAM",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "send вернёт ошибку",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "задача должна выйти",
+       "warn"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Client streaming",
+  "boxes": [
+   "Клиент шлёт",
+   "Вызов (HTTP/2-поток)",
+   "Сервер шлёт",
+   "Что видит каждая сторона"
+  ],
+  "steps": [
+   {
+    "t": "Клиент открывает вызов и начинает слать лайки по одному.",
+    "s": [
+     [
+      [
+       "лайк 1",
+       "info"
+      ],
+      [
+       "лайк 2",
+       "info"
+      ]
+     ],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "сервер читает по одному",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Сервер читает message() в цикле и копит итог локально. В хранилище пока ничего не пишет.",
+    "s": [
+     [
+      [
+       "лайк 3",
+       "info"
+      ]
+     ],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "копит: 3 лайка",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент закончил: последним сообщением идёт Commit, потом закрытие своей стороны.",
+    "s": [
+     [
+      [
+       "Commit",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "клиент закрыл свою сторону",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "пачка подтверждена",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Теперь сервер применяет итог одним действием и отвечает одним сообщением.",
+    "s": [
+     [],
+     [
+      [
+       "закрыт",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "accepted: 3",
+       "ok"
+      ],
+      [
+       "grpc-status: 0",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "записано",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Если клиент оборвётся на середине, сервер увидит просто конец потока. Только отсутствие Commit отличает обрыв от настоящего завершения.",
+    "s": [
+     [
+      [
+       "приложение закрыли",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "конец потока",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "нет Commit: не применять",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Bidi",
+  "boxes": [
+   "Клиент шлёт",
+   "Вызов (HTTP/2-поток)",
+   "Сервер шлёт",
+   "Что видит каждая сторона"
+  ],
+  "steps": [
+   {
+    "t": "Клиент и сервер открыли общий вызов. Первое сообщение клиента Join.",
+    "s": [
+     [
+      [
+       "Join(ann)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "ann в комнате",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент говорит, сервер слушает. Обратно ничего не идёт: ответы не привязаны к вопросам.",
+    "s": [
+     [
+      [
+       "Say(привет)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "рассылает всем в комнате",
+       "info"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Сообщение другого участника приходит ann сразу, хотя она сама ничего не слала.",
+    "s": [
+     [],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "bob: добрый день",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "читающая и пишущая задачи независимы",
+       "info"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Говорить и слушать одновременно можно в любом порядке. Эхо «одно входящее, одно исходящее» здесь не годится.",
+    "s": [
+     [
+      [
+       "Say(как дела)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "вызов открыт",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "bob: хорошо",
+       "ok"
+      ],
+      [
+       "ann: как дела",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "две задачи на соединение",
+       "info"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент закрывает свою сторону. Сервер закрывает исходящий поток этого участника, остальные участники продолжают.",
+    "s": [
+     [
+      [
+       "конец отправки",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "закрыт",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "поток ann закрыт",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "bob и другие остались",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

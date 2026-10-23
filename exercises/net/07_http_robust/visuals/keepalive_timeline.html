@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keep-alive: жизнь одного соединения</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Keep-alive: жизнь одного соединения</h1>
+  <p class="sub">Клиент делает несколько запросов в одном соединении. Смотри, кто и почему его закрывает.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Простой и закрытие",
+  "boxes": [
+   "Клиент",
+   "Соединение",
+   "Сервер",
+   "Таймер простоя"
+  ],
+  "steps": [
+   {
+    "t": "Клиент открывает соединение. Для одного рукопожатия TCP это дорого, поэтому им хотят воспользоваться несколько раз.",
+    "s": [
+     [
+      [
+       "connect",
+       "info"
+      ]
+     ],
+     [
+      [
+       "открыто",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "ждёт первый байт",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "30 с",
+       "mute"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Первый запрос GET /films. Сервер отвечает, соединение остаётся открытым: HTTP/1.1 держит его по умолчанию.",
+    "s": [
+     [
+      [
+       "GET /films",
+       "info"
+      ]
+     ],
+     [
+      [
+       "открыто",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "200 OK",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "сброшен",
+       "info"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Второй запрос на том же соединении: без рукопожатия, без нового дескриптора на сервере.",
+    "s": [
+     [
+      [
+       "GET /poster/1.jpg",
+       "info"
+      ]
+     ],
+     [
+      [
+       "то же соединение",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "200 OK",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "сброшен",
+       "info"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент замолчал. Таймер простоя тикает: запросов нет, и сервер не знает, вернётся ли клиент.",
+    "s": [
+     [
+      [
+       "молчит",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "открыто",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "ждёт",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "идёт: 12 с",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Таймер истёк. Сервер закрывает соединение молча, без 408: на запрос, которого не было, не отвечают.",
+    "s": [
+     [
+      [
+       "соединение закрыто",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "закрыто",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "освободил дескриптор",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "30 с, сработал",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Connection: close и HTTP/1.0",
+  "boxes": [
+   "Клиент",
+   "Соединение",
+   "Сервер",
+   "Решение"
+  ],
+  "steps": [
+   {
+    "t": "Клиент отправляет GET с заголовком Connection: close.",
+    "s": [
+     [
+      [
+       "GET /last, Connection: close",
+       "info"
+      ]
+     ],
+     [
+      [
+       "открыто",
+       "ok"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Сервер видит токен close и решает закрыться после ответа. Решение принято до записи ответа.",
+    "s": [
+     [],
+     [
+      [
+       "открыто",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "разобрал заголовок",
+       "info"
+      ]
+     ],
+     [
+      [
+       "закрыться после ответа",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "В ответе стоит Connection: close, чтобы клиент не отправил на закрывающийся сокет следующий запрос.",
+    "s": [
+     [
+      [
+       "получил 200 + Connection: close",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "закрывается",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "200 OK, close",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "закрыться после ответа",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Для HTTP/1.0 всё наоборот: закрытие по умолчанию, а оставить открытым можно только заголовком Connection: keep-alive, и сервер подтверждает его в ответе.",
+    "s": [
+     [
+      [
+       "GET HTTP/1.0",
+       "info"
+      ]
+     ],
+     [
+      [
+       "закрыто (по умолчанию)",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "без keep-alive закрываю",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "1.0: закрыть, если не просили",
+       "warn"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Конвейер (три запроса в одном read)",
+  "boxes": [
+   "Сокет (read)",
+   "Буфер",
+   "Обработчик",
+   "Ответы"
+  ],
+  "steps": [
+   {
+    "t": "Клиент отправил три запроса подряд, не дожидаясь ответов. Сервер сделал один read и получил все три и половину четвёртого.",
+    "s": [
+     [
+      [
+       "read: 3 запроса + половина 4-го",
+       "info"
+      ]
+     ],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Всё в буфере соединения. Сервер берёт первый запрос с начала буфера.",
+    "s": [
+     [],
+     [
+      [
+       "запрос 1",
+       "ok"
+      ],
+      [
+       "запрос 2",
+       "info"
+      ],
+      [
+       "запрос 3",
+       "info"
+      ],
+      [
+       "начало 4",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "обработка 1",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Первый запрос вырезан из буфера ровно по своей длине. Остаток на месте, ничего не выброшено.",
+    "s": [
+     [],
+     [
+      [
+       "запрос 2",
+       "ok"
+      ],
+      [
+       "запрос 3",
+       "info"
+      ],
+      [
+       "начало 4",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "обработка 2",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "ответ 1",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Так же второй и третий. Ответы строго по порядку, даже если вдруг второй запрос быстрее первого.",
+    "s": [
+     [],
+     [
+      [
+       "начало 4",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "обработка 3",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "ответ 1",
+       "ok"
+      ],
+      [
+       "ответ 2",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "В буфере осталась половина четвёртого: целого запроса нет, и только теперь нужно читать сокет дальше.",
+    "s": [
+     [
+      [
+       "ждём read",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "начало 4",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "ответ 1",
+       "ok"
+      ],
+      [
+       "ответ 2",
+       "ok"
+      ],
+      [
+       "ответ 3",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

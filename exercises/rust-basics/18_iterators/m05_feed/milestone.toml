@@ -1,0 +1,13 @@
+hint.ru = [
+"""Начни с пустого `feed.rs`: `use super::Network;`, блок `impl<U: UserStore, P: PostStore> Network<U, P>`
+и `mod feed;` в network/mod.rs. Посты в порядке публикации отдаёт `self.posts.all()`, это срез,
+и у него есть `.iter()`.""",
+"""Условие ленты удобно вынести в маленький приватный метод: автор это сам зритель или
+`self.follows.contains(viewer, author)`, и при этом `post.can_view(viewer, подписан_ли)`.
+Тогда цепочка читается как фраза: `.iter().rev().filter(|post| self.is_in_feed(viewer, post)).take(limit).collect()`.""",
+"""Поиск по тегу начинается с id: `self.tags.posts(tag)`. Превратить id в пост поможет
+`.filter_map(|id| self.posts.get(*id))`: `get` отдаёт `Option`, а `filter_map` выкидывает `None`.
+Если `Tags::posts` сейчас клонирует вектор, пусть лучше отдаёт срез `&[PostId]`.""",
+]
+story.ru = """У соцсети появилась лента: открываешь и видишь своих, свежие сверху, чужие тайны скрыты.
+И ни одной лишней копии поста по дороге."""

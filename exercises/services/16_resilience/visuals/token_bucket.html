@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ведро с жетонами</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Ведро с жетонами</h1>
+  <p class="sub">Как ведро пропускает короткие всплески, держит среднюю скорость и почему окно в секунду уступает ему.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Всплеск и пополнение",
+  "boxes": [
+   "Запросы",
+   "Ведро (размер 5, 2 жетона в секунду)",
+   "Решение"
+  ],
+  "steps": [
+   {
+    "t": "Ведро полное: пять жетонов. Жетоны будут капать по два в секунду, но больше пяти в ведре не бывает.",
+    "s": [
+     [],
+     [
+      [
+       "●●●●●",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Пришёл всплеск из пяти запросов в один момент. Каждый берёт жетон. Все пройдут.",
+    "s": [
+     [
+      [
+       "5 запросов сразу",
+       "info"
+      ]
+     ],
+     [
+      [
+       "пусто",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "5 пропущено",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Шестой запрос в тот же момент: жетонов нет, он получает отказ и подсказку, что следующий жетон появится через 500 мс.",
+    "s": [
+     [
+      [
+       "запрос 6",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "пусто",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "отказ, retry_after 500 мс",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Прошла секунда: капнули два жетона. Следующие два запроса проходят, третий снова ждёт.",
+    "s": [
+     [
+      [
+       "запросы 7, 8, 9",
+       "info"
+      ]
+     ],
+     [
+      [
+       "●●",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "7, 8 пропущены",
+       "ok"
+      ],
+      [
+       "9 отказ",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Простой не копится сверх ведра",
+  "boxes": [
+   "Запросы",
+   "Ведро (размер 5)",
+   "Решение"
+  ],
+  "steps": [
+   {
+    "t": "Час тишины. Жетоны капали всё это время, но ведро вмещает пять, лишнее проливается.",
+    "s": [
+     [
+      [
+       "час без запросов",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "●●●●●",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Приходит всплеск из десяти запросов. Пройдут ровно пять: час простоя не дал права на 7200 запросов.",
+    "s": [
+     [
+      [
+       "10 запросов",
+       "info"
+      ]
+     ],
+     [
+      [
+       "пусто",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "5 пропущено",
+       "ok"
+      ],
+      [
+       "5 отказов",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Окно в секунду против ведра",
+  "boxes": [
+   "Запросы",
+   "Окно: 10 в секунду",
+   "Ведро: 10 в секунду, размер 10"
+  ],
+  "steps": [
+   {
+    "t": "Окно считает запросы с начала каждой секунды. В конце секунды клиент отправляет десять запросов, и все проходят.",
+    "s": [
+     [
+      [
+       "0.9 с: 10 запросов",
+       "info"
+      ]
+     ],
+     [
+      [
+       "10 из 10",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "10 жетонов потрачено",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Секунда сменилась, окно обнулилось. Клиент отправляет ещё десять. Для окна это новая секунда, и все проходят.",
+    "s": [
+     [
+      [
+       "1.0 с: 10 запросов",
+       "info"
+      ]
+     ],
+     [
+      [
+       "10 из 10",
+       "bad"
+      ],
+      [
+       "20 за 0.1 с",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "проходит 1 из 10, остальные отказ",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Окно пропустило двойную норму на стыке. Ведро держит среднюю скорость при любом расписании, но короткий всплеск размера ведра всё равно позволяет.",
+    "s": [
+     [],
+     [
+      [
+       "двойная норма",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "средняя скорость соблюдена",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

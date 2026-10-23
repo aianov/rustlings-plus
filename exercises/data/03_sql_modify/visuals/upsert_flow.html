@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upsert: вставка встречает конфликт</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6a7385; --line: #d9dde5;
+  --accent: #2563eb; --accent-bg: #dbe7ff; --keep: #e8f6ec; --drop: #fde8e8; --drop-text: #b42318;
+  --new: #fff4cc; --code-bg: #eef1f6; --err: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --panel: #1c212b; --text: #e6e9f0; --muted: #98a2b5; --line: #323a49;
+    --accent: #6ea0ff; --accent-bg: #23365e; --keep: #1c3326; --drop: #3b2024; --drop-text: #ff8a80;
+    --new: #4a3f12; --code-bg: #242b38; --err: #ff8a80;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 900px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.lead { color: var(--muted); margin: 0 0 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+pre.sql { margin: 0; font: 15px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; }
+pre.sql .ln { display: block; padding: 0 8px; border-radius: 5px; border-left: 3px solid transparent; color: var(--muted); }
+pre.sql .ln.on { background: var(--accent-bg); border-left-color: var(--accent); color: var(--text); }
+.pipeline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.stage { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.stage.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.stage.done { color: var(--text); border-color: var(--accent); }
+.arrow { color: var(--muted); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+th.new, td.new { background: var(--new); }
+tr.keep td { background: var(--keep); }
+tr.drop td { background: var(--drop); color: var(--drop-text); text-decoration: line-through; }
+tr.drop td.new { background: var(--drop); }
+.note { min-height: 3.2em; }
+.note b { color: var(--accent); }
+.err { color: var(--err); font-family: ui-monospace, Menlo, monospace; margin-top: 8px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+.counter { color: var(--muted); }
+select { font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+tr.cand td { background: var(--accent-bg); }
+tr.new td { background: var(--keep); }
+tr.upd td { background: var(--new); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Вставка натыкается на уникальный ключ</h1>
+  <p class="lead">В таблице settings ключ user_id. Пробуем вставить строку (3, 'light'). Выбери, что написано после запроса, и поставь или сними галку «запись уже есть».</p>
+  <div class="card controls">
+    <select id="mode">
+      <option value="plain">без ON CONFLICT</option>
+      <option value="nothing">ON CONFLICT (user_id) DO NOTHING</option>
+      <option value="update">ON CONFLICT (user_id) DO UPDATE SET theme = EXCLUDED.theme</option>
+    </select>
+    <label><input type="checkbox" id="exists" checked> запись с user_id = 3 уже есть</label>
+  </div>
+  <div class="card"><pre class="sql" id="sql"></pre></div>
+  <div class="card"><table id="grid"></table><div class="err" id="err"></div></div>
+  <div class="card note" id="note"></div>
+  <div class="card controls">
+    <button class="primary" id="step">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+</main>
+<script>
+let step = 0, timer = null;
+const LAST = 3;
+function sqlText(mode) {
+  const base = "INSERT INTO settings (user_id, theme)\nVALUES (3, 'light')";
+  if (mode === 'nothing') return base + "\nON CONFLICT (user_id) DO NOTHING";
+  if (mode === 'update') return base + "\nON CONFLICT (user_id)\nDO UPDATE SET theme = EXCLUDED.theme";
+  return base;
+}
+function model() {
+  const mode = document.getElementById('mode').value;
+  const exists = document.getElementById('exists').checked;
+  const rows = exists ? [{ c: [3, 'dark'], k: '' }] : [];
+  let note = 'Жми «Шаг». Вставка начинается с проверки уникального ключа.', err = '';
+  if (step >= 1) { rows.push({ c: [3, 'light'], k: 'cand' }); note = 'Строка-кандидат (3, light) готова к записи. EXCLUDED это именно она.'; }
+  if (step >= 2) {
+    note = exists ? 'Проверка ключа: user_id = 3 уже занят. Это конфликт.' : 'Проверка ключа: user_id = 3 свободен, конфликта нет.';
+  }
+  if (step >= 3) {
+    rows.pop();
+    if (!exists) { rows.push({ c: [3, 'light'], k: 'new' }); note = 'Конфликта нет, строка просто вставлена. Ветка ON CONFLICT не понадобилась.'; }
+    else if (mode === 'plain') { err = 'ERROR: duplicate key value violates unique constraint (SQLSTATE 23505)'; note = 'Без ON CONFLICT конфликт это ошибка: вся команда отменена, таблица не изменилась.'; }
+    else if (mode === 'nothing') { note = 'DO NOTHING: кандидат выброшен, старая строка осталась как была. Затронуто строк: 0.'; }
+    else { rows[0] = { c: [3, 'light'], k: 'upd' }; note = 'DO UPDATE: существующая строка обновлена значением из EXCLUDED, новой строки нет. Затронуто строк: 1.'; }
+  }
+  return { rows, note, err };
+}
+function render() {
+  const mode = document.getElementById('mode').value;
+  const m = model();
+  document.getElementById('sql').textContent = sqlText(mode);
+  document.getElementById('grid').innerHTML = '<tr><th>user_id (ключ)</th><th>theme</th></tr>' +
+    (m.rows.length ? m.rows.map(r => `<tr class="${r.k}"><td>${r.c[0]}</td><td>${r.c[1]}</td></tr>`).join('') : '<tr><td colspan="2" style="color:var(--muted)">таблица пуста</td></tr>');
+  document.getElementById('err').textContent = m.err;
+  document.getElementById('note').textContent = m.note;
+  document.getElementById('counter').textContent = `шаг ${step} из ${LAST}`;
+  document.getElementById('step').disabled = step >= LAST;
+  if (step >= LAST) stop();
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; } document.getElementById('play').textContent = 'Играть'; }
+function next() { if (step < LAST) { step++; render(); } else stop(); }
+document.getElementById('step').onclick = () => { stop(); next(); };
+document.getElementById('play').onclick = () => {
+  if (timer) { stop(); return; }
+  if (step >= LAST) step = 0;
+  render();
+  document.getElementById('play').textContent = 'Пауза';
+  timer = setInterval(next, 1500);
+};
+document.getElementById('reset').onclick = () => { stop(); step = 0; render(); };
+document.getElementById('mode').onchange = document.getElementById('exists').onchange = () => { stop(); step = 0; render(); };
+render();
+</script>
+</body>
+</html>

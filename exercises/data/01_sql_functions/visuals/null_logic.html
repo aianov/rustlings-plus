@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NULL и трёхзначная логика</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6a7385; --line: #d9dde5;
+  --accent: #2563eb; --accent-bg: #dbe7ff; --keep: #e8f6ec; --drop: #fde8e8; --drop-text: #b42318;
+  --new: #fff4cc; --code-bg: #eef1f6; --err: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --panel: #1c212b; --text: #e6e9f0; --muted: #98a2b5; --line: #323a49;
+    --accent: #6ea0ff; --accent-bg: #23365e; --keep: #1c3326; --drop: #3b2024; --drop-text: #ff8a80;
+    --new: #4a3f12; --code-bg: #242b38; --err: #ff8a80;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 900px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.lead { color: var(--muted); margin: 0 0 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+pre.sql { margin: 0; font: 15px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; }
+pre.sql .ln { display: block; padding: 0 8px; border-radius: 5px; border-left: 3px solid transparent; color: var(--muted); }
+pre.sql .ln.on { background: var(--accent-bg); border-left-color: var(--accent); color: var(--text); }
+.pipeline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.stage { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.stage.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.stage.done { color: var(--text); border-color: var(--accent); }
+.arrow { color: var(--muted); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+th.new, td.new { background: var(--new); }
+tr.keep td { background: var(--keep); }
+tr.drop td { background: var(--drop); color: var(--drop-text); text-decoration: line-through; }
+tr.drop td.new { background: var(--drop); }
+.note { min-height: 3.2em; }
+.note b { color: var(--accent); }
+.err { color: var(--err); font-family: ui-monospace, Menlo, monospace; margin-top: 8px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+.counter { color: var(--muted); }
+td.t, td.f, td.n { font-weight: 600; text-align: center; }
+td.t { color: #1a7f37; } td.f { color: var(--drop-text); } td.n { color: #9a6700; }
+tr.cur td { outline: 2px solid var(--accent); outline-offset: -2px; }
+select { font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <h1>WHERE пропускает только TRUE</h1>
+  <p class="lead">У условия три исхода: TRUE, FALSE и NULL («неизвестно»). Строка остаётся, только если TRUE. Выбери условие и проверь строки по очереди.</p>
+
+  <div class="card controls"><span class="counter">условие:</span>
+    <select id="cond">
+      <option value="ne">status &lt;&gt; 'banned'</option>
+      <option value="ne_null">status &lt;&gt; 'banned' OR status IS NULL</option>
+      <option value="distinct">status IS DISTINCT FROM 'banned'</option>
+      <option value="eqnull">status = NULL</option>
+    </select>
+  </div>
+  <div class="card"><table id="grid"></table></div>
+  <div class="card note" id="note"></div>
+  <div class="card controls">
+    <button class="primary" id="step">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+</main>
+<script>
+const ROWS = [
+  ['alice', 'active'], ['bob', 'active'], ['carol', 'banned'], ['dave', null], ['kenji', 'active'],
+  ['eve', null], ['frank', 'pending'], ['grace', 'active'], ['heidi', 'banned'],
+];
+const EVAL = {
+  ne:       s => s === null ? null : s !== 'banned',
+  ne_null:  s => s === null ? true : s !== 'banned',
+  distinct: s => s !== 'banned',
+  eqnull:   s => null,
+};
+const WHY = {
+  null: 'NULL &lt;&gt; \'banned\' это NULL, а не TRUE. WHERE такую строку отбросит молча.',
+};
+let step = 0, timer = null;
+
+function label(v) { return v === null ? 'NULL' : v ? 'TRUE' : 'FALSE'; }
+function cls(v) { return v === null ? 'n' : v ? 't' : 'f'; }
+
+function render() {
+  const f = EVAL[document.getElementById('cond').value];
+  let kept = 0;
+  const rows = ROWS.map(([u, s], i) => {
+    const done = i < step, r = f(s);
+    if (done && r === true) kept++;
+    return `<tr class="${done ? (r === true ? 'keep' : 'drop') : ''}${i === step ? ' cur' : ''}">
+      <td>${u}</td><td>${s === null ? '<i>NULL</i>' : s}</td>
+      <td class="${done ? cls(r) : ''}">${done ? label(r) : '?'}</td><td>${done ? (r === true ? 'остаётся' : 'отброшена') : ''}</td></tr>`;
+  }).join('');
+  document.getElementById('grid').innerHTML =
+    '<tr><th>username</th><th>status</th><th>условие</th><th>строка</th></tr>' + rows;
+  let note = 'Жми «Шаг»: условие проверяется для каждой строки по отдельности.';
+  if (step > 0 && step <= ROWS.length) {
+    const [u, s] = ROWS[step - 1], r = f(s);
+    note = r === null
+      ? `<b>${u}</b>: статус неизвестен (NULL), поэтому условие тоже NULL, не TRUE и не FALSE. Строка отбрасывается, хотя ни в чём не виновата.`
+      : r ? `<b>${u}</b>: TRUE, строка остаётся.` : `<b>${u}</b>: FALSE, строка отбрасывается.`;
+  }
+  if (step >= ROWS.length) note = `Готово: осталось строк ${kept} из ${ROWS.length}. Забанены двое, а без статуса dave и eve: сравни число строк у разных условий.`;
+  document.getElementById('note').innerHTML = note;
+  document.getElementById('counter').textContent = `шаг ${Math.min(step, ROWS.length)} из ${ROWS.length}`;
+  document.getElementById('step').disabled = step >= ROWS.length;
+  if (step >= ROWS.length) stop();
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; } document.getElementById('play').textContent = 'Играть'; }
+function next() { if (step < ROWS.length) { step++; render(); } else stop(); }
+document.getElementById('step').onclick = () => { stop(); next(); };
+document.getElementById('play').onclick = () => {
+  if (timer) { stop(); return; }
+  if (step >= ROWS.length) step = 0;
+  render();
+  document.getElementById('play').textContent = 'Пауза';
+  timer = setInterval(next, 900);
+};
+document.getElementById('reset').onclick = () => { stop(); step = 0; render(); };
+document.getElementById('cond').onchange = () => { stop(); step = 0; render(); };
+render();
+</script>
+</body>
+</html>

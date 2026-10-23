@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package social.v1;
+
+import "social/v1/common.proto";
+
+// Сервис профилей: кто есть в сети, кто на кого подписан, кто кого скрыл, аватары.
+// Кто действует, сервис узнаёт из метаданных x-user-id, а не из тела запроса.
+service Users {
+  // Новый профиль. Ник занят: ALREADY_EXISTS, плохой ник: INVALID_ARGUMENT
+  // с x-error-code validation и полями в x-error-details-bin.
+  rpc CreateProfile(CreateProfileRequest) returns (Profile);
+  // PATCH профиля x-user-id: поле не прислано, значит не трогать; имя в clear_fields,
+  // значит очистить; прислано значение, значит проверить и поставить. Всё или ничего.
+  rpc UpdateProfile(UpdateProfileRequest) returns (Profile);
+  // Профиль по id. Нет такого: NOT_FOUND.
+  rpc GetProfile(GetProfileRequest) returns (Profile);
+  // Профиль по нику без учёта регистра. Нет такого: NOT_FOUND.
+  rpc FindProfile(FindProfileRequest) returns (Profile);
+  // Профили по возрастанию id строго после after, не больше limit штук.
+  rpc ListProfiles(ListProfilesRequest) returns (ProfileList);
+  // Подписка и скрытие от имени x-user-id. Без него: UNAUTHENTICATED.
+  rpc Follow(PairRequest) returns (Changed);
+  rpc Mute(PairRequest) returns (Changed);
+  // Связи пользователя. audience: подписчики, которые не скрыли его посты.
+  rpc Relations(RelationsRequest) returns (RelationsReply);
+  // Аватар x-user-id целиком одним сообщением: сервер поднимает лимит размера сознательно.
+  rpc PutAvatar(PutAvatarRequest) returns (PutAvatarReply);
+  rpc GetAvatar(AvatarRequest) returns (Avatar);
+  rpc DeleteAvatar(DeleteAvatarRequest) returns (Changed);
+}
+
+message Profile {
+  uint64 id = 1;
+  string username = 2;
+  // Пустая строка: не задано.
+  string display_name = 3;
+  string bio = 4;
+}
+
+message UpdateProfileRequest {
+  optional string display_name = 1;
+  optional string bio = 2;
+  repeated string clear_fields = 3;
+}
+
+message CreateProfileRequest {
+  string username = 1;
+}
+
+message GetProfileRequest {
+  uint64 user_id = 1;
+}
+
+message FindProfileRequest {
+  string username = 1;
+}
+
+message ListProfilesRequest {
+  uint64 after = 1;
+  uint32 limit = 2;
+}
+
+message ProfileList {
+  repeated Profile profiles = 1;
+}
+
+message PairRequest {
+  reserved 1;
+  reserved "user_id";
+  uint64 target_id = 2;
+}
+
+message RelationsRequest {
+  uint64 user_id = 1;
+}
+
+message RelationsReply {
+  repeated uint64 following = 1;
+  repeated uint64 followers = 2;
+  repeated uint64 muted = 3;
+  repeated uint64 audience = 4;
+}
+
+message PutAvatarRequest {
+  reserved 1;
+  reserved "user_id";
+  string content_type = 2;
+  bytes data = 3;
+}
+
+message PutAvatarReply {
+  bool created = 1;
+}
+
+message AvatarRequest {
+  uint64 user_id = 1;
+}
+
+message DeleteAvatarRequest {}
+
+message Avatar {
+  string content_type = 1;
+  bytes data = 2;
+}

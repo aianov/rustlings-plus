@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Унификация features</title>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--line:#c9c7bd;--acc:#c2410c;--ok:#15803d;--okbg:#dcfce7;--bad:#b91c1c;--btn:#1d1d1b;--btnfg:#fff;--hot:#fff1e6}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#ecebe6;--mut:#9a9a92;--card:#201f1d;--line:#46443f;--acc:#fb923c;--ok:#4ade80;--okbg:#14301d;--bad:#f87171;--btn:#ecebe6;--btnfg:#161614;--hot:#33241a}}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--mut);margin:0 0 14px}
+.cmd{font:14px ui-monospace,Menlo,Consolas,monospace;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;display:inline-block;margin-bottom:12px;min-height:38px}
+.row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:center;max-width:820px}
+@media (max-width:640px){.row{grid-template-columns:1fr}}
+.card{background:var(--card);border:2px solid var(--line);border-radius:10px;padding:12px;transition:all .3s;opacity:.45}
+.card.on{opacity:1;border-color:var(--acc);background:var(--hot)}
+.card h2{margin:0 0 4px;font-size:14px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.card p{margin:0;color:var(--mut);font-size:13px}
+.feat{display:inline-block;margin:2px 3px 0 0;padding:1px 8px;border-radius:12px;border:1px solid var(--line);font:12px ui-monospace,Menlo,Consolas,monospace;background:var(--card)}
+.feat.lit{background:var(--okbg);border-color:var(--ok);color:var(--ok);font-weight:700}
+.feat.bad{border-color:var(--bad);color:var(--bad);font-weight:700}
+.note{margin:14px 0 10px;padding:12px 14px;border-left:4px solid var(--acc);background:var(--card);border-radius:0 8px 8px 0;min-height:76px;max-width:820px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:820px}
+button{font:inherit;padding:7px 14px;border-radius:8px;border:0;background:var(--btn);color:var(--btnfg);cursor:pointer}
+button.alt{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button:disabled{opacity:.4;cursor:default}
+.cnt{color:var(--mut);margin-left:auto}
+</style>
+</head>
+<body>
+<h1>Унификация features</h1>
+<p class="sub">Общая зависимость собирается один раз, с объединением features всех, кто её просит.</p>
+<div class="cmd" id="cmd"></div>
+<div class="row">
+  <div class="card" id="a"><h2>крейт a</h2><p>просит lib с</p><div id="fa"></div></div>
+  <div class="card" id="b"><h2>крейт b</h2><p>просит lib с</p><div id="fb"></div></div>
+  <div class="card" id="lib"><h2>lib</h2><p>собирается с</p><div id="fl"></div><p id="behavior" style="margin-top:6px"></p></div>
+</div>
+<div class="note" id="note"></div>
+<div class="bar">
+  <button id="step">Шаг</button>
+  <button id="play" class="alt">Играть</button>
+  <button id="reset" class="alt">Сначала</button>
+  <span class="cnt" id="cnt"></span>
+</div>
+<script>
+const feat=(t,c)=>'<span class="feat '+(c||'')+'">'+t+'</span>';
+const NONE='<span class="feat">(ничего)</span>';
+const steps=[
+ {cmd:'',on:[],a:feat('shout'),b:NONE,l:'',beh:'',note:'В воркспейсе два крейта. a подключает lib с feature shout, b подключает lib без features.'},
+ {cmd:'cargo test -p b',on:['b','lib'],a:feat('shout'),b:NONE,l:NONE,beh:'greet() = "Hello"',note:'-p b: собирается только b и его цепочка. Крейт a в сборке не участвует, его features никто не учитывает. lib без features, greet() здоровается обычно, тесты b зелёные.'},
+ {cmd:'cargo test --workspace',on:['a','b','lib'],a:feat('shout','lit'),b:NONE,l:feat('shout','lit'),beh:'greet() = "HELLO" ?!',note:'--workspace: собираются оба. Cargo собирает lib один раз, с объединением запросов: получается shout. Запросил его только a, а получили и a, и b.'},
+ {cmd:'cargo test --workspace',on:['b','lib'],a:feat('shout'),b:NONE,l:feat('shout','bad'),beh:'тест b красный',note:'Если shout меняет смысл существующей функции, b ломается из-за соседа, которого он не выбирал. Одиночный запуск зелёный, общий красный.'},
+ {cmd:'cargo test --workspace',on:['a','b','lib'],a:feat('shout','lit'),b:NONE,l:feat('shout','lit'),beh:'greet() = "Hello", есть shout()',note:'Выход: feature только добавляет. shout открывает новую функцию, а greet() не меняется. Тогда сумма features безопасна, и результат не зависит от набора собираемых крейтов.'},
+ {cmd:'cargo test -p lib --all-features',on:['lib'],a:feat('shout'),b:NONE,l:feat('shout','lit'),beh:'поведение прежнее',note:'Проверка на вшивость: прогони тесты зависимости со всеми включёнными features. Если результат не изменился, объединение вас не побеспокоит.'}
+];
+let i=0,timer=null;
+function render(){
+  const s=steps[i];
+  document.getElementById('cmd').textContent=s.cmd||'$';
+  ['a','b','lib'].forEach(id=>document.getElementById(id).classList.toggle('on',s.on.includes(id)));
+  document.getElementById('fa').innerHTML=s.a;
+  document.getElementById('fb').innerHTML=s.b;
+  document.getElementById('fl').innerHTML=s.l||'<span class="feat">...</span>';
+  document.getElementById('behavior').textContent=s.beh;
+  document.getElementById('note').textContent=s.note;
+  document.getElementById('cnt').textContent='шаг '+(i+1)+' из '+steps.length;
+  document.getElementById('step').disabled=i===steps.length-1;
+  if(i===steps.length-1)stop();
+}
+function stop(){if(timer){clearInterval(timer);timer=null;}document.getElementById('play').textContent='Играть';}
+document.getElementById('step').onclick=()=>{if(i<steps.length-1){i++;render();}};
+document.getElementById('reset').onclick=()=>{stop();i=0;render();};
+document.getElementById('play').onclick=()=>{
+  if(timer){stop();return;}
+  if(i===steps.length-1){i=0;render();}
+  document.getElementById('play').textContent='Пауза';
+  timer=setInterval(()=>{if(i<steps.length-1){i++;render();}else stop();},3000);
+};
+render();
+</script>
+</body>
+</html>

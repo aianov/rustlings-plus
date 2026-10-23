@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сжатие падающего входа</title>
+<style>
+:root {
+  --bg: #fafaf7; --fg: #1d1f24; --muted: #6b7078; --card: #ffffff; --line: #c9ccd2;
+  --ok: #1f8a5b; --bad: #c0392b; --accent: #7c3aed; --shadow: rgba(0,0,0,.08); --ghost: #e7e8ec; --msg: #2b6cd9;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --fg: #e8eaee; --muted: #9aa0aa; --card: #1d2026; --line: #3a3f48;
+    --ok: #4fd197; --bad: #ff8a7a; --accent: #b794ff; --shadow: rgba(0,0,0,.4); --ghost: #2a2e36; --msg: #6ea3ff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 820px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 14px; color: var(--muted); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.counter { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stage { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 8px var(--shadow); padding: 14px; display: grid; gap: 14px; }
+.zone h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; min-height: 44px; align-items: center; }
+.pkt { min-width: 48px; height: 38px; padding: 0 8px; display: grid; place-items: center; font: 600 14px ui-monospace, Menlo, monospace; color: #fff; background: var(--msg); border-radius: 6px; }
+.pkt.ghost { background: var(--ghost); color: var(--muted); }
+.pkt.lost { background: transparent; border: 2px dashed var(--bad); color: var(--bad); }
+.pkt.dup { background: var(--accent); }
+.pkt.late { outline: 2px solid var(--bad); }
+.pipe { border: 2px solid var(--line); border-radius: 10px; padding: 8px; min-height: 54px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: linear-gradient(90deg, transparent, var(--ghost) 40%, transparent); }
+.empty { color: var(--muted); font-size: 13px; }
+.legend { font-size: 13px; color: var(--muted); }
+.caption { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--accent); background: var(--card); border-radius: 0 8px 8px 0; min-height: 3.4em; }
+</style>
+<style>
+.raw { font: 15px/1.9 ui-monospace, Menlo, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; white-space: pre-wrap; }
+.chunk { padding: 2px 3px; border-radius: 4px; margin-right: 6px; border: 1px solid var(--line); }
+.chunk.a { background: color-mix(in srgb, #2b6cd9 25%, transparent); }
+.chunk.b { background: color-mix(in srgb, #1f8a5b 25%, transparent); }
+.chunk.c { background: color-mix(in srgb, #c2410c 25%, transparent); }
+.kept { background: color-mix(in srgb, #1f8a5b 30%, transparent); padding: 1px 2px; border-radius: 3px; }
+.cut { background: color-mix(in srgb, #c0392b 30%, transparent); text-decoration: line-through; padding: 1px 2px; border-radius: 3px; }
+.ok { color: var(--ok); font-weight: 700; }
+.bad { color: var(--bad); font-weight: 700; }
+.result { font: 14px ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Сжатие падающего входа</h1>
+  <p class="sub">Фаззер нашёл большой вход. Сжатие выбрасывает куски, пока цель продолжает падать.</p>
+  <div class="bar">
+    <button id="prev">Назад</button>
+    <button id="next">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="stage">
+    <div class="zone"><h2>Текущий падающий вход (зелёное оставили, красное выбросили)</h2><div class="raw" id="cur"></div></div>
+    <div class="zone"><h2>Проверок цели сделано</h2><div class="result" id="calls"></div></div>
+    <div class="legend">Цель падает, если во входе есть "X", а позже "Y". Всё остальное шум.</div>
+  </div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const ALL = "0123X4567890123456Y7890123456789".split("");
+// каждый шаг: какие индексы уже выброшены, сколько проверок, подпись
+const STEPS = [
+  { gone: [], calls: 0, t: "Исходный вход в 32 байта, цель падает. Читать такой вход глупо, ищем минимум." },
+  { gone: [], marks: range(16, 32), calls: 1, t: "Пробуем выбросить вторую половину (байты 16..31). Но там Y: без него цель не падает. Откат." },
+  { gone: [], marks: range(0, 16), calls: 2, t: "Пробуем выбросить первую половину. Там X: тоже не падает. Откат." },
+  { gone: range(24, 32), calls: 3, t: "Кусок поменьше: байты 24..31 лишние. Выбросили." },
+  { gone: range(24, 32).concat(range(0, 4)), calls: 4, t: "Байты 0..3 тоже лишние (X стоит на позиции 4). Выбросили." },
+  { gone: range(24, 32).concat(range(0, 4), range(5, 13)), calls: 5, t: "Теперь куски по 8: всё между X и Y, кроме нескольких байтов, уходит." },
+  { gone: range(24, 32).concat(range(0, 4), range(5, 18)), calls: 8, t: "Дальше куски по 4, по 2, по 1. Каждый удачный выброс оставляет вход короче, каждая неудача возвращает." },
+  { gone: range(0, 32).filter(i => i !== 4 && i !== 18), calls: 12, t: "Минимум: X и Y. Всего двенадцать проверок вместо тридцати, а на входе в миллион байт разница между тысячей проверок и миллионом." }
+];
+function range(a, b) { const r = []; for (let i = a; i < b; i++) r.push(i); return r; }
+function render() {
+  const s = STEPS[step], cur = $("cur"); cur.innerHTML = "";
+  ALL.forEach((ch, i) => {
+    const e = document.createElement("span");
+    e.textContent = ch;
+    const gone = s.gone.includes(i), mark = (s.marks || []).includes(i);
+    e.className = gone ? "cut" : (mark ? "cut" : "kept");
+    cur.appendChild(e);
+  });
+  $("calls").textContent = s.calls;
+  $("caption").textContent = s.t;
+  $("counter").textContent = `шаг ${step} из ${STEPS.length - 1}`;
+  $("prev").disabled = step === 0;
+  $("next").disabled = step === STEPS.length - 1;
+}
+let step = 0, timer = null;
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+function go(n) { step = Math.max(0, Math.min(STEPS.length - 1, n)); render(); }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === STEPS.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= STEPS.length - 1) return stop(); go(step + 1); }, 2400);
+};
+go(0);
+
+</script>
+</body>
+</html>

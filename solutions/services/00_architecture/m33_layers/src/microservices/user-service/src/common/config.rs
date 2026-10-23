@@ -1,0 +1,35 @@
+use std::env;
+use std::path::PathBuf;
+use std::time::Duration;
+
+use grpc_kit::{LogSink, Tls};
+
+pub const JOURNAL_ENV: &str = "USERS_JOURNAL";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Config {
+    pub journal: Option<PathBuf>,
+    pub grace: Duration,
+    pub log: Option<LogSink>,
+    pub tls: Option<Tls>,
+}
+
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            journal: None,
+            grace: Duration::from_millis(100),
+            log: None,
+            tls: None,
+        }
+    }
+}
+
+impl Config {
+    pub fn from_env() -> Config {
+        Config {
+            journal: env::var_os(JOURNAL_ENV).map(PathBuf::from),
+            ..Config::default()
+        }
+    }
+}

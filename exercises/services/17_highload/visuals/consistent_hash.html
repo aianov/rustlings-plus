@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кольцо согласованного хеширования</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Кольцо согласованного хеширования</h1>
+  <p class="sub">Сколько ключей переезжает при добавлении узла по модулю и на кольце, и зачем нужны виртуальные узлы.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "По модулю: добавили узел",
+  "boxes": [
+   "Ключи (12 штук)",
+   "Было 3 узла",
+   "Стало 4 узла",
+   "Переехало"
+  ],
+  "steps": [
+   {
+    "t": "Ключ попадает на узел «номер ключа по модулю числа узлов». Для ключей 1..12 и трёх узлов получается ровная раскладка.",
+    "s": [
+     [
+      [
+       "ключи 1..12",
+       "info"
+      ]
+     ],
+     [
+      [
+       "узел 0: 3 6 9 12",
+       "ok"
+      ],
+      [
+       "узел 1: 1 4 7 10",
+       "ok"
+      ],
+      [
+       "узел 2: 2 5 8 11",
+       "ok"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Добавили четвёртый узел, остаток считается по четырём. Раскладка полностью другая.",
+    "s": [
+     [
+      [
+       "ключи 1..12",
+       "info"
+      ]
+     ],
+     [],
+     [
+      [
+       "узел 0: 4 8 12",
+       "info"
+      ],
+      [
+       "узел 1: 1 5 9",
+       "info"
+      ],
+      [
+       "узел 2: 2 6 10",
+       "info"
+      ],
+      [
+       "узел 3: 3 7 11",
+       "info"
+      ]
+     ],
+     [
+      [
+       "9 из 12 ключей переехали",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Для кэша это значит промахи по трём четвертям ключей разом: база принимает удар, как будто кэша нет.",
+    "s": [
+     [],
+     [],
+     [
+      [
+       "кэш холодный",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "около 75% (n-1)/n",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Кольцо",
+  "boxes": [
+   "Ключи",
+   "Кольцо (узлы A, B, C)",
+   "Добавлен узел D",
+   "Переехало"
+  ],
+  "steps": [
+   {
+    "t": "Узлы и ключи получают место на окружности по хешу. Ключ принадлежит первому узлу по часовой стрелке от него.",
+    "s": [
+     [
+      [
+       "ключ k1 → B",
+       "info"
+      ],
+      [
+       "ключ k2 → C",
+       "info"
+      ],
+      [
+       "ключ k3 → A",
+       "info"
+      ]
+     ],
+     [
+      [
+       "A",
+       "ok"
+      ],
+      [
+       "B",
+       "ok"
+      ],
+      [
+       "C",
+       "ok"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Узел D встаёт на окружность между B и C. Забирает только те ключи, что лежали на дуге между B и D.",
+    "s": [
+     [
+      [
+       "ключ k2 → D (новый)",
+       "warn"
+      ],
+      [
+       "k1 и k3 остались",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "A",
+       "ok"
+      ],
+      [
+       "B",
+       "ok"
+      ],
+      [
+       "C",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "D между B и C",
+       "info"
+      ]
+     ],
+     [
+      [
+       "переехали только ключи с одной дуги",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Удаление узла работает так же: его ключи достаются следующему по часовой стрелке, остальные не двигаются.",
+    "s": [
+     [],
+     [
+      [
+       "B ушёл",
+       "bad"
+      ]
+     ],
+     [],
+     [
+      [
+       "только ключи B",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Виртуальные узлы",
+  "boxes": [
+   "Узлы",
+   "Точки на кольце",
+   "Доли",
+   "Итог"
+  ],
+  "steps": [
+   {
+    "t": "С одной точкой на узел дуги получаются случайной длины: один узел может отвечать за 50% окружности, другой за 10%.",
+    "s": [
+     [
+      [
+       "A, B, C по одной точке",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "3 точки",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "A 50%, B 40%, C 10%",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "перекос нагрузки",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Каждому узлу дают сотни точек: хеш от «A#0», «A#1»... Дуги перемешиваются, и доля каждого узла приближается к одной трети.",
+    "s": [
+     [
+      [
+       "по 200 точек на узел",
+       "info"
+      ]
+     ],
+     [
+      [
+       "600 точек",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "A 33%, B 34%, C 33%",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "ровно",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Новый узел тоже раскладывает свои точки по всему кольцу и забирает понемногу у каждого, а не всё у одного соседа.",
+    "s": [
+     [
+      [
+       "добавили D",
+       "info"
+      ]
+     ],
+     [
+      [
+       "ещё 200 точек",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "каждый отдал около четверти своих",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "переезд около 1/4 от всего",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

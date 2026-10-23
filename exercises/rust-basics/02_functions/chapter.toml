@@ -1,0 +1,70 @@
+[chapter]
+title.en = "Functions"
+title.ru = "Функции"
+
+[[exercises]]
+name = "functions1"
+test = false
+hint.en = """
+This `main` function is calling a function that it expects to exist, but the
+function doesn't exist. It expects this function to have the name `call_me`.
+It also expects this function to not take any arguments and not return a value.
+Sounds a lot like `main`, doesn't it?"""
+hint.ru = """Функция `main` вызывает функцию, которая, по её мнению, должна существовать, но её нет.
+Ожидается функция с именем `call_me`, без аргументов и без возвращаемого значения.
+Звучит очень похоже на `main`, правда?"""
+
+[[exercises]]
+name = "functions2"
+test = false
+hint.en = """
+Rust requires that all parts of a function's signature have type annotations,
+but `call_me` is missing the type annotation of `num`."""
+hint.ru = """Rust требует аннотаций типов во всех частях сигнатуры функции,
+а у `call_me` не указан тип аргумента `num`."""
+
+[[exercises]]
+name = "functions3"
+test = false
+hint.en = """
+This time, the function *declaration* is okay, but there's something wrong
+with the place where we are calling the function."""
+hint.ru = """На этот раз *объявление* функции в порядке, а вот в месте её вызова что-то не так."""
+
+[[exercises]]
+name = "functions4"
+test = false
+hint.en = """
+The error message points to the function `sale_price` and says it expects a type
+after `->`. This is where the function's return type should be.
+Take a look at the `is_even` function for an example!"""
+hint.ru = """Сообщение об ошибке указывает на функцию `sale_price` и говорит, что после `->`
+ожидается тип. Именно здесь должен стоять тип возвращаемого значения.
+Посмотри на функцию `is_even`, как на пример!"""
+
+[[exercises]]
+name = "functions5"
+test = false
+hint.en = """
+This is a really common error that can be fixed by removing one character.
+It happens because Rust distinguishes between expressions and statements:
+Expressions return a value based on their operand(s), and statements simply
+return a `()` type which behaves just like `void` in C/C++.
+
+We want to return a value with the type `i32` from the `square` function, but
+it is returning the type `()`.
+
+There are two solutions:
+1. Add the `return` keyword before `num * num;`
+2. Remove the semicolon `;` after `num * num`"""
+hint.ru = """Это очень распространённая ошибка, и исправляется она удалением одного символа.
+Всё дело в том, что Rust различает выражения и инструкции:
+выражения возвращают значение, вычисленное из их операндов, а инструкции просто
+возвращают тип `()`, который ведёт себя как `void` в C/C++.
+
+Мы хотим вернуть из функции `square` значение типа `i32`, а она
+возвращает тип `()`.
+
+Есть два решения:
+1. Добавить ключевое слово `return` перед `num * num;`
+2. Убрать точку с запятой `;` после `num * num`"""

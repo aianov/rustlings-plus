@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package search.v1;
+
+service Search {
+  rpc Find (FindRequest) returns (FindReply);
+}
+
+message FindRequest {
+  string query = 1;
+}
+
+message FindReply {
+  repeated string hits = 1;
+}

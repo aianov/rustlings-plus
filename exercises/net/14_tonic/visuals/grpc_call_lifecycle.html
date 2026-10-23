@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Жизнь одного gRPC-вызова</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Жизнь одного gRPC-вызова</h1>
+  <p class="sub">Как вызов метода клиента проходит через канал и соединение до обработчика и какой Status возвращается обратно.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Успешный вызов",
+  "boxes": [
+   "Код клиента",
+   "Channel",
+   "HTTP/2-соединение",
+   "Сервер"
+  ],
+  "steps": [
+   {
+    "t": "Код вызывает метод клиента: client.get_item(request). Клиент создан из клона канала, это дёшево.",
+    "s": [
+     [
+      [
+       "get_item(sku=42)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "клон канала",
+       "mute"
+      ]
+     ],
+     [],
+     [
+      [
+       "слушает порт",
+       "mute"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Канал кодирует запрос в protobuf, добавляет 5 байтов префикса (флаг сжатия и длина) и ставит вызов в очередь на своё соединение.",
+    "s": [
+     [
+      [
+       "ждёт ответа",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "protobuf + префикс",
+       "info"
+      ]
+     ],
+     [],
+     [
+      [
+       "слушает порт",
+       "mute"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "По соединению уходят HEADERS с путём /stock.v1.Stock/GetItem и DATA с телом. У вызова свой номер потока, другие вызовы идут рядом.",
+    "s": [
+     [
+      [
+       "ждёт ответа",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "HEADERS :path",
+       "info"
+      ],
+      [
+       "DATA (запрос)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "слушает порт",
+       "mute"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Сервер находит метод по пути, раскодирует тело и вызывает метод трейта Stock. Каждый вызов идёт в своей задаче.",
+    "s": [
+     [
+      [
+       "ждёт ответа",
+       "warn"
+      ]
+     ],
+     [],
+     [],
+     [
+      [
+       "get_item(request)",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Обработчик вернул Ok(Response). Сервер отправляет HEADERS со статусом 200, DATA с телом ответа и трейлеры grpc-status: 0.",
+    "s": [
+     [
+      [
+       "ждёт ответа",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "HEADERS 200",
+       "ok"
+      ],
+      [
+       "DATA (ответ)",
+       "ok"
+      ],
+      [
+       "трейлеры grpc-status: 0",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "готово",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Канал собирает ответ, клиент получает Ok(Response<Item>). Соединение остаётся открытым для следующих вызовов.",
+    "s": [
+     [
+      [
+       "Ok(Item)",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "соединение живо",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "слушает порт",
+       "mute"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Ошибка в обработчике",
+  "boxes": [
+   "Код клиента",
+   "Channel",
+   "HTTP/2-соединение",
+   "Сервер"
+  ],
+  "steps": [
+   {
+    "t": "Вызов ушёл на сервер так же, как в удачном случае. Обработчик ищет товар и не находит.",
+    "s": [
+     [
+      [
+       "get_item(sku=999)",
+       "info"
+      ]
+     ],
+     [],
+     [
+      [
+       "HEADERS + DATA",
+       "info"
+      ]
+     ],
+     [
+      [
+       "get_item(request)",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Обработчик возвращает Err(Status::not_found(...)). Тела ответа нет, сообщение protobuf не нужно.",
+    "s": [
+     [
+      [
+       "ждёт ответа",
+       "warn"
+      ]
+     ],
+     [],
+     [],
+     [
+      [
+       "Err(not_found)",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Сервер отвечает одним кадром HEADERS с флагом конца потока. В нём :status 200 (HTTP-уровень в порядке) и grpc-status: 5, grpc-message.",
+    "s": [
+     [
+      [
+       "ждёт ответа",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "HEADERS 200, grpc-status: 5",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "готово",
+       "mute"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент получает Err(Status) с кодом NotFound. Соединение живо, следующий вызов пойдёт по нему же. Так клиент отличает «нет» от «сервис лёг».",
+    "s": [
+     [
+      [
+       "Err(NotFound)",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "соединение живо",
+       "ok"
+      ]
+     ],
+     [],
+     []
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Сервис ещё не запущен",
+  "boxes": [
+   "Код клиента",
+   "Channel",
+   "HTTP/2-соединение",
+   "Сервер"
+  ],
+  "steps": [
+   {
+    "t": "Шлюз стартует раньше склада. Канал создан через connect_lazy: он ничего не открыл, просто запомнил адрес.",
+    "s": [
+     [
+      [
+       "шлюз запущен",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "лениво, без соединения",
+       "mute"
+      ]
+     ],
+     [],
+     [
+      [
+       "не запущен",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Первый вызов. Только теперь канал пытается подключиться. Порт закрыт, TCP отвечает отказом.",
+    "s": [
+     [
+      [
+       "get_item(sku=42)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "подключаюсь",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "отказ в соединении",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "не запущен",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент получает Err(Unavailable): это временный отказ, повтор имеет смысл. Если бы использовали connect().await, ошибка случилась бы ещё на старте шлюза.",
+    "s": [
+     [
+      [
+       "Err(Unavailable)",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "ждёт попытки",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "не запущен",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Склад запустился. Следующий вызов: канал снова пробует подключиться и на этот раз успешно. Перезапускать шлюз не нужно.",
+    "s": [
+     [
+      [
+       "get_item(sku=42)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "подключился",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "HEADERS + DATA",
+       "info"
+      ]
+     ],
+     [
+      [
+       "слушает порт",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Ответ пришёл. С этой минуты все вызовы идут по этому соединению.",
+    "s": [
+     [
+      [
+       "Ok(Item)",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "соединение живо",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "слушает порт",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Медленный обработчик",
+  "boxes": [
+   "Код клиента",
+   "Channel",
+   "HTTP/2-соединение",
+   "Сервер"
+  ],
+  "steps": [
+   {
+    "t": "У канала timeout = 300 мс. Вызов уходит, в заголовок кладётся grpc-timeout: 300000u, чтобы сервер знал о сроке.",
+    "s": [
+     [
+      [
+       "get_item(sku=42)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "срок вызова 300 мс",
+       "info"
+      ]
+     ],
+     [
+      [
+       "HEADERS + grpc-timeout",
+       "info"
+      ]
+     ],
+     [
+      [
+       "get_item(request)",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Обработчик занят: ходит в базу и ждёт её ответа. Проходит 300 мс.",
+    "s": [
+     [
+      [
+       "ждёт ответа",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "таймер тикает",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "медленный запрос в базу",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Срок вышел. Клиент перестаёт ждать и получает Err со статусом Cancelled и текстом Timeout expired, а вызов отменяется.",
+    "s": [
+     [
+      [
+       "Err(Cancelled)",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "срок вышел",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "RST_STREAM",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "вызов отменён",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Соединение при этом целое: оборван один поток, а не TCP. Другие вызовы по этому соединению не пострадали.",
+    "s": [
+     [
+      [
+       "следующий вызов",
+       "info"
+      ]
+     ],
+     [
+      [
+       "соединение живо",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "другие потоки идут",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "слушает порт",
+       "mute"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

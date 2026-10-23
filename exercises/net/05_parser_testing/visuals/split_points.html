@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Разрезание входа во всех точках</title>
+<style>
+:root {
+  --bg: #fafaf7; --fg: #1d1f24; --muted: #6b7078; --card: #ffffff; --line: #c9ccd2;
+  --ok: #1f8a5b; --bad: #c0392b; --accent: #7c3aed; --shadow: rgba(0,0,0,.08); --ghost: #e7e8ec; --msg: #2b6cd9;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --fg: #e8eaee; --muted: #9aa0aa; --card: #1d2026; --line: #3a3f48;
+    --ok: #4fd197; --bad: #ff8a7a; --accent: #b794ff; --shadow: rgba(0,0,0,.4); --ghost: #2a2e36; --msg: #6ea3ff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 820px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 14px; color: var(--muted); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.counter { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stage { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 8px var(--shadow); padding: 14px; display: grid; gap: 14px; }
+.zone h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; min-height: 44px; align-items: center; }
+.pkt { min-width: 48px; height: 38px; padding: 0 8px; display: grid; place-items: center; font: 600 14px ui-monospace, Menlo, monospace; color: #fff; background: var(--msg); border-radius: 6px; }
+.pkt.ghost { background: var(--ghost); color: var(--muted); }
+.pkt.lost { background: transparent; border: 2px dashed var(--bad); color: var(--bad); }
+.pkt.dup { background: var(--accent); }
+.pkt.late { outline: 2px solid var(--bad); }
+.pipe { border: 2px solid var(--line); border-radius: 10px; padding: 8px; min-height: 54px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: linear-gradient(90deg, transparent, var(--ghost) 40%, transparent); }
+.empty { color: var(--muted); font-size: 13px; }
+.legend { font-size: 13px; color: var(--muted); }
+.caption { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--accent); background: var(--card); border-radius: 0 8px 8px 0; min-height: 3.4em; }
+</style>
+<style>
+.raw { font: 15px/1.9 ui-monospace, Menlo, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; white-space: pre-wrap; }
+.chunk { padding: 2px 3px; border-radius: 4px; margin-right: 6px; border: 1px solid var(--line); }
+.chunk.a { background: color-mix(in srgb, #2b6cd9 25%, transparent); }
+.chunk.b { background: color-mix(in srgb, #1f8a5b 25%, transparent); }
+.chunk.c { background: color-mix(in srgb, #c2410c 25%, transparent); }
+.kept { background: color-mix(in srgb, #1f8a5b 30%, transparent); padding: 1px 2px; border-radius: 3px; }
+.cut { background: color-mix(in srgb, #c0392b 30%, transparent); text-decoration: line-through; padding: 1px 2px; border-radius: 3px; }
+.ok { color: var(--ok); font-weight: 700; }
+.bad { color: var(--bad); font-weight: 700; }
+.result { font: 14px ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Разрезание входа во всех точках</h1>
+  <p class="sub">Один и тот же вход режется на куски во всех местах. Если ответ парсера хоть раз отличается от ответа на целый вход, найден баг.</p>
+  <div class="bar">
+    <button id="prev">Назад</button>
+    <button id="next">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="stage">
+    <div class="zone"><h2>Вход разрезан на куски</h2><div class="raw" id="chunks"></div></div>
+    <div class="zone"><h2>Что вернул декодер с ошибкой (отбрасывает \r в конце куска)</h2><div class="result" id="buggy"></div></div>
+    <div class="zone"><h2>Что обязан вернуть (вход целиком)</h2><div class="result" id="good"></div></div>
+    <div class="legend" id="verdict"></div>
+  </div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const INPUT = "a\\rb\\r\\n";
+const SYM = ["a", "\\r", "b", "\\r", "\\n"];
+const GOOD = '["a\\rb"]';
+const STEPS = [
+  { cuts: [], t: "Вход целиком: пять байтов a, CR, b, CR, LF. Эталонный ответ: одна строка a CR b (последний CR перед LF отбрасывается, средний остаётся)." },
+  { cuts: [1], t: "Разрез после 1-го байта. Куски: [a] [CR b CR LF]. Результат совпадает: баг пока не нашли." },
+  { cuts: [2], t: "Разрез после 2-го байта: [a CR] [b CR LF]. Декодер видит CR в конце куска и считает его половиной CRLF. Он его выбросил. Результат: ab вместо a CR b." },
+  { cuts: [3], t: "Разрез после 3-го: [a CR b] [CR LF]. CR не в конце куска, всё верно." },
+  { cuts: [4], t: "Разрез после 4-го: [a CR b CR] [LF]. Конечный CR выброшен, но он всё равно должен был отбрасываться перед LF. Результат совпадает." },
+  { cuts: [1,2,3,4], t: "Побайтово: каждый CR оказывается в конце куска, средний теряется, как и при разрезе 2. Перебор всех точек нашёл баг, который ручной тест пропустил." }
+];
+function chunksFor(cuts) {
+  const out = []; let prev = 0;
+  [...cuts, SYM.length].forEach(c => { out.push(SYM.slice(prev, c)); prev = c; });
+  return out;
+}
+function decode(chunks, buggy) {
+  let buf = [], lines = [];
+  chunks.forEach(ch => ch.forEach((b, i) => {
+    if (buggy && b === "\\r" && i === ch.length - 1) return;
+    if (b === "\\n") { if (!buggy && buf[buf.length - 1] === "\\r") buf.pop(); lines.push(buf.join("")); buf = []; }
+    else buf.push(b);
+  }));
+  return "[" + lines.map(l => '"' + l + '"').join(", ") + "]";
+}
+function render() {
+  const s = STEPS[step], chunks = chunksFor(s.cuts);
+  const el = $("chunks"); el.innerHTML = "";
+  chunks.forEach((ch, i) => {
+    const e = document.createElement("span");
+    e.className = "chunk " + "abc"[i % 3];
+    e.textContent = ch.join(" ");
+    el.appendChild(e);
+  });
+  const bug = decode(chunks, true), good = decode([SYM], false);
+  $("buggy").textContent = bug; $("good").textContent = good;
+  $("verdict").innerHTML = bug === good ? '<span class="ok">совпало</span>' : '<span class="bad">расхождение: баг найден</span>';
+  $("caption").textContent = s.t;
+  $("counter").textContent = `шаг ${step} из ${STEPS.length - 1}`;
+  $("prev").disabled = step === 0;
+  $("next").disabled = step === STEPS.length - 1;
+}
+let step = 0, timer = null;
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+function go(n) { step = Math.max(0, Math.min(STEPS.length - 1, n)); render(); }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === STEPS.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= STEPS.length - 1) return stop(); go(step + 1); }, 2400);
+};
+go(0);
+
+</script>
+</body>
+</html>

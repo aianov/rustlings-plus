@@ -1,0 +1,96 @@
+mod state;
+
+use std::sync::Arc;
+
+use admin::Admin;
+use http_engine::Server;
+use service_runtime::{Background, CancellationToken};
+use tls_edge::{server_config, terminate};
+use tokio::net::TcpListener;
+use tokio::sync::Semaphore;
+
+use crate::client::{Inboxes, RemoteAuth, Upstreams};
+use crate::common::{Config, Error, Registry, Result};
+use crate::controller;
+use crate::routes::Routes;
+
+pub(crate) use state::Shared;
+
+pub async fn run(http: TcpListener, config: Config, shutdown: CancellationToken) -> Result<()> {
+    launch(http, None, config, Routes::social(), shutdown).await
+}
+
+pub async fn run_with(
+    http: TcpListener,
+    config: Config,
+    routes: Routes,
+    shutdown: CancellationToken,
+) -> Result<()> {
+    launch(http, None, config, routes, shutdown).await
+}
+
+pub async fn serve(
+    http: TcpListener,
+    admin: TcpListener,
+    config: Config,
+    shutdown: CancellationToken,
+) -> Result<()> {
+    launch(http, Some(admin), config, Routes::social(), shutdown).await
+}
+
+async fn launch(
+    http: TcpListener,
+    admin: Option<TcpListener>,
+    config: Config,
+    routes: Routes,
+    shutdown: CancellationToken,
+) -> Result<()> {
+    let lifecycle = config.lifecycle(&shutdown);
+    let mut background = Background::new(config.trail.clone());
+    let upstreams = Upstreams::connect(&config.services, config.tls.as_ref())?;
+    let readiness = upstreams.readiness(&mut background);
+    readiness.register(lifecycle.health());
+    let closing = lifecycle.closing();
+    let (engine, edge) = match &config.tls {
+        Some(tls) => {
+            let inner = TcpListener::bind("127.0.0.1:0").await.map_err(Error::Io)?;
+            let inner_addr = inner.local_addr().map_err(Error::Io)?;
+            let edge_config = server_config(&tls.cert, tls.key.expose()).map_err(Error::Certs)?;
+            let edge = terminate(http, inner_addr, edge_config, closing.clone());
+            (inner, Some(edge))
+        }
+        None => (http, None),
+    };
+    let wait = config.timing.wait;
+    let registry = Arc::new(Registry::default());
+    let shared = Arc::new(Shared {
+        auth: RemoteAuth::new(upstreams.clone()),
+        inboxes: Arc::new(Inboxes::new(upstreams.clone(), Arc::clone(&registry))),
+        readiness,
+        upstreams,
+        registry,
+        routes,
+        sessions: Arc::new(Semaphore::new(config.max_connections.max(1))),
+        shutdown: closing.clone(),
+        config,
+    });
+    let api = Server::with_handler(controller::app(Arc::clone(&shared)))
+        .config(shared.config.http.clone());
+    drop(shared);
+    let admin = Admin::start(admin, &lifecycle);
+    let web = async move {
+        api.serve(engine, async move { closing.cancelled().await })
+            .await
+            .map_err(Error::Io)
+    };
+    let edge = async move {
+        match edge {
+            Some(edge) => edge.await.map_err(Error::Io),
+            None => Ok(()),
+        }
+    };
+    let serving = async move { tokio::try_join!(web, edge).map(|_| ()) };
+    let halted = lifecycle.run(wait, serving, background).await;
+    admin.stop().await.map_err(Error::Io)?;
+    halted.map_err(Error::from)
+}

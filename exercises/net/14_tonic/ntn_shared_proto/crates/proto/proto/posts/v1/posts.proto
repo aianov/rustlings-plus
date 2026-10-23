@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package posts.v1;
+
+import "users/v1/users.proto";
+
+service Posts {
+  rpc GetPost (GetPostRequest) returns (Post);
+}
+
+message GetPostRequest {
+  uint64 id = 1;
+}
+
+message Post {
+  uint64 id = 1;
+  users.v1.User author = 2;
+  string text = 3;
+}

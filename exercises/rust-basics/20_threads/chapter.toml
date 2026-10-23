@@ -1,0 +1,98 @@
+[chapter]
+title.en = "Threads"
+title.ru = "Потоки"
+
+[[exercises]]
+name = "threads1"
+test = false
+hint.en = """
+`JoinHandle` is a struct that is returned from a spawned thread:
+https://doc.rust-lang.org/std/thread/fn.spawn.html
+
+A challenge with multi-threaded applications is that the main thread can
+finish before the spawned threads are done.
+https://doc.rust-lang.org/book/ch16-01-threads.html#waiting-for-all-threads-to-finish-using-join-handles
+
+Use the `JoinHandle`s to wait for each thread to finish and collect their
+results.
+
+https://doc.rust-lang.org/std/thread/struct.JoinHandle.html"""
+hint.ru = """`JoinHandle` это структура, которую возвращает запуск потока:
+https://doc.rust-lang.org/std/thread/fn.spawn.html
+
+Проблема многопоточных программ в том, что главный поток может закончить
+работу раньше запущенных.
+https://doc.rust-lang.ru/book/ch16-01-threads.html#waiting-for-all-threads-to-finish-using-join-handles
+
+Используй `JoinHandle`, чтобы дождаться завершения каждого потока и собрать
+их результаты.
+
+https://doc.rust-lang.org/std/thread/struct.JoinHandle.html"""
+
+[[exercises]]
+name = "threads2"
+test = false
+hint.en = """
+`Arc` is an Atomic Reference Counted pointer that allows safe, shared access
+to **immutable** data. But we want to *change* the number of `jobs_done` so
+we'll need to also use another type that will only allow one thread to mutate
+the data at a time. Take a look at this section of the book:
+https://doc.rust-lang.org/book/ch16-03-shared-state.html#atomic-reference-counting-with-arct
+
+Keep reading if you'd like more hints :)
+
+Do you now have an `Arc<Mutex<JobStatus>>` at the beginning of `main`? Like:
+```
+let status = Arc::new(Mutex::new(JobStatus { jobs_done: 0 }));
+```
+
+Similar to the code in the following example in The Book:
+https://doc.rust-lang.org/book/ch16-03-shared-state.html#sharing-a-mutext-between-multiple-threads"""
+hint.ru = """`Arc` это атомарный указатель с подсчётом ссылок, который даёт безопасный общий
+доступ к **неизменяемым** данным. Но мы хотим *менять* число `jobs_done`, так
+что понадобится ещё один тип, который разрешает менять данные только одному
+потоку за раз. Загляни в этот раздел книги:
+https://doc.rust-lang.ru/book/ch16-03-shared-state.html#atomic-reference-counting-with-arct
+
+Читай дальше, если хочешь ещё подсказок :)
+
+Есть ли у тебя в начале `main` значение `Arc<Mutex<JobStatus>>`? Например:
+```
+let status = Arc::new(Mutex::new(JobStatus { jobs_done: 0 }));
+```
+
+Похоже на код из этого примера в Книге:
+https://doc.rust-lang.ru/book/ch16-03-shared-state.html#sharing-a-mutext-between-multiple-threads"""
+
+[[exercises]]
+name = "threads3"
+hint.en = """
+An alternate way to handle concurrency between threads is to use an `mpsc`
+(multiple producer, single consumer) channel to communicate.
+
+With both a sending end and a receiving end, it's possible to send values in
+one thread and receive them in another.
+
+Multiple producers are possible by using `clone()` to create a duplicate of the
+original sending end.
+
+Related section in The Book:
+https://doc.rust-lang.org/book/ch16-02-message-passing.html"""
+hint.ru = """Другой способ организовать работу потоков вместе: канал `mpsc` (multiple
+producer, single consumer, много отправителей и один получатель) для обмена
+сообщениями.
+
+Имея и отправляющий, и принимающий конец, можно отправлять значения в одном
+потоке и получать в другом.
+
+Несколько отправителей получаются через `clone()`, который создаёт копию
+исходного отправляющего конца.
+
+Соответствующий раздел Книги:
+https://doc.rust-lang.ru/book/ch16-02-message-passing.html"""
+
+[[exercises]]
+name = "m06_shared_threads"
+kind = "milestone"
+journey = "backend"
+quiz = true

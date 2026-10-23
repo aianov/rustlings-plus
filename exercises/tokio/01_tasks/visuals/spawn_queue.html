@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>spawn: очередь, воркеры и JoinHandle</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --code:#151a22; } }
+* { box-sizing: border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+@media (max-width:700px) { .grid { grid-template-columns:1fr; } }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.code { background:var(--code); border-radius:8px; padding:6px 0; font:13px/1.55 ui-monospace,"SF Mono",Menlo,monospace; }
+.code div { padding:0 10px; border-left:3px solid transparent; white-space:pre; }
+.code div.cur { background:color-mix(in srgb,var(--a) 20%,transparent); border-left-color:var(--a); }
+.slot { min-height:34px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.chip { padding:3px 11px; border-radius:12px; border:2px solid; font:600 12px system-ui,sans-serif; }
+.chip.A { border-color:var(--a); color:var(--a); } .chip.B { border-color:var(--b); color:var(--b); }
+.chip.run.A { background:var(--a); color:#fff; } .chip.run.B { background:var(--b); color:#fff; }
+.empty { color:var(--muted); font-size:13px; }
+.handle { padding:6px 10px; border-radius:8px; border:1px dashed var(--line); font:13px ui-monospace,Menlo,monospace; margin-bottom:6px; }
+.handle.done { border-style:solid; border-color:var(--ok); color:var(--ok); }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+</style>
+</head>
+<body>
+<h1>spawn: очередь, воркеры и JoinHandle</h1>
+<p class="sub">Задача после spawn сразу уходит в очередь рантайма. Хэндл нужен только затем, чтобы потом получить результат.</p>
+
+<div class="grid">
+  <div class="panel"><h2>Твой код (задача main)</h2><div class="code" id="code"></div></div>
+  <div class="panel">
+    <h2>Очередь рантайма</h2><div class="slot" id="queue"></div>
+    <h2 style="margin-top:12px">Воркер 1</h2><div class="slot" id="w1"></div>
+    <h2 style="margin-top:12px">Воркер 2</h2><div class="slot" id="w2"></div>
+  </div>
+</div>
+<div class="panel" style="margin-bottom:10px"><h2>JoinHandle: слот для результата</h2><div id="handles"></div></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button id="step">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+
+<script>
+const CODE = [
+  "let a = tokio::spawn(load(\"A\"));",
+  "let b = tokio::spawn(load(\"B\"));",
+  "println!(\"main занят своим делом\");",
+  "let ra = a.await;",
+  "let rb = b.await;"
+];
+const S = [
+  { line:-1, q:[], w1:null, w2:null, ha:"нет", hb:"нет", cap:"Старт. main выполняется на одном из воркеров, задач в очереди нет." },
+  { line:0, q:["A"], w1:null, w2:null, ha:"задача ещё не начата", hb:"нет", cap:"<b>spawn(A)</b> ставит задачу в очередь и сразу возвращает JoinHandle. Задача не ждёт, пока кто-то сделает .await." },
+  { line:1, q:["A","B"], w1:null, w2:null, ha:"задача ещё не начата", hb:"задача ещё не начата", cap:"<b>spawn(B)</b> делает то же. main при этом не остановился." },
+  { line:2, q:[], w1:"A", w2:"B", ha:"задача выполняется", hb:"задача выполняется", cap:"Свободные воркеры забрали задачи из очереди и начали их опрашивать. main тем временем печатает своё: работа идёт параллельно, хотя .await ещё нигде не было." },
+  { line:3, q:[], w1:"A", w2:"B", ha:"main ждёт этот хэндл", hb:"задача выполняется", cap:"<b>a.await</b>: теперь main нужен результат A. main отдаёт поток и засыпает до готовности A. Хэндл ничего не запускает, он только ждёт." },
+  { line:3, q:[], w1:null, w2:"B", ha:"готово: Ok(..)", hb:"задача выполняется", done:["A"], cap:"A закончилась. Результат положен в слот хэндла, main разбужен." },
+  { line:4, q:[], w1:null, w2:"B", ha:"получено", hb:"main ждёт этот хэндл", done:["A"], cap:"<b>b.await</b>: B ещё работает, main снова ждёт." },
+  { line:4, q:[], w1:null, w2:null, ha:"получено", hb:"готово: Ok(..)", done:["A","B"], cap:"B закончилась, main получил оба результата. Если бы хэндл не ждали, задачи всё равно доработали бы сами; результат просто пропал бы." }
+];
+let pos = 0, timer = null;
+function render() {
+  const s = S[pos];
+  document.getElementById("code").innerHTML = CODE.map((t,i)=>`<div class="${i===s.line?"cur":""}">${t.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</div>`).join("");
+  document.getElementById("queue").innerHTML = s.q.length ? s.q.map(x=>`<span class="chip ${x}">${x}</span>`).join("") : `<span class="empty">пусто</span>`;
+  for (const [id,v] of [["w1",s.w1],["w2",s.w2]]) document.getElementById(id).innerHTML = v ? `<span class="chip run ${v}">${v}</span>` : `<span class="empty">свободен</span>`;
+  const d = s.done || [];
+  document.getElementById("handles").innerHTML = ["A","B"].map((x,i)=>{ const t = i===0?s.ha:s.hb; return `<div class="handle ${t.startsWith("готово")||t==="получено"?"done":""}">${x.toLowerCase()}: JoinHandle, ${t}</div>`; }).join("");
+  document.getElementById("caption").innerHTML = s.cap;
+  document.getElementById("counter").textContent = `шаг ${pos} из ${S.length-1}`;
+  const end = pos >= S.length-1;
+  document.getElementById("step").disabled = end; document.getElementById("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} document.getElementById("play").textContent="Играть"; }
+function step(){ if(pos<S.length-1){pos++;render();} }
+document.getElementById("step").onclick=()=>{stop();step();};
+document.getElementById("play").onclick=()=>{ if(timer){stop();return;} document.getElementById("play").textContent="Пауза"; timer=setInterval(step,1500); };
+document.getElementById("reset").onclick=()=>{stop();pos=0;render();};
+render();
+</script>
+</body>
+</html>

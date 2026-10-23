@@ -1,0 +1,15 @@
+[[rules]]
+kind = "exists"
+paths = ["Cargo.toml", "src/lib.rs"]
+message.ru = "Не хватает Cargo.toml или src/lib.rs. Весь код вехи живёт в src/lib.rs, а Cargo.toml курс кладёт заготовкой: если удалил, верни его по README вехи."
+
+[[rules]]
+kind = "contains"
+globs = ["src/lib.rs"]
+regex = 'mod tests;'
+message.ru = "В src/lib.rs пропала строка `mod tests;`. Без неё тесты курса не попадут в сборку, и проверка ничего не проверит. Верни `#[cfg(test)] mod tests;` в начало файла."
+
+[[rules]]
+kind = "uniform_modules"
+roots = ["src"]
+message.ru = "В src/ рядом лежат файлы-модули и папки-модули. В этой вехе весь код в src/lib.rs, а рядом с ним только папка tests/ от курса."

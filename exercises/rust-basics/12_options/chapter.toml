@@ -1,0 +1,58 @@
+[chapter]
+title.en = "Options"
+title.ru = "Option"
+
+[[exercises]]
+name = "options1"
+hint.en = """
+Options can have a `Some` value, with an inner value, or a `None` value,
+without an inner value.
+
+There are multiple ways to get at the inner value, you can use `unwrap`, or
+pattern match. Unwrapping is the easiest, but how do you do it safely so that
+it doesn't panic in your face later?"""
+hint.ru = """Option может быть `Some` со значением внутри или `None` без значения.
+
+Достать значение можно по-разному: через `unwrap` или сопоставлением с
+образцом. `unwrap` проще всего, но как сделать это безопасно, чтобы он не
+паникнул тебе в лицо позже?"""
+
+[[exercises]]
+name = "options2"
+hint.en = """
+Check out:
+
+- https://doc.rust-lang.org/rust-by-example/flow_control/if_let.html
+- https://doc.rust-lang.org/rust-by-example/flow_control/while_let.html
+
+Remember that `Option`s can be nested in if-let and while-let statements.
+
+For example: `if let Some(Some(x)) = y`
+
+Also see `Option::flatten`"""
+hint.ru = """Загляни сюда:
+
+- https://doc.rust-lang.org/rust-by-example/flow_control/if_let.html
+- https://doc.rust-lang.org/rust-by-example/flow_control/while_let.html
+
+Помни, что `Option` можно вкладывать в if-let и while-let.
+
+Например: `if let Some(Some(x)) = y`
+
+Посмотри также `Option::flatten`"""
+
+[[exercises]]
+name = "options3"
+test = false
+hint.en = """
+The compiler says a partial move happened in the `match` statement. How can
+this be avoided? The compiler shows the correction needed.
+
+After making the correction as suggested by the compiler, read the related docs
+page:
+https://doc.rust-lang.org/std/keyword.ref.html"""
+hint.ru = """Компилятор говорит, что в `match` произошло частичное перемещение. Как этого
+избежать? Компилятор подсказывает нужное исправление.
+
+Исправив по его совету, прочитай страницу документации:
+https://doc.rust-lang.org/std/keyword.ref.html"""

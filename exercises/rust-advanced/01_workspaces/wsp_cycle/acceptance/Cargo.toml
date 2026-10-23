@@ -1,0 +1,11 @@
+[package]
+name = "acceptance-wsp-cycle"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+serde_json = "1"
+toml = "0.8"
+
+[workspace]

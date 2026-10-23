@@ -1,0 +1,31 @@
+[package]
+name = "textstat"
+version = "0.4.0"
+edition = "2024"
+rust-version = "1.88"
+
+[[bin]]
+name = "textstat-words"
+path = "src/bin/words.rs"
+
+[dependencies]
+tokenizer = { path = "crates/tokenizer" }
+
+[dev-dependencies]
+samples = { path = "crates/samples" }
+
+[features]
+json = []
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[workspace]

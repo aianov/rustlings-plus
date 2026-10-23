@@ -1,0 +1,9 @@
+[package]
+name = "user-service"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+events = { path = "../../crates/events" }
+serde_json = "1"

@@ -1,0 +1,12 @@
+[package]
+name = "service-runtime"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "macros", "time", "sync", "signal"] }
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }

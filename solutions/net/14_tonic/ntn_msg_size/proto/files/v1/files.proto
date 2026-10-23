@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package files.v1;
+
+service Files {
+  rpc Download (DownloadRequest) returns (Blob);
+  rpc Upload (Blob) returns (UploadReply);
+}
+
+message DownloadRequest {
+  uint64 size = 1;
+}
+
+message Blob {
+  bytes data = 1;
+}
+
+message UploadReply {
+  uint64 size = 1;
+}

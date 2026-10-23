@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protobuf на проводе</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Protobuf на проводе</h1>
+  <p class="sub">Как байты сообщения раскладываются на ключи и значения: varint, ключ поля, длина вперёд.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Сообщение по байтам",
+  "boxes": [
+   "Байты",
+   "Ключ",
+   "Значение",
+   "Что получилось"
+  ],
+  "steps": [
+   {
+    "t": "Дано четырнадцать байтов. Схемы у нас нет, но по ним можно разобрать всё: сообщение это пары «ключ, значение» подряд.",
+    "s": [
+     [
+      [
+       "08 96 01 12 03 62 6f 78 22 04 02 01 d8 04",
+       "info"
+      ]
+     ],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Первый байт 08 это ключ. 0x08 = 0000 1000. Младшие три бита (000) это способ записи: varint. Остальное, сдвинутое на три (0000 1), номер поля: 1.",
+    "s": [
+     [
+      [
+       "08",
+       "warn"
+      ],
+      [
+       "96 01 12 03 ...",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "номер 1",
+       "info"
+      ],
+      [
+       "способ 0: varint",
+       "info"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Значение varint: 96 01. У 0x96 старший бит 1, значит число продолжается. Берём младшие семь бит: 0010110 (22). Следующий байт 01 последний: 1 × 128 + 22 = 150.",
+    "s": [
+     [
+      [
+       "96 01",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "номер 1",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "22 + 1 × 128",
+       "info"
+      ],
+      [
+       "= 150",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "поле 1 = 150",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Байт 12 это ключ: 0001 0010. Способ 010 = 2 (длина вперёд), номер 0001 0 = 2. За ним идёт длина 03 и три байта: 62 6f 78.",
+    "s": [
+     [
+      [
+       "12 03 62 6f 78",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "номер 2",
+       "info"
+      ],
+      [
+       "способ 2: Len",
+       "info"
+      ]
+     ],
+     [
+      [
+       "длина 3",
+       "info"
+      ],
+      [
+       "байты 62 6f 78",
+       "info"
+      ]
+     ],
+     [
+      [
+       "поле 1 = 150",
+       "mute"
+      ],
+      [
+       "поле 2 = «box»",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Ключ 22: номер 4, способ Len. Длина 04, внутри четыре байта: список чисел без ключей (упакованный repeated sint32).",
+    "s": [
+     [
+      [
+       "22 04 02 01 d8 04",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "номер 4",
+       "info"
+      ],
+      [
+       "способ 2: Len",
+       "info"
+      ]
+     ],
+     [
+      [
+       "длина 4",
+       "info"
+      ],
+      [
+       "02 | 01 | d8 04",
+       "info"
+      ]
+     ],
+     [
+      [
+       "поле 1 = 150",
+       "mute"
+      ],
+      [
+       "поле 2 = «box»",
+       "mute"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Каждое число из списка это zigzag: 02 → 1, 01 → -1, d8 04 (varint 600) → 300. Итог: поле 4 = [1, -1, 300].",
+    "s": [
+     [],
+     [],
+     [
+      [
+       "2 → 1",
+       "ok"
+      ],
+      [
+       "1 → -1",
+       "ok"
+      ],
+      [
+       "600 → 300",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "поле 1 = 150",
+       "ok"
+      ],
+      [
+       "поле 2 = «box»",
+       "ok"
+      ],
+      [
+       "поле 4 = [1, -1, 300]",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Varint по шагам",
+  "boxes": [
+   "Число",
+   "Группы по 7 бит",
+   "Байты",
+   "Читатель"
+  ],
+  "steps": [
+   {
+    "t": "Кодируем 70000. В двоичном виде это 1 0001 0001 0111 0000.",
+    "s": [
+     [
+      [
+       "70000 = 1 0001 0001 0111 0000",
+       "info"
+      ]
+     ],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Режем справа на группы по семь бит: младшая 111 0000 (0x70), следующая 010 0010 (0x22), старшая 000 0100 (0x04).",
+    "s": [
+     [
+      [
+       "70000",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "0x70",
+       "info"
+      ],
+      [
+       "0x22",
+       "info"
+      ],
+      [
+       "0x04",
+       "info"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Каждой группе, кроме последней, ставим старший бит: «дальше будет ещё». Получается f0 a2 04: три байта вместо четырёх или восьми.",
+    "s": [
+     [],
+     [
+      [
+       "0x70 → f0",
+       "warn"
+      ],
+      [
+       "0x22 → a2",
+       "warn"
+      ],
+      [
+       "0x04 → 04",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "f0 a2 04",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Читатель идёт по байтам: f0 даёт 0x70, a2 даёт 0x22 << 7, 04 даёт 0x04 << 14 и без флага продолжения. Складывает: 70000.",
+    "s": [
+     [],
+     [],
+     [
+      [
+       "f0 a2 04",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "0x70",
+       "info"
+      ],
+      [
+       "+ 0x22 × 128",
+       "info"
+      ],
+      [
+       "+ 4 × 16384",
+       "info"
+      ],
+      [
+       "= 70000",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Защита читателя: если десять байтов подряд с флагом, число никогда не кончится. Это ошибка, а не повод ждать дальше.",
+    "s": [
+     [],
+     [],
+     [
+      [
+       "80 80 80 80 80 80 80 80 80 80 ...",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "ошибка: слишком длинное",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "-1 в int32 и в sint32",
+  "boxes": [
+   "Тип поля",
+   "Что пишется",
+   "Байты",
+   "Размер"
+  ],
+  "steps": [
+   {
+    "t": "Поле с отрицательным значением -1. Всё зависит от объявленного типа.",
+    "s": [
+     [
+      [
+       "int32 = -1",
+       "info"
+      ],
+      [
+       "sint32 = -1",
+       "info"
+      ]
+     ],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "int32: число расширяется знаком до 64 бит, это 64 единицы подряд, и они пишутся обычным varint.",
+    "s": [
+     [
+      [
+       "int32 = -1",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "ffff ffff ffff ffff",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "ff ff ff ff ff ff ff ff ff 01",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "10 байтов",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "sint32: сначала zigzag. -1 превращается в 1, 1 в 2, -2 в 3: малые по модулю числа остаются малыми.",
+    "s": [
+     [
+      [
+       "sint32 = -1",
+       "info"
+      ]
+     ],
+     [
+      [
+       "zigzag(-1) = 1",
+       "info"
+      ]
+     ],
+     [
+      [
+       "01",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "1 байт",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Вывод: для величин, которые бывают отрицательными, берут sint. А переключить тип потом нельзя: байты те же, числа другие.",
+    "s": [
+     [
+      [
+       "int32",
+       "mute"
+      ],
+      [
+       "sint32",
+       "ok"
+      ]
+     ],
+     [],
+     [],
+     [
+      [
+       "10 против 1",
+       "info"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

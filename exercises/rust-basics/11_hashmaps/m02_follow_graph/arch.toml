@@ -1,0 +1,52 @@
+[[rules]]
+kind = "exists"
+paths = [
+  "Cargo.toml",
+  "src/lib.rs",
+  "src/domain/mod.rs",
+  "src/domain/user.rs",
+  "src/domain/post.rs",
+  "src/network/mod.rs",
+  "src/network/follows.rs",
+  "src/network/tags.rs",
+]
+message.ru = "Не хватает файла из дерева вехи. Типы живут в src/domain/, сеть подписок в src/network/, а src/lib.rs только объявляет модули."
+
+[[rules]]
+kind = "absent"
+globs = ["src/tests", "src/tests/**"]
+message.ru = "Тесты курса переехали в tests/. Удали src/tests/ и строку `mod tests;` из src/lib.rs."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/**/*.rs"]
+regex = 'allow\(dead_code\)'
+message.ru = "Глушилка `allow(dead_code)` больше не нужна: всё, чем пользуются тесты, теперь pub. Удали её, пусть компилятор снова подсказывает про забытый код."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/lib.rs"]
+regex = 'struct '
+message.ru = "src/lib.rs теперь фасад: только `mod ...;` и `pub use ...;`. Структуры живут в src/domain/ и src/network/."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/lib.rs"]
+regex = 'enum '
+message.ru = "src/lib.rs теперь фасад: только `mod ...;` и `pub use ...;`. Перечисления живут в src/domain/."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/lib.rs"]
+regex = 'impl[ <]'
+message.ru = "src/lib.rs теперь фасад: только `mod ...;` и `pub use ...;`. Методы пишутся рядом со своими типами."
+
+[[rules]]
+kind = "uniform_modules"
+roots = ["src"]
+message.ru = "В одной папке смешаны файлы-модули и папки-модули. В src/ лежат lib.rs и папки domain/ и network/, внутри папок только файлы .rs."
+
+[[rules]]
+kind = "absent"
+globs = ["**/utils.rs", "**/helpers.rs"]
+message.ru = "Файлы-свалки utils.rs и helpers.rs не заводим: положи функцию в модуль, которому она принадлежит (нормализация ника в domain/user.rs, разбор тегов в network/tags.rs)."

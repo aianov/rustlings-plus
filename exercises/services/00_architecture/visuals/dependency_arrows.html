@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Стрелки зависимостей</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --accent: #2f6fe0; --store: #f3ead6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --accent: #6ea4ff; --store: #3a3322;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --accent: #6ea4ff; --store: #3a3322;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+.frame { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 6 5; }
+.title { fill: var(--muted); font-size: 13px; }
+.node rect { fill: var(--box); stroke: var(--boxline); stroke-width: 1.5; }
+.node.store rect { fill: var(--store); }
+.node text { fill: var(--ink); font-size: 13px; text-anchor: middle; }
+.arrow { fill: none; stroke-width: 2.5; opacity: 0; transition: opacity .4s; }
+.arrow.seen { opacity: .4; }
+.arrow.now { opacity: 1; stroke-width: 3.5; }
+.arrow.ok { stroke: var(--ok); }
+.arrow.bad { stroke: var(--bad); stroke-dasharray: 7 4; }
+.mark { opacity: 0; transition: opacity .4s; font-size: 20px; text-anchor: middle; font-weight: 700; }
+.mark.seen { opacity: .5; }
+.mark.now { opacity: 1; }
+.mark.ok { fill: var(--ok); }
+.mark.bad { fill: var(--bad); }
+.tip-ok { fill: var(--ok); }
+.tip-bad { fill: var(--bad); }
+#caption { margin-top: 12px; min-height: 84px; }
+.tag { display: inline-block; padding: 0 8px; border-radius: 10px; font-size: 12px; color: #fff; margin-right: 6px; }
+.tag.ok { background: var(--ok); }
+.tag.bad { background: var(--bad); }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Куда смотрят стрелки</h1>
+  <p class="sub">Слева слои внутри одного сервиса, справа два сервиса. Зелёная стрелка разрешена, красная пунктирная запрещена.</p>
+  <div class="panel">
+    <div class="bar">
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 940 400" role="img" aria-label="Зависимости между слоями и сервисами">
+      <defs>
+        <marker id="tipok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="tip-ok"/></marker>
+        <marker id="tipbad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" class="tip-bad"/></marker>
+      </defs>
+      <rect class="frame" x="8" y="20" width="400" height="372" rx="12"></rect>
+      <text class="title" x="20" y="42">post-service: слои</text>
+      <rect class="frame" x="428" y="20" width="504" height="372" rx="12"></rect>
+      <text class="title" x="440" y="42">два сервиса и их данные</text>
+      <g id="nodes"></g>
+      <g id="arrows"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const NODES = [
+  { x: 190, y: 82,  w: 330, h: 36, t: "bootstrap" },
+  { x: 100, y: 170, w: 130, h: 44, t: "controller" },
+  { x: 310, y: 170, w: 100, h: 44, t: "dto" },
+  { x: 100, y: 260, w: 130, h: 44, t: "service" },
+  { x: 100, y: 350, w: 130, h: 44, t: "repository" },
+  { x: 310, y: 305, w: 100, h: 44, t: "common" },
+  { x: 540, y: 150, w: 150, h: 54, t: "post-service" },
+  { x: 830, y: 150, w: 150, h: 54, t: "user-service" },
+  { x: 540, y: 320, w: 150, h: 48, t: "posts DB", cls: "store" },
+  { x: 830, y: 320, w: 150, h: 48, t: "users DB", cls: "store" }
+];
+const gN = document.getElementById("nodes"), gA = document.getElementById("arrows");
+for (const n of NODES) {
+  const g = el("g", { class: "node " + (n.cls || "") }, gN);
+  el("rect", { x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: 8 }, g);
+  const t = el("text", { x: n.x, y: n.y + 5 }, g); t.textContent = n.t;
+}
+const ITEMS = [
+  { k: "ok", d: "M 100 192 V 238", m: [118, 218], c: "<b>controller → service.</b> Контроллер разобрал вход и зовёт правило. Главная стрелка сервиса." },
+  { k: "ok", d: "M 165 170 H 258", m: [212, 160], c: "<b>controller → dto.</b> Контроллер превращает байты в форму данных и обратно. DTO живут на границе." },
+  { k: "ok", d: "M 100 282 V 328", m: [118, 308], c: "<b>service → repository.</b> Но только трейт-порт: service знает контракт «сохрани и найди», а не то, что под ним Mutex или Postgres." },
+  { k: "ok", d: "M 165 268 L 262 296", m: [222, 270], c: "<b>service → common.</b> Доменные типы (Post, ошибки) лежат под всеми слоями и видны всем." },
+  { k: "ok", d: "M 310 192 V 283", m: [330, 240], c: "<b>dto → common.</b> DTO собирается из доменных типов: From<Post> for PostDto. Домен про DTO не знает." },
+  { k: "ok", d: "M 165 350 H 258", m: [212, 340], c: "<b>repository → common.</b> Хранилище работает теми же доменными типами. Больше он ни о ком не знает." },
+  { k: "ok", d: "M 190 100 V 120 H 100 V 148", m: [150, 116], c: "<b>bootstrap → все.</b> Он единственный видит каждый слой: создаёт репозиторий, отдаёт его сервису, сервис отдаёт контроллеру. Composition root." },
+  { k: "bad", d: "M 125 238 V 192", m: [146, 218], c: "<b>service → controller.</b> Правило не может знать, кто его вызвал. Иначе его нельзя проверить без этого входа." },
+  { k: "bad", d: "M 150 244 L 290 190", m: [236, 224], c: "<b>service → dto.</b> Правило не должно зависеть от формы JSON: поменяли имя поля, и сломались правила." },
+  { k: "bad", d: "M 125 328 V 282", m: [146, 308], c: "<b>repository → service.</b> Хранилище, которое знает про правила, превращается в клубок: цикл зависимостей и невозможность подменить его." },
+  { k: "bad", d: "M 168 192 C 215 215 215 295 168 332", m: [212, 255], c: "<b>controller → repository.</b> Прыжок через service: пост сохранится в обход правил, и проверка автора ничего не стоит." },
+  { k: "ok", d: "M 540 177 V 296", m: [560, 240], c: "<b>post-service → posts DB.</b> Свои данные сервис читает и пишет сам. Они принадлежат ему." },
+  { k: "ok", d: "M 615 150 H 755", m: [685, 136], c: "<b>post-service → user-service.</b> Через порт UserDirectory: gRPC-клиент за трейтом. Сосед сам решает, как хранить пользователей." },
+  { k: "ok", d: "M 830 177 V 296", m: [850, 240], c: "<b>user-service → users DB.</b> Данные пользователей принадлежат user-service, и только он их трогает." },
+  { k: "bad", d: "M 600 176 L 770 300", m: [660, 232], c: "<b>post-service → users DB.</b> Прямой SELECT в чужую базу. Стоит соседу переименовать колонку, и наш сервис упадёт в проде. Спрашивай через API." },
+  { k: "bad", d: "M 770 176 L 600 300", m: [740, 232], c: "<b>user-service → posts DB.</b> То же самое в обратную сторону. Общая база это общий связанный монолит, только дальше друг от друга." }
+];
+const marks = [], paths = [];
+ITEMS.forEach((it) => {
+  const p = el("path", { d: it.d, class: "arrow " + it.k, "marker-end": "url(#tip" + it.k + ")" }, gA);
+  paths.push(p);
+  const t = el("text", { x: it.m[0], y: it.m[1] + 6, class: "mark " + it.k }, gA);
+  t.textContent = it.k === "ok" ? "✓" : "✕";
+  marks.push(t);
+});
+const caption = document.getElementById("caption");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+function render() {
+  ITEMS.forEach((it, i) => {
+    const cls = i < idx ? " seen" : (i === idx ? " now" : "");
+    paths[i].setAttribute("class", "arrow " + it.k + cls);
+    marks[i].setAttribute("class", "mark " + it.k + cls);
+  });
+  if (idx < 0) caption.innerHTML = '<span class="step">Шаг 0 из ' + ITEMS.length + '</span><br>Нажми «Шаг»: сначала разрешённые стрелки внутри сервиса, потом запрещённые, потом то же между сервисами.';
+  else {
+    const it = ITEMS[idx];
+    caption.innerHTML = '<span class="step">Шаг ' + (idx + 1) + ' из ' + ITEMS.length + '</span><br><span class="tag ' + it.k + '">' + (it.k === "ok" ? "можно" : "нельзя") + '</span>' + it.c;
+  }
+  btnPrev.disabled = idx < 0;
+  btnNext.disabled = idx >= ITEMS.length - 1;
+  if (idx >= ITEMS.length - 1) stop();
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < ITEMS.length - 1) { idx++; render(); } }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= ITEMS.length - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2600);
+};
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+render();
+</script>
+</body>
+</html>

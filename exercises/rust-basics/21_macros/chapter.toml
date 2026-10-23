@@ -1,0 +1,59 @@
+[chapter]
+title.en = "Macros"
+title.ru = "Макросы"
+
+[[exercises]]
+name = "macros1"
+test = false
+hint.en = """
+When you call a macro, you need to add something special compared to a regular
+function call."""
+hint.ru = """Вызывая макрос, нужно добавить кое-что особенное по сравнению с обычным
+вызовом функции."""
+
+[[exercises]]
+name = "macros2"
+test = false
+hint.en = """
+Macros don't quite play by the same rules as the rest of Rust, in terms of
+what's available where.
+
+Unlike other things in Rust, the order of "where you define a macro" versus
+"where you use it" actually matters."""
+hint.ru = """Макросы не вполне подчиняются тем же правилам, что остальной Rust, в том, что
+и где доступно.
+
+В отличие от остального Rust, порядок «где определён макрос» и «где он
+используется» действительно важен."""
+
+[[exercises]]
+name = "macros3"
+test = false
+hint.en = """
+In order to use a macro outside of its module, you need to do something
+special to the module to lift the macro out into its parent."""
+hint.ru = """Чтобы использовать макрос вне его модуля, нужно сделать с модулем кое-что
+особенное, чтобы вынести макрос в родительский."""
+
+[[exercises]]
+name = "macros4"
+test = false
+hint.en = """
+You only need to add a single character to make this compile.
+
+The way macros are written, it wants to see something between each "macro arm",
+so it can separate them.
+
+That's all the macro exercises we have in here, but it's barely even scratching
+the surface of what you can do with Rust's macros. For a more thorough
+introduction, you can have a read through 'The Little Book of Rust Macros':
+https://veykril.github.io/tlborm/"""
+hint.ru = """Чтобы это скомпилировалось, достаточно добавить один символ.
+
+По правилам записи макросов между «ветками» макроса должно что-то стоять,
+чтобы их можно было разделить.
+
+На этом упражнения по макросам заканчиваются, но это лишь верхушка того, что
+можно делать с макросами Rust. Для более полного введения прочитай «The Little
+Book of Rust Macros»:
+https://veykril.github.io/tlborm/"""

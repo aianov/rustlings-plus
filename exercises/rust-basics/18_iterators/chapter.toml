@@ -1,0 +1,139 @@
+[chapter]
+title.en = "Iterators"
+title.ru = "Итераторы"
+
+[[exercises]]
+name = "iterators1"
+hint.en = """
+An iterator goes through all elements in a collection, but what if we've run
+out of elements? What should we expect here? If you're stuck, take a look at
+https://doc.rust-lang.org/std/iter/trait.Iterator.html"""
+hint.ru = """Итератор проходит по всем элементам коллекции, но что, если элементы
+закончились? Чего здесь ждать? Если застрял, загляни на
+https://doc.rust-lang.org/std/iter/trait.Iterator.html"""
+
+[[exercises]]
+name = "iterators2"
+hint.en = """
+`capitalize_first`:
+
+The variable `first` is a `char`. It needs to be capitalized and added to the
+remaining characters in `chars` in order to return the correct `String`.
+
+The remaining characters in `chars` can be viewed as a string slice using the
+`as_str` method.
+
+The documentation for `char` contains many useful methods.
+https://doc.rust-lang.org/std/primitive.char.html
+
+Use `char::to_uppercase`. It returns an iterator that can be converted to a
+`String`.
+
+`capitalize_words_vector`:
+
+Create an iterator from the slice. Transform the iterated values by applying
+the `capitalize_first` function. Remember to `collect` the iterator.
+
+`capitalize_words_string`:
+
+This is surprisingly similar to the previous solution. `collect` is very
+powerful and very general. Rust just needs to know the desired type."""
+hint.ru = """`capitalize_first`:
+
+Переменная `first` это `char`. Её нужно сделать заглавной и добавить к
+оставшимся символам в `chars`, чтобы вернуть правильную `String`.
+
+Оставшиеся символы в `chars` можно посмотреть как строковый срез методом
+`as_str`.
+
+В документации `char` много полезных методов.
+https://doc.rust-lang.org/std/primitive.char.html
+
+Используй `char::to_uppercase`. Он возвращает итератор, который можно
+превратить в `String`.
+
+`capitalize_words_vector`:
+
+Создай итератор из среза. Преобразуй значения, применив функцию
+`capitalize_first`. Не забудь `collect` для итератора.
+
+`capitalize_words_string`:
+
+Это удивительно похоже на предыдущее решение. `collect` очень мощный и очень
+общий. Rust просто должен знать желаемый тип."""
+
+[[exercises]]
+name = "iterators3"
+hint.en = """
+The `divide` function needs to return the correct error when the divisor is 0 or
+when even division is not possible.
+
+The `division_results` variable needs to be collected into a collection type.
+
+The `result_with_list` function needs to return a single `Result` where the
+success case is a vector of integers and the failure case is a `DivisionError`.
+
+The `list_of_results` function needs to return a vector of results.
+
+See https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.collect for
+how the `FromIterator` trait is used in `collect()`. This trait is REALLY
+powerful! It can make the solution to this exercise much easier."""
+hint.ru = """Функция `divide` должна возвращать правильную ошибку, когда делитель равен 0
+или когда деление нацело невозможно.
+
+Переменную `division_results` нужно собрать в тип коллекции.
+
+Функция `result_with_list` должна вернуть один `Result`: в случае успеха это
+вектор целых чисел, в случае неудачи `DivisionError`.
+
+Функция `list_of_results` должна вернуть вектор результатов.
+
+Смотри https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.collect,
+как трейт `FromIterator` используется в `collect()`. Этот трейт ОЧЕНЬ мощный!
+С ним решение этого упражнения станет намного проще."""
+
+[[exercises]]
+name = "iterators4"
+hint.en = """
+In an imperative language, you might write a `for` loop that updates a mutable
+variable. Or, you might write code utilizing recursion and a match clause. In
+Rust, you can take another functional approach, computing the factorial
+elegantly with ranges and iterators.
+
+Check out the `fold` and `rfold` methods!"""
+hint.ru = """В императивном языке ты написал бы цикл `for`, обновляющий изменяемую
+переменную. Или рекурсию с `match`. В Rust есть ещё один, функциональный путь:
+элегантно посчитать факториал через диапазоны и итераторы.
+
+Посмотри на методы `fold` и `rfold`!"""
+
+[[exercises]]
+name = "iterators5"
+hint.en = """
+The documentation for the `std::iter::Iterator` trait contains numerous methods
+that would be helpful here.
+
+The `collection` variable in `count_collection_iterator` is a slice of
+`HashMap`s. It needs to be converted into an iterator in order to use the
+iterator methods.
+
+The `fold` method can be useful in the `count_collection_iterator` function.
+
+For a further challenge, consult the documentation for `Iterator` to find
+a different method that could make your code more compact than using `fold`."""
+hint.ru = """В документации трейта `std::iter::Iterator` много методов, которые здесь
+пригодятся.
+
+Переменная `collection` в `count_collection_iterator` это срез из `HashMap`.
+Её нужно превратить в итератор, чтобы пользоваться методами итераторов.
+
+Метод `fold` может пригодиться в функции `count_collection_iterator`.
+
+Для дополнительной задачи найди в документации `Iterator` другой метод,
+с которым код получится компактнее, чем с `fold`."""
+
+[[exercises]]
+name = "m05_feed"
+kind = "milestone"
+journey = "backend"
+quiz = true

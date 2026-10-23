@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package export.v1;
+
+service Export {
+  rpc Rows (RowsRequest) returns (stream Row);
+}
+
+message RowsRequest {
+  uint64 count = 1;
+}
+
+message Row {
+  uint64 id = 1;
+  string text = 2;
+}

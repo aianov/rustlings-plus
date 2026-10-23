@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Подтверждения в JetStream</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+svg .mono { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+#caption { margin-top: 12px; min-height: 90px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Путь сообщения: доставка, ack, nak, истёкший ack_wait</h1>
+  <p class="sub">Что происходит с одним сообщением в разных случаях.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 360" role="img" aria-label="Путь сообщения: доставка, ack, nak, истёкший ack_wait">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene");
+
+const LANES = { stream: "stream (на диске)", consumer: "consumer (помнит, что в работе)", worker: "обработчик", gone: "забыто consumer'ом", dead: "мёртвая тема" };
+const SCEN = {
+  ok: { title: "всё получилось: ack", intro: "Одно сообщение проходит путь от stream до подтверждения.",
+    steps: [
+      { lane: "stream", label: "#1", n: 0, text: "Издатель записал событие в stream. JetStream ответил номером 1 (PubAck). Пока его никто не читал." },
+      { lane: "worker", label: "#1", n: 1, text: "Обработчик запросил пачку (fetch), consumer отдал сообщение. Доставка номер 1, таймер ack_wait пошёл." },
+      { lane: "gone", label: "#1", n: 1, text: "Обработка успешна, обработчик отправил ack. Consumer продвинул позицию и это сообщение ему больше не доставит. Из stream оно не удалено: другие consumer'ы его ещё прочитают." }
+    ] },
+  nak: { title: "временная ошибка: nak с паузой", intro: "База недоступна: обработчик просит вернуть сообщение позже.",
+    steps: [
+      { lane: "worker", label: "#1", n: 1, text: "Первая доставка. Обработчик пытается записать уведомление, а база не отвечает." },
+      { lane: "consumer", label: "#1", n: 1, text: "Обработчик отправил nak с паузой 400 мс. Сообщение осталось «в работе» у consumer, но выдавать его пока нельзя. Следующие сообщения не ждут." },
+      { lane: "worker", label: "#1", n: 2, text: "Через 400 мс consumer снова отдал сообщение: доставка номер 2. База уже работает." },
+      { lane: "gone", label: "#1", n: 2, text: "ack. Итог: событие обработано один раз успешно, хотя доставлено дважды." }
+    ] },
+  hang: { title: "обработчик завис: истёк ack_wait", intro: "Экземпляр упал или завис и не ответил ничем.",
+    steps: [
+      { lane: "worker", label: "#1", n: 1, text: "Экземпляр A получил сообщение и взялся за работу. Таймер ack_wait: 30 секунд (в примере меньше)." },
+      { lane: "worker", label: "#1", n: 1, text: "Экземпляр A завис: ни ack, ни nak, ни in_progress. Брокер этого не видит, он просто ждёт." },
+      { lane: "consumer", label: "#1", n: 1, text: "ack_wait истёк. Брокер решает, что экземпляр потерян, и возвращает сообщение в очередь доставки." },
+      { lane: "worker", label: "#1", n: 2, text: "Экземпляр B получил то же сообщение: доставка номер 2. Если A всё-таки жив и закончит, обработаются оба: поэтому обработчик должен быть идемпотентным." }
+    ] },
+  progress: { title: "долгая работа: in_progress", intro: "Работа дольше ack_wait, но экземпляр жив.",
+    steps: [
+      { lane: "worker", label: "#1", n: 1, text: "Обработчик начал долгую работу (рендер письма на 90 секунд при ack_wait 30)." },
+      { lane: "worker", label: "#1", n: 1, text: "Каждые 10 секунд обработчик шлёт in_progress. Таймер ack_wait каждый раз начинается заново." },
+      { lane: "worker", label: "#1", n: 1, text: "Прошло 90 секунд, брокер не выдал сообщение второму экземпляру: он знает, что работа идёт." },
+      { lane: "gone", label: "#1", n: 1, text: "Работа закончена, ack. Дубля нет." }
+    ] },
+  poison: { title: "ядовитое сообщение: max_deliver и мёртвая тема", intro: "В событии мусор, который никогда не разберётся. max_deliver = 3.",
+    steps: [
+      { lane: "worker", label: "#1", n: 1, text: "Доставка 1: разбор не удался, nak с паузой 100 мс." },
+      { lane: "worker", label: "#1", n: 2, text: "Доставка 2 (пауза 200 мс): снова не удалось." },
+      { lane: "worker", label: "#1", n: 3, text: "Доставка 3 это последняя разрешённая. Обработчик видит delivered = max_deliver и понимает: больше брокер не пришлёт." },
+      { lane: "dead", label: "#1", n: 3, text: "Копия с причиной уходит в мёртвую тему, потом term. Остальные сообщения всё это время обрабатывались, а дежурный разберёт мёртвую тему руками." }
+    ] }
+};
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const names = Object.keys(LANES);
+  const W = 170, gap = 14;
+  names.forEach((k, i) => {
+    const x = 20 + i * (W + gap);
+    el("rect", { x, y: 40, width: W, height: 150, rx: 10, fill: "none", stroke: "var(--boxline)" }, scene);
+    el("text", { x: x + 10, y: 62, class: "muted" }, scene, LANES[k]);
+  });
+  if (idx >= 0) {
+    const st = sc.steps[idx];
+    const i = names.indexOf(st.lane);
+    const x = 20 + i * (W + gap);
+    el("rect", { x: x + 40, y: 90, width: 90, height: 44, rx: 8, fill: st.lane === "gone" ? "var(--ok)" : st.lane === "dead" ? "var(--bad)" : "var(--accent)" }, scene);
+    el("text", { x: x + 85, y: 118, "text-anchor": "middle", style: "fill:#fff;font-weight:700" }, scene, st.label);
+    if (st.n > 0) el("text", { x: x + 85, y: 160, "text-anchor": "middle" }, scene, "доставок: " + st.n);
+  }
+  sc.steps.forEach((st, j) => {
+    const y = 225 + j * 26;
+    el("text", { x: 20, y, style: j <= idx ? "" : "fill:var(--muted)", class: "mono" }, scene, (j + 1) + ". " + (j <= idx ? LANES[st.lane].split(" (")[0] + ", доставок " + st.n : "..."));
+  });
+  say(sc);
+}
+
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function total() { return SCEN[sel.value].steps.length; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < total() - 1) { idx++; render(); } else stop(); }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= total() - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2600);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() { btnPrev.disabled = idx < 0; btnNext.disabled = idx >= total() - 1; }
+function say(sc) {
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>' + sc.intro
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + sc.steps[idx].text;
+  finish();
+}
+render();
+</script>
+</body>
+</html>

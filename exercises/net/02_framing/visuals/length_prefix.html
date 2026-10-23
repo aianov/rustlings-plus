@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кадр с длиной впереди: заголовок, ожидание, следующий кадр</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Кадр с длиной впереди: заголовок, ожидание, следующий кадр</h1>
+  <p class="sub">Заголовок из 4 байт (u32, старший байт первым), потом столько байтов тела. Лимит кадра 8 байт.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Обычный кадр",
+  "boxes": [
+   "Новые байты",
+   "Буфер",
+   "Решение декодера",
+   "Готовые кадры"
+  ],
+  "steps": [
+   {
+    "t": "Буфер пуст. Декодеру нужен заголовок: 4 байта.",
+    "s": [
+     [],
+     [],
+     [
+      [
+       "нужно 4 байта заголовка",
+       "mute"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Пришли 2 байта: 00 00. Заголовок неполный. Декодер возвращает Ok(None) и ничего не трогает.",
+    "s": [
+     [
+      [
+       "00 00",
+       "info"
+      ]
+     ],
+     [
+      [
+       "00 00",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "заголовка мало (2 из 4)",
+       "warn"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Пришли ещё 2: 00 05. Заголовок целый: длина тела 5. Но тела пока нет.",
+    "s": [
+     [
+      [
+       "00 05",
+       "info"
+      ]
+     ],
+     [
+      [
+       "00 00 00 05",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "длина 5, ждём тело (0 из 5)",
+       "warn"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Пришло 2 байта тела «he». Тела 2 из 5, ждём дальше. Заголовок из буфера не убирали: декодер ничего не вырезает, пока кадр неполон.",
+    "s": [
+     [
+      [
+       "he",
+       "info"
+      ]
+     ],
+     [
+      [
+       "00 00 00 05 h e",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "ждём тело (2 из 5)",
+       "warn"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Пришло «llo» и начало следующего кадра «00 00». Первый кадр полон: вырезаем заголовок и 5 байт тела.",
+    "s": [
+     [
+      [
+       "llo 00 00",
+       "info"
+      ]
+     ],
+     [
+      [
+       "00 00 (начало следующего)",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "кадр целый, вырезан",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "hello",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Остаток в буфере принадлежит следующему кадру. Декодер снова ждёт заголовок.",
+    "s": [
+     [],
+     [
+      [
+       "00 00",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "заголовка мало (2 из 4)",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "hello",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Подозрительная длина",
+  "boxes": [
+   "Новые байты",
+   "Буфер",
+   "Решение декодера",
+   "Готовые кадры"
+  ],
+  "steps": [
+   {
+    "t": "Лимит кадра 8 байт. Клиент присылает заголовок FF FF FF FF (4 294 967 295).",
+    "s": [
+     [
+      [
+       "FF FF FF FF",
+       "info"
+      ]
+     ],
+     [
+      [
+       "FF FF FF FF",
+       "warn"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Заголовок целый, длина известна. Тело ещё не пришло, но ждать его нет смысла: длина больше лимита.",
+    "s": [
+     [],
+     [
+      [
+       "FF FF FF FF",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "длина 4 294 967 295 > 8: ошибка TooLong",
+       "bad"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Соединение закрывается с ошибкой. Память под гигабайты не выделялась ни разу: проверка идёт по одному заголовку.",
+    "s": [
+     [],
+     [],
+     [
+      [
+       "соединение закрыто",
+       "bad"
+      ]
+     ],
+     []
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

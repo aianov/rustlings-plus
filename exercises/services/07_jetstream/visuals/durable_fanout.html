@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Durable consumers</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+svg .mono { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+#caption { margin-top: 12px; min-height: 90px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Кто что читает: durable, экземпляры, рестарт</h1>
+  <p class="sub">Позиция чтения живёт на брокере и принадлежит имени consumer.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 330" role="img" aria-label="Кто что читает: durable, экземпляры, рестарт">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene");
+
+const MSGS = [1, 2, 3, 4, 5, 6];
+const SCEN = {
+  two: { title: "два сервиса, два durable", intro: "notify и feed читают один stream, у каждого свой consumer со своей позицией.",
+    consumers: ["notify", "feed"],
+    steps: [
+      { cur: { notify: 0, feed: 0 }, got: { notify: [], feed: [] }, text: "В stream шесть сообщений. Оба consumer только созданы, позиции у обоих в начале." },
+      { cur: { notify: 3, feed: 1 }, got: { notify: [1, 2, 3], feed: [1] }, text: "notify прочитал три сообщения, feed только одно. Каждый двигается в своём темпе." },
+      { cur: { notify: 6, feed: 6 }, got: { notify: [1, 2, 3, 4, 5, 6], feed: [1, 2, 3, 4, 5, 6] }, text: "Оба дочитали до конца и каждый получил все шесть. Чтение одним сервисом не отнимает сообщения у другого." }
+    ] },
+  shared: { title: "один durable, два экземпляра", intro: "Два экземпляра notify называют consumer одинаково: у них общая позиция.",
+    consumers: ["notify"],
+    inst: { notify: ["A", "B"] },
+    steps: [
+      { cur: { notify: 0 }, got: { A: [], B: [] }, text: "Два экземпляра запросили пачки у одного consumer." },
+      { cur: { notify: 4 }, got: { A: [1, 3], B: [2, 4] }, text: "Сообщения разошлись между экземплярами. Позиция одна, поэтому каждое сообщение достаётся ровно одному." },
+      { cur: { notify: 6 }, got: { A: [1, 3, 5], B: [2, 4, 6] }, text: "Все шесть обработаны по разу. Экземпляров можно добавлять, пока хватает сообщений. Порядок между экземплярами не гарантирован." }
+    ] },
+  restart: { title: "рестарт: durable помнит место", intro: "Сервис перезапускается посреди чтения.",
+    consumers: ["notify"],
+    steps: [
+      { cur: { notify: 3 }, got: { notify: [1, 2, 3] }, text: "notify прочитал и подтвердил три сообщения, позиция consumer на брокере: 3." },
+      { cur: { notify: 3 }, got: { notify: [1, 2, 3] }, down: true, text: "Сервис остановлен. В stream приходят сообщения 4 и 5, consumer ждёт на месте." },
+      { cur: { notify: 5 }, got: { notify: [1, 2, 3, 4, 5] }, text: "Сервис запустился с тем же именем consumer и продолжил с 4. Если бы имя было случайным, он начал бы с 1 и разослал старые уведомления заново." }
+    ] },
+  random: { title: "ошибка: случайное имя consumer", intro: "Каждый запуск создаёт новый consumer.",
+    consumers: ["notify-7f3a", "notify-c91b"],
+    steps: [
+      { cur: { "notify-7f3a": 3, "notify-c91b": 0 }, got: { "notify-7f3a": [1, 2, 3], "notify-c91b": [] }, text: "Первый запуск создал consumer notify-7f3a и прочитал три сообщения." },
+      { cur: { "notify-7f3a": 3, "notify-c91b": 6 }, got: { "notify-7f3a": [1, 2, 3], "notify-c91b": [1, 2, 3, 4, 5, 6] }, text: "После рестарта появился второй consumer notify-c91b с новой позицией: он прочитал всё сначала, пользователи получили 1, 2, 3 повторно. Старый consumer остался висеть на брокере." }
+    ] }
+};
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const st = idx >= 0 ? sc.steps[idx] : { cur: {}, got: {}, down: false };
+  el("text", { x: 20, y: 28, class: "muted" }, scene, "stream: шесть сообщений");
+  MSGS.forEach((m, i) => {
+    el("rect", { x: 20 + i * 70, y: 40, width: 60, height: 36, rx: 6, fill: "var(--box)", stroke: "var(--boxline)" }, scene);
+    el("text", { x: 50 + i * 70, y: 63, "text-anchor": "middle", class: "mono" }, scene, "#" + m);
+  });
+  sc.consumers.forEach((c, k) => {
+    const y = 120 + k * 100;
+    const pos = st.cur[c] === undefined ? 0 : st.cur[c];
+    el("text", { x: 20, y, style: "font-weight:700" }, scene, "consumer " + c + (st.down && idx >= 0 ? " (сервис остановлен)" : ""));
+    el("line", { x1: 20, y1: y + 14, x2: 20 + pos * 70, y2: y + 14, stroke: "var(--ok)", "stroke-width": 4 }, scene);
+    el("text", { x: 20 + pos * 70 + 6, y: y + 18, class: "muted" }, scene, "позиция " + pos);
+    const names = sc.inst ? sc.inst[c] : [c];
+    names.forEach((n, j) => {
+      const list = (st.got[n] || []);
+      el("text", { x: 20, y: y + 40 + j * 22, class: "mono", style: "font-size:12px" }, scene, (sc.inst ? "экземпляр " + n : "получено") + ": " + (list.length ? list.map(x => "#" + x).join(" ") : "ничего"));
+    });
+  });
+  say(sc);
+}
+
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function total() { return SCEN[sel.value].steps.length; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < total() - 1) { idx++; render(); } else stop(); }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= total() - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2600);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() { btnPrev.disabled = idx < 0; btnNext.disabled = idx >= total() - 1; }
+function say(sc) {
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>' + sc.intro
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + sc.steps[idx].text;
+  finish();
+}
+render();
+</script>
+</body>
+</html>

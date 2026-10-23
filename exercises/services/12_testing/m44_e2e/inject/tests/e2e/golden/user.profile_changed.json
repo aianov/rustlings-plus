@@ -1,0 +1,12 @@
+{
+  "event_id": "evt-user.profile_changed",
+  "type": "user.profile_changed",
+  "schema": 2,
+  "version": 1,
+  "occurred_at": 1700000000000,
+  "aggregate_id": "u_1",
+  "payload": {
+    "display_name": "Алиса",
+    "user_id": "u_1"
+  }
+}

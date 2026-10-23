@@ -1,0 +1,15 @@
+test_command = ["cargo", "make", "check"]
+hint.ru = [
+"""Начни с файлов без логики: Makefile, Makefile.toml, `.env.example` (и копия `.env`), три файла
+настроек и алиас. После каждого прогоняй `make -n check` (печатает рецепты, ничего не запуская) и
+`cargo make check`. Если в выводе cargo-make есть `Execute Command: "cargo" "check"`, у задачи `check` нет `clear = true`.""",
+"""xtask делится на три маленьких модуля. Корень: `std::env::current_dir()?.ancestors().find(...)` по
+папкам, где `Cargo.toml` содержит строку `[workspace]`. Проверка: цикл по трём срезам аргументов,
+`Command::new(cargo).args(step).current_dir(root).status()`, а успех проверяй через `status.success()`,
+не через `is_ok()`.""",
+"""Маску в members проще всего вписать построчно: найди строку, которая начинается с `members = [`
+и кончается `]`, разбей середину по запятым, добавь `"src/microservices/*"` и собери строку обратно.
+Сначала проверь имя и посчитай новый Cargo.toml, и только потом пиши на диск: тогда ошибка ничего не испортит.""",
+]
+story.ru = """У соцсети появилась своя кухня: `make check`, `cargo make check` и `cargo xtask new-service`.
+Новый человек клонирует репозиторий и через минуту знает, как тут всё устроено."""

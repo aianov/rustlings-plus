@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package social.v1;
+
+import "google/protobuf/timestamp.proto";
+import "social/v1/common.proto";
+
+enum Visibility {
+  VISIBILITY_UNSPECIFIED = 0;
+  VISIBILITY_PUBLIC = 1;
+  VISIBILITY_FOLLOWERS = 2;
+}
+
+message Post {
+  uint64 id = 1;
+  Author author = 2;
+  string text = 3;
+  google.protobuf.Timestamp created_at = 4;
+  repeated string hashtags = 5;
+  Visibility visibility = 6;
+}

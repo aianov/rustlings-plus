@@ -1,0 +1,11 @@
+{
+  "event_id": "evt-post.deleted",
+  "type": "post.deleted",
+  "schema": 1,
+  "version": 1,
+  "occurred_at": 1700000000000,
+  "aggregate_id": "p_10",
+  "payload": {
+    "post_id": "p_10"
+  }
+}

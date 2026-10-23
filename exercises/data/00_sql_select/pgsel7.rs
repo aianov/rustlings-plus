@@ -1,0 +1,65 @@
+// BETWEEN a AND b проверяет диапазон, причём обе границы входят. IN (...) заменяет цепочку
+// из OR по одному и тому же столбцу. У обоих есть парные формы: NOT BETWEEN и NOT IN.
+
+fn age_25_to_35() -> &'static str {
+    // TODO: возраст от 25 до 35 включительно (BETWEEN)
+    "SELECT username FROM users"
+}
+
+fn selected_countries() -> &'static str {
+    // TODO: страна DE, FR или GB (IN)
+    "SELECT username FROM users"
+}
+
+fn other_countries() -> &'static str {
+    // TODO: все остальные страны, то есть не DE, FR и GB (NOT IN)
+    "SELECT username FROM users"
+}
+
+fn main() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use course_support::pg::TestDb;
+
+    const SEED: &str = include_str!("seed.sql");
+
+    fn set(mut v: Vec<&str>) -> Vec<&str> {
+        v.sort();
+        v
+    }
+
+    #[tokio::test]
+    async fn between_includes_both_ends() {
+        let db = TestDb::with_sql(SEED).await;
+        let t = db.table(age_25_to_35()).await;
+        assert_eq!(
+            set(t.col("username")),
+            set(vec!["alice", "bob", "eve", "grace", "judy"]),
+            "BETWEEN включает обе границы: eve ровно 25 лет, ей место в ответе:\n{t}"
+        );
+    }
+
+    #[tokio::test]
+    async fn in_list() {
+        let db = TestDb::with_sql(SEED).await;
+        let t = db.table(selected_countries()).await;
+        assert_eq!(
+            set(t.col("username")),
+            set(vec!["alice", "carol", "dave", "frank", "grace", "heidi", "Karl"]),
+            "ждём пользователей из DE, FR и GB:\n{t}"
+        );
+    }
+
+    #[tokio::test]
+    async fn not_in_list() {
+        let db = TestDb::with_sql(SEED).await;
+        let t = db.table(other_countries()).await;
+        assert_eq!(
+            set(t.col("username")),
+            set(vec!["bob", "bob_2", "eve", "ivan", "judy"]),
+            "ждём всех, кто не из DE, FR и GB:\n{t}"
+        );
+    }
+}

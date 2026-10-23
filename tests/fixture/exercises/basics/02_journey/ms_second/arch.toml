@@ -1,0 +1,5 @@
+[[rules]]
+kind = "exists"
+paths = ["src/users.rs"]
+message.en = "Users live in src/users.rs"
+message.ru = "Пользователи живут в src/users.rs"

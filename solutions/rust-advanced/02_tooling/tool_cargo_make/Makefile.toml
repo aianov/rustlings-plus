@@ -1,0 +1,21 @@
+env_files = [{ path = ".env", defaults_only = true }]
+
+[tasks.fmt]
+command = "cargo"
+args = ["fmt", "--all", "--check"]
+
+[tasks.lint]
+command = "cargo"
+args = ["clippy", "--all-targets", "--", "-D", "warnings"]
+
+[tasks.test]
+command = "cargo"
+args = ["test"]
+
+[tasks.check]
+clear = true
+dependencies = ["fmt", "lint", "test"]
+
+[tasks.run]
+command = "cargo"
+args = ["run", "--quiet"]

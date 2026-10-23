@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package metrics.v1;
+
+service Admin {
+  rpc Get (GetRequest) returns (Metric);
+  rpc List (ListRequest) returns (stream Metric);
+  rpc Reset (ResetRequest) returns (ResetReply);
+}
+
+message GetRequest {
+  string name = 1;
+}
+
+message ListRequest {
+  string prefix = 1;
+}
+
+message ResetRequest {
+  string name = 1;
+}
+
+message ResetReply {}
+
+enum Kind {
+  KIND_UNSPECIFIED = 0;
+  KIND_COUNTER = 1;
+  KIND_GAUGE = 2;
+  KIND_TIMER = 3;
+}
+
+message Metric {
+  string name = 1;
+  Kind kind = 2;
+  double value = 3;
+  uint64 count = 4;
+}

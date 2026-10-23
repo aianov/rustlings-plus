@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>interval против sleep в цикле и три политики пропуска</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --grid:#e3e6ec; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --grid:#2a303c; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { font:600 13px system-ui,sans-serif; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.lane { position:relative; height:46px; margin:6px 0 16px; border-bottom:1px solid var(--line);
+  background-image:repeating-linear-gradient(to right, var(--grid) 0, var(--grid) 1px, transparent 1px, transparent 9.0909%); }
+.lane .name { position:absolute; left:0; top:-16px; font-size:12px; color:var(--muted); }
+.tick { position:absolute; bottom:0; width:3px; height:30px; border-radius:2px; transform:translateX(-1px); }
+.tick.A { background:var(--a); } .tick.B { background:var(--b); }
+.tick.fresh { outline:2px solid var(--ink); }
+.tick .lbl { position:absolute; top:-15px; left:-12px; font:11px system-ui,sans-serif; color:var(--muted); white-space:nowrap; }
+.work { position:absolute; bottom:0; height:12px; border-radius:3px; background:color-mix(in srgb,var(--bad) 45%,transparent); }
+.axis { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+</style>
+</head>
+<body>
+<h1>interval против sleep в цикле и три политики пропуска</h1>
+<p class="sub">Шкала в миллисекундах. Период 100 мс. Каждый шаг добавляет следующий запуск.</p>
+
+<div class="modes">
+  <button class="mode on" data-m="drift">Дрейф: sleep и interval</button>
+  <button class="mode" data-m="Burst">Пропуск: Burst</button>
+  <button class="mode" data-m="Delay">Пропуск: Delay</button>
+  <button class="mode" data-m="Skip">Пропуск: Skip</button>
+</div>
+
+<div class="panel" id="stage"></div>
+<div class="axis" id="axis"></div>
+<div class="caption" id="caption"></div>
+
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+
+<script>
+const MAX = 1100;
+const MODES = {
+  drift: {
+    lanes: [
+      { name: "sleep(100) после работы в 30 мс: старты раундов", cls: "B", times: [0,130,260,390,520,650,780,910], work: 30 },
+      { name: "interval(100): старты раундов", cls: "A", times: [0,100,200,300,400,500,600,700,800,900,1000], work: 30 }
+    ],
+    cap: (n) => n < 3 ? "Раунд начинается, потом идёт работа 30 мс (красная полоска). Сравни, где начнётся следующий." : "sleep ждёт <b>после</b> работы, поэтому период получается 130 мс и каждый раунд сдвигается ещё на 30. interval ведёт расписание от своего старта: работа его не двигает."
+  },
+  Burst: { lanes: [{ name: "Burst: тики 100 мс, на третьем затянулась работа 350 мс", cls: "A", times: [0,100,200,550,550,550,600,700,800], stall: [200,550] }],
+    cap: (n) => n < 4 ? "Обычные тики. На третьем (200 мс) обработка затянулась на 350 мс." : "Пропущены тики на 300, 400, 500. Burst отдаёт их <b>разом</b>, три подряд в момент 550, пока расписание не догонит часы. Ни один тик не потерян, но получилась пачка." },
+  Delay: { lanes: [{ name: "Delay: тики 100 мс, на третьем затянулась работа 350 мс", cls: "A", times: [0,100,200,550,650,750,850,950,1050], stall: [200,550] }],
+    cap: (n) => n < 4 ? "Обычные тики. На третьем (200 мс) обработка затянулась на 350 мс." : "Delay не догоняет: следующий тик ровно через период после того, как работа кончилась (650). Вся сетка сдвинулась на 50 мс и больше не совпадает с исходной." },
+  Skip: { lanes: [{ name: "Skip: тики 100 мс, на третьем затянулась работа 350 мс", cls: "A", times: [0,100,200,550,600,700,800,900,1000], stall: [200,550] }],
+    cap: (n) => n < 4 ? "Обычные тики. На третьем (200 мс) обработка затянулась на 350 мс." : "Skip выбрасывает пропущенное (300, 400, 500). После задержки тик приходит сразу (550), а дальше расписание возвращается на исходную сетку 600, 700, 800." }
+};
+let mode = "drift", pos = 0, timer = null;
+function total() { return Math.max(...MODES[mode].lanes.map(l => l.times.length)); }
+function render() {
+  const m = MODES[mode];
+  let html = "";
+  for (const lane of m.lanes) {
+    html += `<div class="lane"><span class="name">${lane.name}</span>`;
+    if (lane.stall && pos >= 3) html += `<div class="work" style="left:${lane.stall[0]/MAX*100}%;width:${(lane.stall[1]-lane.stall[0])/MAX*100}%"></div>`;
+    const shown = lane.times.slice(0, pos);
+    shown.forEach((t, i) => {
+      if (lane.work) html += `<div class="work" style="left:${t/MAX*100}%;width:${lane.work/MAX*100}%"></div>`;
+      const dup = shown.slice(0, i).filter(x => x === t).length;
+      html += `<div class="tick ${lane.cls}${i === pos-1 ? " fresh" : ""}" style="left:${t/MAX*100}%;height:${30+dup*8}px"><span class="lbl" style="top:${-15-dup*8}px">${t}</span></div>`;
+    });
+    html += `</div>`;
+  }
+  document.getElementById("stage").innerHTML = html;
+  let axis = ""; for (let t = 0; t <= MAX; t += 100) axis += `<span>${t}</span>`;
+  document.getElementById("axis").innerHTML = axis;
+  document.getElementById("caption").innerHTML = m.cap(pos);
+  const tot = total();
+  document.getElementById("counter").textContent = `шаг ${pos} из ${tot}`;
+  const end = pos >= tot;
+  document.getElementById("step").disabled = end; document.getElementById("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} document.getElementById("play").textContent="Играть"; }
+function step(){ if(pos<total()){pos++;render();} }
+function setMode(m){ stop(); mode=m; pos=0; document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("on",b.dataset.m===m)); render(); }
+document.querySelectorAll(".mode").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+document.getElementById("step").onclick=()=>{stop();step();};
+document.getElementById("play").onclick=()=>{ if(timer){stop();return;} document.getElementById("play").textContent="Пауза"; timer=setInterval(step,900); };
+document.getElementById("reset").onclick=()=>setMode(mode);
+render();
+</script>
+</body>
+</html>

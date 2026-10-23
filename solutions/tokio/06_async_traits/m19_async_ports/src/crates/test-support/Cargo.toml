@@ -1,0 +1,20 @@
+[package]
+name = "test-support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+test-util = ["dep:contracts", "dep:social-core", "dep:tokio"]
+
+[dependencies]
+contracts = { workspace = true, optional = true }
+social-core = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"

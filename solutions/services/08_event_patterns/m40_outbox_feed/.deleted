@@ -1,0 +1,4 @@
+src/microservices/post-service/src/client/events.rs
+src/microservices/post-service/src/service/events.rs
+src/microservices/user-service/src/client/events.rs
+src/microservices/user-service/src/service/events.rs

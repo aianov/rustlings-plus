@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Порядок выполнения SELECT</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6a7385; --line: #d9dde5;
+  --accent: #2563eb; --accent-bg: #dbe7ff; --keep: #e8f6ec; --drop: #fde8e8; --drop-text: #b42318;
+  --new: #fff4cc; --code-bg: #eef1f6; --err: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --panel: #1c212b; --text: #e6e9f0; --muted: #98a2b5; --line: #323a49;
+    --accent: #6ea0ff; --accent-bg: #23365e; --keep: #1c3326; --drop: #3b2024; --drop-text: #ff8a80;
+    --new: #4a3f12; --code-bg: #242b38; --err: #ff8a80;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 900px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.lead { color: var(--muted); margin: 0 0 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+pre.sql { margin: 0; font: 15px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; }
+pre.sql .ln { display: block; padding: 0 8px; border-radius: 5px; border-left: 3px solid transparent; color: var(--muted); }
+pre.sql .ln.on { background: var(--accent-bg); border-left-color: var(--accent); color: var(--text); }
+.pipeline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.stage { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.stage.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.stage.done { color: var(--text); border-color: var(--accent); }
+.arrow { color: var(--muted); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+th.new, td.new { background: var(--new); }
+tr.keep td { background: var(--keep); }
+tr.drop td { background: var(--drop); color: var(--drop-text); text-decoration: line-through; }
+tr.drop td.new { background: var(--drop); }
+.note { min-height: 3.2em; }
+.note b { color: var(--accent); }
+.err { color: var(--err); font-family: ui-monospace, Menlo, monospace; margin-top: 8px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+.counter { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Как Postgres на самом деле выполняет SELECT</h1>
+  <p class="lead">Пишем запрос сверху вниз, а выполняется он в другом порядке. Жми «Шаг» и смотри, что остаётся от таблицы.</p>
+
+  <div class="card"><pre class="sql" id="sql"></pre></div>
+  <div class="card pipeline" id="pipeline"></div>
+  <div class="card"><table id="grid"></table><div class="err" id="err"></div></div>
+  <div class="card note" id="note"></div>
+
+  <div class="card controls">
+    <button class="primary" id="step">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+    <label><input type="checkbox" id="alias"> использовать months в WHERE</label>
+  </div>
+</main>
+
+<script>
+const USERS = [
+  { id: 1, username: 'alice', country: 'DE', age: 28 },
+  { id: 2, username: 'bob',   country: 'US', age: 34 },
+  { id: 3, username: 'carol', country: 'DE', age: 41 },
+  { id: 4, username: 'dave',  country: 'FR', age: 19 },
+  { id: 5, username: 'eve',   country: 'US', age: 25 },
+  { id: 6, username: 'frank', country: 'GB', age: 52 },
+  { id: 7, username: 'grace', country: 'FR', age: 31 },
+  { id: 8, username: 'Karl',  country: 'DE', age: 45 },
+];
+const STAGES = ['FROM', 'WHERE', 'SELECT', 'ORDER BY', 'LIMIT'];
+const LINE_OF_STAGE = { 'SELECT': 0, 'FROM': 1, 'WHERE': 2, 'ORDER BY': 3, 'LIMIT': 4 };
+
+let step = 0, timer = null;
+
+function sqlLines(useAlias) {
+  return [
+    'SELECT username, age * 12 AS months',
+    'FROM users',
+    useAlias ? 'WHERE months > 400' : "WHERE country = 'DE'",
+    'ORDER BY months DESC',
+    'LIMIT 2',
+  ];
+}
+
+function model(useAlias) {
+  const base = ['id', 'username', 'country', 'age'];
+  const steps = [];
+  steps.push({ stage: -1, cols: [], rows: [], note: 'Запрос написан, но пока ничего не выполнено. Postgres начинает не с SELECT, а с таблицы.' });
+  steps.push({ stage: 0, cols: base, rows: USERS.map(u => ({ c: [u.id, u.username, u.country, u.age], s: 'keep' })),
+    note: '<b>FROM users</b>: берём таблицу целиком, 8 строк. Ни псевдонимов, ни вычислений здесь ещё нет.' });
+  if (useAlias) {
+    steps.push({ stage: 1, cols: base, rows: USERS.map(u => ({ c: [u.id, u.username, u.country, u.age], s: 'keep' })),
+      error: 'ERROR: column "months" does not exist',
+      note: '<b>WHERE</b> проверяет каждую строку, но столбца <b>months</b> ещё нет: он рождается на шаге SELECT, а это позже. Условие придётся писать без псевдонима, как <b>age * 12 &gt; 400</b>. Сними галку, и запрос выполнится (там условие другое, но порядок этапов тот же). В примере 8 пользователей из 12.' });
+    return steps;
+  }
+  const de = USERS.filter(u => u.country === 'DE');
+  steps.push({ stage: 1, cols: base, rows: USERS.map(u => ({ c: [u.id, u.username, u.country, u.age], s: u.country === 'DE' ? 'keep' : 'drop' })),
+    note: "<b>WHERE country = 'DE'</b>: условие проверяется для каждой строки по отдельности. Красные строки не прошли и дальше не идут. Столбца months здесь ещё нет." });
+  steps.push({ stage: 2, cols: ['username', 'months'], newCol: 1,
+    rows: de.map(u => ({ c: [u.username, u.age * 12], s: 'keep' })),
+    note: '<b>SELECT</b>: для оставшихся 3 строк вычисляются выражения. Только сейчас появляется <b>months</b> и пропадают столбцы, которые не просили.' });
+  const sorted = [...de].sort((a, b) => b.age - a.age);
+  steps.push({ stage: 3, cols: ['username', 'months'], newCol: 1,
+    rows: sorted.map(u => ({ c: [u.username, u.age * 12], s: 'keep' })),
+    note: '<b>ORDER BY months DESC</b>: сортировка идёт после SELECT, поэтому псевдоним уже виден.' });
+  steps.push({ stage: 4, cols: ['username', 'months'], newCol: 1,
+    rows: sorted.map((u, i) => ({ c: [u.username, u.age * 12], s: i < 2 ? 'keep' : 'drop' })),
+    note: '<b>LIMIT 2</b>: берём первые две строки. Поэтому LIMIT без ORDER BY отдаёт «какие-то две».' });
+  return steps;
+}
+
+function render() {
+  const useAlias = document.getElementById('alias').checked;
+  const steps = model(useAlias);
+  if (step >= steps.length) step = steps.length - 1;
+  const s = steps[step];
+
+  document.getElementById('sql').innerHTML = sqlLines(useAlias).map((l, i) =>
+    `<span class="ln${s.stage >= 0 && LINE_OF_STAGE[STAGES[s.stage]] === i ? ' on' : ''}">${l}</span>`).join('');
+
+  document.getElementById('pipeline').innerHTML = STAGES.map((n, i) =>
+    `<span class="stage${i === s.stage ? ' on' : i < s.stage ? ' done' : ''}">${n}</span>`).join('<span class="arrow">→</span>');
+
+  const grid = document.getElementById('grid');
+  if (!s.cols.length) {
+    grid.innerHTML = '<tr><td style="color:var(--muted)">таблица ещё не прочитана</td></tr>';
+  } else {
+    const head = s.cols.map((c, i) => `<th class="${s.newCol === i ? 'new' : ''}">${c}</th>`).join('');
+    const body = s.rows.map(r => `<tr class="${r.s}">` +
+      r.c.map((v, i) => `<td class="${s.newCol === i ? 'new' : ''}">${v}</td>`).join('') + '</tr>').join('');
+    grid.innerHTML = `<tr>${head}</tr>${body}`;
+  }
+  document.getElementById('err').textContent = s.error || '';
+  document.getElementById('note').innerHTML = s.note;
+  document.getElementById('counter').textContent = `шаг ${step} из ${steps.length - 1}`;
+  const last = step >= steps.length - 1;
+  document.getElementById('step').disabled = last;
+  if (last) stop();
+}
+
+function stop() {
+  if (timer) { clearInterval(timer); timer = null; }
+  document.getElementById('play').textContent = 'Играть';
+}
+function next() {
+  const steps = model(document.getElementById('alias').checked);
+  if (step < steps.length - 1) { step++; render(); } else stop();
+}
+document.getElementById('step').onclick = () => { stop(); next(); };
+document.getElementById('play').onclick = () => {
+  if (timer) { stop(); return; }
+  if (step >= model(document.getElementById('alias').checked).length - 1) step = 0;
+  render();
+  document.getElementById('play').textContent = 'Пауза';
+  timer = setInterval(next, 1800);
+};
+document.getElementById('reset').onclick = () => { stop(); step = 0; render(); };
+document.getElementById('alias').onchange = () => { stop(); step = 0; render(); };
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+hint.ru = [
+"""Переезжай без изменений поведения и по одному пакету. Сначала корень и пустой `contracts`, потом
+перенеси старый `src/` в `src/crates/social-core/src` и добейся `cargo build --workspace`, потом вынеси
+ids и ник в contracts, и только потом терминал. После каждого шага `cargo test --workspace`.""",
+"""Когда `UserId` переехал в contracts, остальной код ядра можно не трогать: в `domain/mod.rs` напиши
+`pub use contracts::{PostId, UserId};`, и пути `crate::domain::UserId` продолжат работать. Так же
+поступи с `normalize_name` и `MAX_NAME_LEN`. `validate_name` ядра сжимается до
+`Ok(Username::try_from(name)?.into())`: `?` сам вызовет твой `From<NameError> for DomainError`.""",
+"""build.rs это обычная `fn main()`: `std::env::var("CARGO_PKG_VERSION")` и `std::env::var("PROFILE")`
+(обе отдают `Result`, тут подойдёт `unwrap_or_default()`), потом
+`println!("cargo::rustc-env=REPL_VERSION=repl {version} ({profile})")`. В main.rs
+`const VERSION: &str = env!("REPL_VERSION");` и проверка `std::env::args().skip(1).any(|arg| arg == "--version")`.""",
+]
+story.ru = """У соцсети появился настоящий дом: воркспейс с контрактами внизу, ядром посередине и терминалом
+сверху. Стрелки идут вниз, правила общие, а `repl --version` знает, кто он такой."""

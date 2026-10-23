@@ -1,0 +1,53 @@
+[chapter]
+title.en = "Clippy"
+title.ru = "Clippy"
+
+[[exercises]]
+name = "clippy1"
+test = false
+strict_clippy = true
+hint.en = """
+Rust stores the highest precision version of some long or infinite precision
+mathematical constants in the Rust standard library:
+https://doc.rust-lang.org/stable/std/f32/consts/index.html
+
+We may be tempted to use our own approximations for certain mathematical
+constants, but clippy recognizes those imprecise mathematical constants as a
+source of potential error.
+
+See the suggestions of the Clippy warning in the compile output and use the
+appropriate replacement constant from `std::f32::consts`."""
+hint.ru = """В стандартной библиотеке Rust хранятся версии максимальной точности для
+некоторых математических констант с длинной или бесконечной записью:
+https://doc.rust-lang.org/stable/std/f32/consts/index.html
+
+Может возникнуть соблазн использовать собственные приближения, но Clippy
+считает такие неточные константы источником возможных ошибок.
+
+Посмотри подсказки предупреждения Clippy в выводе компиляции и подставь
+подходящую константу из `std::f32::consts`."""
+
+[[exercises]]
+name = "clippy2"
+test = false
+strict_clippy = true
+hint.en = """
+`for` loops over `Option` values are more clearly expressed as an `if-let`
+statement.
+
+Not required to solve this exercise, but if you are interested in when iterating
+over `Option` can be useful, read the following section in the documentation:
+https://doc.rust-lang.org/std/option/#iterating-over-option"""
+hint.ru = """Цикл `for` по значениям `Option` яснее записывается через `if-let`.
+
+Это не нужно для решения, но если интересно, когда итерация по `Option`
+может пригодиться, прочитай этот раздел документации:
+https://doc.rust-lang.org/std/option/#iterating-over-option"""
+
+[[exercises]]
+name = "clippy3"
+test = false
+strict_clippy = true
+hint.en = """
+No hints this time!"""
+hint.ru = """В этот раз без подсказок!"""

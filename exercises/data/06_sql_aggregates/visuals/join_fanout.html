@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Размножение строк при JOIN</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --accent-bg:#dbe7ff; --bad:#fde8e8; --bad-text:#b42318; --ok:#e8f6ec; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --accent-bg:#23365e; --bad:#3b2024; --bad-text:#ff8a80; --ok:#1c3326; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:940px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1fr 1.6fr; gap:12px; } @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.cur td { background:var(--accent-bg); }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.big { font-size:22px; font-weight:700; } .bad { color:var(--bad-text); } .good { color:var(--accent); }
+.note { min-height:3.4em; } .note b { color:var(--accent); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Два JOIN один ко многим перемножают строки</h1>
+  <p class="lead">У поста три лайка и два комментария. Соединение с обеими таблицами даёт по строке на каждую пару «лайк и комментарий». Посмотри, что делают разные способы подсчёта.</p>
+  <div class="card controls">
+    <select id="mode">
+      <option value="star">count(*) после двух JOIN</option>
+      <option value="distinct">count(DISTINCT ...) после двух JOIN</option>
+      <option value="pre">предагрегация: каждая связь отдельно</option>
+    </select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card"><pre id="sql"></pre></div>
+  <div class="card grid">
+    <div><h3>likes поста</h3><table id="lk"></table></div>
+    <div><h3>comments поста</h3><table id="cm"></table></div>
+    <div><h3>результат соединения</h3><table id="res"></table></div>
+  </div>
+  <div class="card"><span id="out"></span></div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var likes = ['bob', 'carol', 'dave'], comments = ['c1', 'c2'];
+  var sqls = {
+    star: 'SELECT count(l.user_id) AS likes, count(c.id) AS comments\nFROM posts p\nLEFT JOIN likes l ON l.post_id = p.id\nLEFT JOIN comments c ON c.post_id = p.id\nWHERE p.id = 5',
+    distinct: 'SELECT count(DISTINCT l.user_id) AS likes, count(DISTINCT c.id) AS comments\nFROM posts p\nLEFT JOIN likes l ON l.post_id = p.id\nLEFT JOIN comments c ON c.post_id = p.id\nWHERE p.id = 5',
+    pre: 'SELECT p.id, COALESCE(l.n, 0) AS likes, COALESCE(c.n, 0) AS comments\nFROM posts p\nLEFT JOIN (SELECT post_id, count(*) AS n FROM likes GROUP BY post_id) l ON l.post_id = p.id\nLEFT JOIN (SELECT post_id, count(*) AS n FROM comments GROUP BY post_id) c ON c.post_id = p.id\nWHERE p.id = 5'
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var i, timer, total = 4;
+  function render() {
+    var m = $('mode').value;
+    $('sql').textContent = sqls[m];
+    $('lk').innerHTML = '<tr><th>user</th></tr>' + likes.map(function (x, k) { return '<tr' + (i >= 1 && i <= likes.length + 0 && false ? '' : (i === 1 && k < 3 ? ' class="cur"' : '')) + '><td>' + x + '</td></tr>'; }).join('');
+    $('cm').innerHTML = '<tr><th>comment</th></tr>' + comments.map(function (x) { return '<tr' + (i === 1 ? ' class="cur"' : '') + '><td>' + x + '</td></tr>'; }).join('');
+    var res = '<tr><th>like</th><th>comment</th></tr>';
+    if (m === 'pre') {
+      if (i >= 2) res += '<tr><td>3</td><td>2</td></tr>';
+    } else if (i >= 2) {
+      likes.forEach(function (l) { comments.forEach(function (c) { res += '<tr><td>' + l + '</td><td>' + c + '</td></tr>'; }); });
+    }
+    $('res').innerHTML = res;
+    var out = '';
+    if (i >= 3) {
+      if (m === 'star') out = 'likes = <span class="big bad">6</span>, comments = <span class="big bad">6</span>. Верно: 3 и 2.';
+      else if (m === 'distinct') out = 'likes = <span class="big good">3</span>, comments = <span class="big good">2</span>. Верно, но только счётчики; сумма по таким строкам всё равно была бы завышена.';
+      else out = 'likes = <span class="big good">3</span>, comments = <span class="big good">2</span>. Каждая связь свёрнута до одной строки на пост ещё до соединения.';
+    }
+    $('out').innerHTML = out || '&nbsp;';
+    var note = ['Нажми «Шаг». У поста 5 три лайка и два комментария.',
+      'Лайки и комментарии связаны только с постом, но не друг с другом. Соединение с первой таблицей даёт 3 строки, и каждая из них теперь будет встречаться со всеми комментариями.',
+      m === 'pre' ? 'Сначала каждая связь сворачивается в одно число на пост (GROUP BY внутри подзапроса). В соединении остаётся одна строка на пост: размножать нечему.' : 'Получилось <b>3 × 2 = 6</b> строк. Каждый лайк повторён для каждого комментария и наоборот.',
+      'Итог подсчёта по этим строкам.'][i];
+    $('note').innerHTML = note;
+    $('counter').textContent = 'шаг ' + i + ' из ' + total;
+    $('step').disabled = i >= total;
+    if (i >= total) stop();
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function reset() { stop(); i = 0; render(); }
+  $('step').onclick = function () { i++; render(); };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () { if (timer) { stop(); return; } if (i >= total) i = 0; $('play').textContent = 'Пауза'; timer = setInterval(function () { i++; render(); }, 1400); i++; render(); };
+  reset();
+})();
+</script>
+</body>
+</html>

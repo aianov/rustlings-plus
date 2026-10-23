@@ -1,0 +1,151 @@
+syntax = "proto3";
+
+package social.v1;
+
+import "social/v1/common.proto";
+
+// Сервис профилей: кто есть в сети, кто на кого подписан, кто кого скрыл, аватары.
+// Кто действует, сервис узнаёт из метаданных x-user-id, а не из тела запроса.
+service Users {
+  // Новый профиль. Ник занят: ALREADY_EXISTS, плохой ник: INVALID_ARGUMENT
+  // с x-error-code validation и полями в x-error-details-bin.
+  rpc CreateProfile(CreateProfileRequest) returns (Profile);
+  // PATCH профиля x-user-id: поле не прислано, значит не трогать; имя в clear_fields,
+  // значит очистить; прислано значение, значит проверить и поставить. Всё или ничего.
+  rpc UpdateProfile(UpdateProfileRequest) returns (Profile);
+  // Профиль по id. Нет такого: NOT_FOUND.
+  rpc GetProfile(GetProfileRequest) returns (Profile);
+  // Профили пачкой одним вызовом: лента берёт авторов страницы без N+1.
+  // Несуществующие id просто пропускаются; не больше 100 id за раз.
+  rpc GetProfiles(ProfilesRequest) returns (ProfileList);
+  // Подписчики и подписки с профилями одним JOIN; скрытые и стёртые не видны.
+  rpc Followers(RelatedRequest) returns (ProfileList);
+  rpc Following(RelatedRequest) returns (ProfileList);
+  // Друзья: взаимные подписки, self join таблицы подписок.
+  rpc Friends(RelatedRequest) returns (ProfileList);
+  // Счётчики профиля одним запросом.
+  rpc Counters(RelatedRequest) returns (UserCounters);
+  // «Возможно, вы знакомы»: те, на кого подписаны твои подписки, кроме уже твоих и тебя.
+  rpc Suggest(RelatedRequest) returns (ProfileList);
+  // Профиль по нику без учёта регистра. Нет такого: NOT_FOUND.
+  rpc FindProfile(FindProfileRequest) returns (Profile);
+  // Профили по возрастанию id строго после after, не больше limit штук.
+  rpc ListProfiles(ListProfilesRequest) returns (ProfileList);
+  // Подписка и скрытие от имени x-user-id. Без него: UNAUTHENTICATED.
+  rpc Follow(PairRequest) returns (Changed);
+  rpc Mute(PairRequest) returns (Changed);
+  // Связи пользователя. audience: подписчики, которые не скрыли его посты.
+  rpc Relations(RelationsRequest) returns (RelationsReply);
+  // Аватар x-user-id целиком одним сообщением: сервер поднимает лимит размера сознательно.
+  // Аватар x-user-id потоком кусков: размер считается на лету, тип и размеры по заголовку
+  // картинки, файл ложится на диск под ключом sha256 содержимого.
+  rpc UploadAvatar(stream AvatarChunk) returns (PutAvatarReply);
+  rpc GetAvatar(AvatarRequest) returns (Avatar);
+  // Файл по ключу для раздачи по подписанной ссылке. Нет такого: NOT_FOUND.
+  rpc GetFile(FileRequest) returns (Avatar);
+  rpc DeleteAvatar(DeleteAvatarRequest) returns (Changed);
+  // Шаги саги удаления аккаунта от имени x-user-id. Скрытый профиль не находится и не
+  // принимает подписки; Show возвращает его как был. Delete стирает профиль, подписки и
+  // скрытия насовсем и пишет user.deleted в outbox. Повтор любого из трёх не ошибка.
+  rpc HideProfile(OwnProfileRequest) returns (Changed);
+  rpc ShowProfile(OwnProfileRequest) returns (Changed);
+  rpc DeleteProfile(OwnProfileRequest) returns (Changed);
+}
+
+message OwnProfileRequest {}
+
+message Profile {
+  uint64 id = 1;
+  string username = 2;
+  // Пустая строка: не задано.
+  string display_name = 3;
+  string bio = 4;
+  // Ключ файла аватара и его тип; пустые строки: аватара нет.
+  string avatar = 5;
+  string avatar_type = 6;
+}
+
+message UpdateProfileRequest {
+  optional string display_name = 1;
+  optional string bio = 2;
+  repeated string clear_fields = 3;
+}
+
+message CreateProfileRequest {
+  string username = 1;
+}
+
+message GetProfileRequest {
+  uint64 user_id = 1;
+}
+
+message FindProfileRequest {
+  string username = 1;
+}
+
+message ListProfilesRequest {
+  uint64 after = 1;
+  uint32 limit = 2;
+}
+
+message RelatedRequest {
+  uint64 user_id = 1;
+  uint64 after = 2;
+  uint32 limit = 3;
+}
+
+message UserCounters {
+  uint64 followers = 1;
+  uint64 following = 2;
+}
+
+message ProfilesRequest {
+  repeated uint64 ids = 1;
+}
+
+message ProfileList {
+  repeated Profile profiles = 1;
+}
+
+message PairRequest {
+  reserved 1;
+  reserved "user_id";
+  uint64 target_id = 2;
+}
+
+message RelationsRequest {
+  uint64 user_id = 1;
+}
+
+message RelationsReply {
+  repeated uint64 following = 1;
+  repeated uint64 followers = 2;
+  repeated uint64 muted = 3;
+  repeated uint64 audience = 4;
+}
+
+message AvatarChunk {
+  bytes data = 1;
+}
+
+message FileRequest {
+  string key = 1;
+}
+
+message PutAvatarReply {
+  bool created = 1;
+  string key = 2;
+  string content_type = 3;
+}
+
+message AvatarRequest {
+  uint64 user_id = 1;
+}
+
+message DeleteAvatarRequest {}
+
+message Avatar {
+  string content_type = 1;
+  bytes data = 2;
+  string key = 3;
+}

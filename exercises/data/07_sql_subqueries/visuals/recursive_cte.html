@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WITH RECURSIVE: дерево ответов шаг за шагом</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --g1:#e8f6ec; --g2:#fff4cc; --g3:#fde8e8; --g4:#e6e9fb; --bad:#b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --g1:#1c3326; --g2:#4a3f12; --g3:#3b2024; --g4:#262c52; --bad:#ff8a80; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:960px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.cur td { outline:2px solid var(--accent); outline-offset:-2px; }
+tr.a0 td { background:var(--g1); } tr.a1 td { background:var(--g2); } tr.a2 td { background:var(--g3); } tr.a3 td { background:var(--g4); }
+tr.out td { color:var(--muted); text-decoration:line-through; }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.note { min-height:3.6em; } .note b { color:var(--accent); } .note b.bad { color:var(--bad); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Как работает WITH RECURSIVE</h1>
+  <p class="lead">Затравка даёт первые строки, шаг повторяется на строках прошлой итерации. Переключи режим и посмотри, что бывает, если данные закольцованы.</p>
+  <div class="card controls">
+    <select id="mode"><option value="ok">здоровая ветка с корня 10</option><option value="loop">цикл 30 и 31 без защиты</option><option value="guard">цикл 30 и 31 с проверкой по path</option></select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card"><pre id="sql"></pre></div>
+  <div class="card grid">
+    <div><h3>comments (id, parent_id, текст)</h3><table id="src"></table></div>
+    <div><h3>результат: строки по мере добавления</h3><table id="res"></table></div>
+  </div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var i = 0, timer = null, total = 1;
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function reset() { stop(); i = 0; render(); }
+  $('step').onclick = function () { if (i < total) { i++; render(); } };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () {
+    if (timer) { stop(); return; }
+    if (i >= total) i = 0;
+    $('play').textContent = 'Пауза';
+    timer = setInterval(function () { if (i >= total) { stop(); return; } i++; render(); }, 1200);
+    i++; render();
+  };
+
+  var DATA = {
+    ok: { start: 10, guard: false, comments: [[10, null, 'who owns async?'], [11, 10, 'me'], [12, null, 'great post'], [13, 10, 'same here'], [14, 11, 'thanks'], [15, 14, 'spam'], [16, 15, 'wow'], [17, 12, 'yes']] },
+    loop: { start: 30, guard: false, comments: [[30, 31, 'loop a'], [31, 30, 'loop b'], [32, 31, 'loop c']] },
+    guard: { start: 30, guard: true, comments: [[30, 31, 'loop a'], [31, 30, 'loop b'], [32, 31, 'loop c']] }
+  };
+  var CAP = 7;
+  function simulate(d) {
+    var work = d.comments.filter(function (c) { return c[0] === d.start; }).map(function (c) { return { id: c[0], depth: 0, path: [c[0]] }; });
+    var its = [work], ended = false;
+    while (its.length < CAP) {
+      var next = [];
+      work.forEach(function (w) {
+        d.comments.forEach(function (c) {
+          if (c[1] !== w.id) return;
+          if (d.guard && w.path.indexOf(c[0]) >= 0) return;
+          next.push({ id: c[0], depth: w.depth + 1, path: w.path.concat(c[0]) });
+        });
+      });
+      if (!next.length) { ended = true; break; }
+      its.push(next); work = next;
+    }
+    return { its: its, ended: ended };
+  }
+  function sqlText(mode) {
+    var d = DATA[mode];
+    return 'WITH RECURSIVE down AS (\n  SELECT id, 0 AS depth, ARRAY[id] AS path\n  FROM comments WHERE id = ' + d.start + '\n  UNION ALL\n  SELECT c.id, d.depth + 1, d.path || c.id\n  FROM comments c JOIN down d ON c.parent_id = d.id' + (d.guard ? '\n  WHERE NOT c.id = ANY(d.path)' : '') + '\n)\nSELECT * FROM down ORDER BY path';
+  }
+  function render() {
+    var mode = $('mode').value, d = DATA[mode], sim = simulate(d);
+    total = sim.its.length + 1;
+    $('sql').textContent = sqlText(mode);
+    var shown = Math.min(i, sim.its.length), cur = i >= 1 && i <= sim.its.length ? sim.its[i - 1] : [];
+    var inCur = {}; cur.forEach(function (r) { inCur[r.id] = true; });
+    var seen = {}; for (var k = 0; k < shown; k++) sim.its[k].forEach(function (r) { seen[r.id] = k; });
+    $('src').innerHTML = '<tr><th>id</th><th>parent_id</th><th>текст</th></tr>' + d.comments.map(function (c) {
+      var cls = seen[c[0]] !== undefined ? 'a' + (seen[c[0]] % 4) : '';
+      if (inCur[c[0]]) cls += ' cur';
+      return '<tr class="' + cls + '"><td>' + c[0] + '</td><td>' + (c[1] === null ? 'NULL' : c[1]) + '</td><td>' + c[2] + '</td></tr>';
+    }).join('');
+    var rows = [];
+    for (var j = 0; j < shown; j++) sim.its[j].forEach(function (r) { rows.push({ r: r, it: j }); });
+    $('res').innerHTML = '<tr><th>итерация</th><th>id</th><th>depth</th><th>path</th></tr>' + rows.map(function (x) {
+      return '<tr class="a' + (x.it % 4) + (x.it === shown - 1 ? ' cur' : '') + '"><td>' + x.it + '</td><td>' + x.r.id + '</td><td>' + x.r.depth + '</td><td>{' + x.r.path.join(',') + '}</td></tr>';
+    }).join('');
+    var note;
+    if (i === 0) note = 'Нажми «Шаг». Сначала выполнится затравка, потом шаг будет повторяться на строках, добавленных в прошлый раз.';
+    else if (i === 1) note = '<b>Затравка</b>: комментарий ' + d.start + ' становится первой строкой результата и рабочей таблицей.';
+    else if (i <= sim.its.length) {
+      var ids = cur.map(function (r) { return r.id; }).join(', ');
+      note = '<b>Итерация ' + (i - 1) + '</b>: шаг ищет ответы на строки прошлой итерации и находит ' + ids + '. Они попадают в результат и становятся новой рабочей таблицей.';
+      if (mode === 'loop' && i >= 4) note += ' Ответ на 31 снова даёт 30, а ответ на 30 снова 31: <b class="bad">строки повторяются по кругу</b>.';
+      if (mode === 'guard' && i === 3) note += ' Комментарий 30 уже стоит в path этой строки, условие <b>NOT c.id = ANY(d.path)</b> его не пускает.';
+    } else if (sim.ended) note = 'Шаг вернул пустой набор, и рекурсия <b>остановилась сама</b>. Дальше обычный SELECT с сортировкой по path: обход в глубину.';
+    else note = 'Так будет продолжаться вечно: шаг всегда находит новые строки. Анимация остановлена на ' + CAP + ' итерациях, а база дошла бы до таймаута, памяти или диска. <b class="bad">Нужна защита от цикла</b> или предел глубины.';
+    $('note').innerHTML = note;
+    $('counter').textContent = 'шаг ' + i + ' из ' + total;
+    $('step').disabled = i >= total;
+    if (i >= total) stop();
+  }
+  reset();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+hint.ru = [
+"""Начни с переезда, не меняя поведения. Создай src/domain/mod.rs, user.rs, post.rs, перенеси туда
+типы, расставь `pub` и собери фасад в lib.rs: `mod domain;` и `pub use domain::{...};`. Удали src/tests/.
+Когда tests/m01_user_post.rs заработает, переходи к Network.""",
+"""Регистрация в одну строку на entry API: `*self.names.entry(name.clone()).or_insert(next)`. Если
+вернулся `next`, ник новый, и пользователя надо добавить в `users`. Для подписок `entry(who).or_default()`
+даёт `&mut Vec<UserId>`, а `contains` скажет, есть ли там уже `whom`.""",
+"""Тег из слова: `word.starts_with('#')`, потом пройди по `word.trim_start_matches('#').chars()` и
+собирай символы в String, пока `c.is_alphanumeric() || c == '_'`; на первом другом символе `break`.
+В конце `to_lowercase()`. Эту же функцию вызови в `posts_with_tag`, тогда `#RUST` и `rust` совпадут.""",
+]
+story.ru = """Жители соцсети нашли друг друга: подписки, лайки без накруток и первые хештеги.
+lib.rs похудел до фасада, а тесты смотрят на крейт снаружи, как настоящие пользователи."""

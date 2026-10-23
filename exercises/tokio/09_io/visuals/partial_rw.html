@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Частичные чтения и записи</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.cols { display:flex; gap:10px; flex-wrap:wrap; }
+.col { flex:1 1 170px; min-width:150px; border:1px solid var(--line); border-radius:8px; padding:8px; background:var(--bg); }
+.col h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.chip { display:block; margin:4px 0; padding:6px 10px; border-radius:8px; border:2px solid var(--line); font:600 13px ui-monospace,Menlo,monospace; background:var(--panel); }
+.chip.a { border-color:var(--a); } .chip.b { border-color:var(--b); } .chip.ok { border-color:var(--ok); color:var(--ok); } .chip.bad { border-color:var(--bad); color:var(--bad); }
+.chip.gone { opacity:.5; text-decoration:line-through; border-style:dashed; }
+.empty { color:var(--muted); font-size:13px; font-style:italic; }
+code { font:13px ui-monospace,Menlo,monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+.verdict { margin-top:10px; padding:8px 12px; border-radius:8px; border:2px solid var(--line); font:600 14px system-ui,sans-serif; }
+.verdict.ok { border-color:var(--ok); color:var(--ok); } .verdict.bad { border-color:var(--bad); color:var(--bad); } .verdict.info { color:var(--muted); }
+</style>
+</head>
+<body>
+<h1>Поток не знает, где кончается сообщение</h1>
+<p class="sub">Одни и те же записи отправителя превращаются в разные чтения получателя. Цикл до нуля спасает от обоих сюрпризов.</p>
+<div class="modes" id="modes"></div>
+<div class="panel" id="view"></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+<script>
+const MODES = {"read": {"label": "Чтение кусками", "small": "read отдаёт сколько есть", "steps": [{"cols": [{"h": "Отправитель", "items": [{"t": "write(\"21.5\\n\")", "s": "a"}, {"t": "write(\"21.7\\n\")", "s": "b"}]}, {"h": "Труба (буфер)", "items": []}, {"h": "Получатель", "items": []}], "v": {"k": "info", "t": "Две записи по пять байт"}, "cap": "Станция делает две записи подряд. Для неё это два сообщения. Для трубы это просто десять байт, которые лягут один за другим."}, {"cols": [{"h": "Отправитель", "items": [{"t": "обе записи отправлены", "s": "ok"}]}, {"h": "Труба (буфер)", "items": [{"t": "21.5\\n21.7\\n", "s": "a"}]}, {"h": "Получатель", "items": [{"t": "read(&mut buf[..16]) ещё не вызван", "s": ""}]}], "v": {"k": "info", "t": "Обе записи слиплись в буфере"}, "cap": "Получатель ещё не читал, поэтому в трубе лежат оба показания вперемешку. Границу между ними помнит только перевод строки, который мы сами договорились ставить."}, {"cols": [{"h": "Отправитель", "items": [{"t": "обе записи отправлены", "s": "ok"}]}, {"h": "Труба (буфер)", "items": [{"t": "21.7\\n", "s": "b"}]}, {"h": "Получатель", "items": [{"t": "read → 5 байт: \"21.5\\n\"", "s": "a"}]}], "v": {"k": "info", "t": "Буфер на пять байт: прочли ровно одно сообщение"}, "cap": "Если буфер маленький, <code>read</code> заберёт столько, сколько в него влезло. Совпало с одним сообщением, но это случайность: буфер мог оказаться на четыре байта."}, {"cols": [{"h": "Отправитель", "items": [{"t": "обе записи отправлены", "s": "ok"}]}, {"h": "Труба (буфер)", "items": [{"t": "\"1.7\\n\" ещё в трубе", "s": "b"}]}, {"h": "Получатель", "items": [{"t": "read → 4 байта: \"21.5\"", "s": "a"}, {"t": "сообщение разрезано", "s": "bad"}]}], "v": {"k": "bad", "t": "Буфер на четыре байта: сообщение разрезано"}, "cap": "Тот же поток, другой размер буфера, и первое показание пришло двумя частями. Приёмник, который принимает один <code>read</code> за одно показание, нарисует ерунду."}, {"cols": [{"h": "Отправитель", "items": [{"t": "закрыл запись", "s": "gone"}]}, {"h": "Труба (буфер)", "items": []}, {"h": "Получатель", "items": [{"t": "read → 0", "s": "ok"}, {"t": "конец потока", "s": "ok"}]}], "v": {"k": "ok", "t": "Ноль при непустом буфере это конец"}, "cap": "Единственный надёжный признак конца: <code>read</code> вернул <code>0</code> на непустом буфере. Правильный приёмник копит байты в своём буфере, режет по договорённому разделителю и читает, пока не получит ноль."}]}, "write": {"label": "Запись кусками", "small": "write принимает не всё", "steps": [{"cols": [{"h": "Отправитель", "items": [{"t": "данные: 10 байт", "s": "a"}]}, {"h": "Труба (место: 4)", "items": []}, {"h": "Получатель", "items": [{"t": "пока не читает", "s": ""}]}], "v": {"k": "info", "t": "Хотим отправить десять байт"}, "cap": "Приёмный буфер маленький, всего четыре байта. Получатель занят и пока ничего не читает."}, {"cols": [{"h": "Отправитель", "items": [{"t": "write(10 байт) → 4", "s": "bad"}, {"t": "осталось 6", "s": "b"}]}, {"h": "Труба (место: 0)", "items": [{"t": "0123", "s": "a"}]}, {"h": "Получатель", "items": [{"t": "пока не читает", "s": ""}]}], "v": {"k": "bad", "t": "write принял только четыре байта"}, "cap": "Метод <code>write</code> принял сколько влезло и вернул <code>4</code>. Если проигнорировать число, шесть байт потеряны, а ошибки не было."}, {"cols": [{"h": "Отправитель", "items": [{"t": "write_all ждёт места", "s": "b"}]}, {"h": "Труба (место: 0)", "items": [{"t": "0123", "s": "a"}]}, {"h": "Получатель", "items": [{"t": "пока не читает", "s": ""}]}], "v": {"k": "info", "t": "write_all сидит в цикле и ждёт"}, "cap": "<code>write_all</code> повторяет запись, пока не отправит всё. Сейчас места нет, и он спит, пока получатель не освободит буфер."}, {"cols": [{"h": "Отправитель", "items": [{"t": "write_all: 4567", "s": "b"}]}, {"h": "Труба (место: 0)", "items": [{"t": "4567", "s": "a"}]}, {"h": "Получатель", "items": [{"t": "read → \"0123\"", "s": "ok"}]}], "v": {"k": "ok", "t": "Получатель прочитал, место освободилось"}, "cap": "Получатель забрал первые четыре байта, и <code>write_all</code> дописал следующие четыре."}, {"cols": [{"h": "Отправитель", "items": [{"t": "write_all вернулся: всё отправлено", "s": "ok"}]}, {"h": "Труба (место: 2)", "items": [{"t": "89", "s": "a"}]}, {"h": "Получатель", "items": [{"t": "read → \"4567\", потом \"89\"", "s": "ok"}]}], "v": {"k": "ok", "t": "Все десять байт дошли"}, "cap": "Последние два байта легли в буфер, и <code>write_all</code> завершился. Получатель получил ровно то, что отправлено, без потерь."}]}};
+const KEYS = Object.keys(MODES);
+let mode = KEYS[0], pos = 0, timer = null;
+const $ = id => document.getElementById(id);
+function view(s) {
+  const cols = s.cols.map(c => {
+    const items = c.items.length ? c.items.map(i => `<span class="chip ${i.s || ""}">${i.t}</span>`).join("") : `<span class="empty">пусто</span>`;
+    return `<div class="col"><h2>${c.h}</h2>${items}</div>`;
+  }).join("");
+  return `<div class="cols">${cols}</div><div class="verdict ${s.v.k}">${s.v.t}</div>`;
+}
+function render() {
+  const steps = MODES[mode].steps, s = steps[pos];
+  $("view").innerHTML = view(s);
+  $("caption").innerHTML = s.cap;
+  $("counter").textContent = `шаг ${pos} из ${steps.length - 1}`;
+  const end = pos >= steps.length - 1;
+  $("step").disabled = end; $("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "Играть"; }
+function step(){ if (pos < MODES[mode].steps.length - 1) { pos++; render(); } }
+function setMode(m){ stop(); mode = m; pos = 0; document.querySelectorAll(".mode").forEach(b => b.classList.toggle("on", b.dataset.m === m)); render(); }
+$("modes").innerHTML = KEYS.map(k => `<button class="mode ${k === mode ? "on" : ""}" data-m="${k}">${MODES[k].label}<small>${MODES[k].small}</small></button>`).join("");
+document.querySelectorAll(".mode").forEach(b => b.onclick = () => setMode(b.dataset.m));
+$("step").onclick = () => { stop(); step(); };
+$("play").onclick = () => { if (timer) { stop(); return; } $("play").textContent = "Пауза"; timer = setInterval(step, 1800); };
+$("reset").onclick = () => setMode(mode);
+render();
+</script>
+</body>
+</html>

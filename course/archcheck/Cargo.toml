@@ -1,0 +1,19 @@
+[package]
+name = "archcheck"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "archcheck"
+path = "src/lib.rs"
+
+[[bin]]
+name = "archcheck"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }
+
+[workspace]

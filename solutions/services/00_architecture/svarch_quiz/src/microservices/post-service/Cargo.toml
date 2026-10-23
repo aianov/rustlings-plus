@@ -1,0 +1,15 @@
+[package]
+name = "post-service"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+contracts = { path = "../../crates/contracts" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures = "0.3"
+store-kit = { path = "../../crates/store-kit" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }

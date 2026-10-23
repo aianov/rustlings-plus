@@ -1,0 +1,11 @@
+[package]
+name = "acceptance"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+minirt = { path = "../minirt" }
+
+[dev-dependencies]
+futures = "0.3"

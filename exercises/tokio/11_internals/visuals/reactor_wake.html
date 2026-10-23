@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Реактор будит задачу</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.cols { display:flex; gap:10px; flex-wrap:wrap; }
+.col { flex:1 1 170px; min-width:150px; border:1px solid var(--line); border-radius:8px; padding:8px; background:var(--bg); }
+.col h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.chip { display:block; margin:4px 0; padding:6px 10px; border-radius:8px; border:2px solid var(--line); font:600 13px ui-monospace,Menlo,monospace; background:var(--panel); }
+.chip.a { border-color:var(--a); } .chip.b { border-color:var(--b); } .chip.ok { border-color:var(--ok); color:var(--ok); } .chip.bad { border-color:var(--bad); color:var(--bad); }
+.chip.gone { opacity:.5; text-decoration:line-through; border-style:dashed; }
+.empty { color:var(--muted); font-size:13px; font-style:italic; }
+code { font:13px ui-monospace,Menlo,monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+.verdict { margin-top:10px; padding:8px 12px; border-radius:8px; border:2px solid var(--line); font:600 14px system-ui,sans-serif; }
+.verdict.ok { border-color:var(--ok); color:var(--ok); } .verdict.bad { border-color:var(--bad); color:var(--bad); } .verdict.info { color:var(--muted); }
+</style>
+</head>
+<body>
+<h1>От события сокета до очереди воркера</h1>
+<p class="sub">Реактор не опрашивает задачи. Он узнаёт от ОС, что сокет готов, и будит того, кто ждал.</p>
+<div class="modes" id="modes"></div>
+<div class="panel" id="view"></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+<script>
+const MODES = {"normal": {"label": "Задача ждёт", "small": "событие после постановки на ожидание", "steps": [{"cols": [{"h": "Задача B", "items": [{"t": "socket.readable().await", "s": "a"}]}, {"h": "Реактор", "items": [{"t": "сокет 7: готовность нет", "s": ""}, {"t": "Waker B пока не сохранён", "s": "gone"}]}, {"h": "ОС (epoll/kqueue)", "items": [{"t": "данных нет", "s": ""}]}], "v": {"k": "info", "t": "Задача дошла до ожидания"}, "cap": "Задача B вызывает <code>readable().await</code>. Готовности пока нет."}, {"cols": [{"h": "Задача B", "items": [{"t": "Pending, спит", "s": "gone"}]}, {"h": "Реактор", "items": [{"t": "сокет 7: готовность нет", "s": ""}, {"t": "Waker B сохранён", "s": "ok"}]}, {"h": "ОС (epoll/kqueue)", "items": [{"t": "данных нет", "s": ""}]}], "v": {"k": "info", "t": "Задача ушла спать, оставив Waker"}, "cap": "Future вернул <code>Pending</code>, но перед этим оставил реактору <code>Waker</code>. Без него никто не узнает, кого будить."}, {"cols": [{"h": "Задача B", "items": [{"t": "спит", "s": "gone"}]}, {"h": "Реактор", "items": [{"t": "сокет 7: ЧИТАТЬ готов", "s": "ok"}, {"t": "Waker B сохранён", "s": "ok"}]}, {"h": "ОС (epoll/kqueue)", "items": [{"t": "сокет 7 читаем", "s": "b"}]}], "v": {"k": "ok", "t": "ОС сообщила о событии, реактор записал готовность"}, "cap": "Пришли данные. Реактор получает событие, выставляет бит готовности для сокета 7. Готовность записана независимо от того, кто сейчас ждёт."}, {"cols": [{"h": "Задача B", "items": [{"t": "спит", "s": "gone"}]}, {"h": "Реактор", "items": [{"t": "сокет 7: ЧИТАТЬ готов", "s": "ok"}, {"t": "wake(Waker B)", "s": "b"}]}, {"h": "Очередь воркера", "items": [{"t": "B", "s": "b"}]}], "v": {"k": "ok", "t": "Waker ставит B в очередь воркера"}, "cap": "<code>wake()</code> не опрашивает задачу сам, он только кладёт её в очередь воркера. Опросит её воркер, когда дойдёт очередь."}, {"cols": [{"h": "Задача B", "items": [{"t": "poll: readable() Ready", "s": "ok"}, {"t": "try_read читает данные", "s": "ok"}]}, {"h": "Реактор", "items": [{"t": "бит готовности сброшен после WouldBlock", "s": ""}]}, {"h": "Очередь воркера", "items": [{"t": "пусто", "s": "gone"}]}], "v": {"k": "ok", "t": "Задача проснулась и прочитала"}, "cap": "Воркер опрашивает B, <code>readable()</code> видит бит и возвращает <code>Ready</code>, B читает. Если бы данных уже не было (их забрал сосед), <code>try_read</code> вернул бы <code>WouldBlock</code>, и B ждала бы снова."}]}, "early": {"label": "Событие раньше", "small": "готовность должна запомниться", "steps": [{"cols": [{"h": "Задача B", "items": [{"t": "ещё делает другое", "s": "a"}]}, {"h": "Реактор", "items": [{"t": "сокет 7: готовность нет", "s": ""}]}, {"h": "ОС (epoll/kqueue)", "items": [{"t": "данные пришли", "s": "b"}]}], "v": {"k": "info", "t": "Данные пришли, пока задача занята"}, "cap": "Задача B ещё не дошла до <code>readable().await</code>, а данные на сокет уже пришли."}, {"cols": [{"h": "Задача B", "items": [{"t": "всё ещё занята", "s": "a"}]}, {"h": "Реактор", "items": [{"t": "событие! ждущих нет", "s": "bad"}]}, {"h": "ОС (epoll/kqueue)", "items": [{"t": "сообщила", "s": "b"}]}], "v": {"k": "bad", "t": "Реактор, который будит только ждущих, событие выбросит"}, "cap": "Наивный реактор видит: <code>Waker</code> нет, будить некого, и просто забывает про событие. Готовность нигде не записана."}, {"cols": [{"h": "Задача B", "items": [{"t": "readable().await: Pending навсегда", "s": "bad"}]}, {"h": "Реактор", "items": [{"t": "готовности нет, событие уже было", "s": "bad"}]}, {"h": "ОС (epoll/kqueue)", "items": [{"t": "больше не скажет", "s": "gone"}]}], "v": {"k": "bad", "t": "Задача зависла: событие потеряно"}, "cap": "Событие уровня «можно читать» ОС повторяет не всегда. Задача уснула в ожидании того, что уже случилось."}, {"cols": [{"h": "Задача B", "items": [{"t": "readable().await: Ready сразу", "s": "ok"}]}, {"h": "Реактор", "items": [{"t": "сокет 7: ЧИТАТЬ готов (записано)", "s": "ok"}]}, {"h": "ОС (epoll/kqueue)", "items": [{"t": "сообщила", "s": "b"}]}], "v": {"k": "ok", "t": "Правильно: готовность это состояние, оно ждёт задачу"}, "cap": "Настоящий реактор записывает готовность всегда. Когда задача придёт, она увидит бит и пойдёт дальше без ожидания. Поэтому и несколько событий подряд сливаются в одну готовность."}]}};
+const KEYS = Object.keys(MODES);
+let mode = KEYS[0], pos = 0, timer = null;
+const $ = id => document.getElementById(id);
+function view(s) {
+  const cols = s.cols.map(c => {
+    const items = c.items.length ? c.items.map(i => `<span class="chip ${i.s || ""}">${i.t}</span>`).join("") : `<span class="empty">пусто</span>`;
+    return `<div class="col"><h2>${c.h}</h2>${items}</div>`;
+  }).join("");
+  return `<div class="cols">${cols}</div><div class="verdict ${s.v.k}">${s.v.t}</div>`;
+}
+function render() {
+  const steps = MODES[mode].steps, s = steps[pos];
+  $("view").innerHTML = view(s);
+  $("caption").innerHTML = s.cap;
+  $("counter").textContent = `шаг ${pos} из ${steps.length - 1}`;
+  const end = pos >= steps.length - 1;
+  $("step").disabled = end; $("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "Играть"; }
+function step(){ if (pos < MODES[mode].steps.length - 1) { pos++; render(); } }
+function setMode(m){ stop(); mode = m; pos = 0; document.querySelectorAll(".mode").forEach(b => b.classList.toggle("on", b.dataset.m === m)); render(); }
+$("modes").innerHTML = KEYS.map(k => `<button class="mode ${k === mode ? "on" : ""}" data-m="${k}">${MODES[k].label}<small>${MODES[k].small}</small></button>`).join("");
+document.querySelectorAll(".mode").forEach(b => b.onclick = () => setMode(b.dataset.m));
+$("step").onclick = () => { stop(); step(); };
+$("play").onclick = () => { if (timer) { stop(); return; } $("play").textContent = "Пауза"; timer = setInterval(step, 1800); };
+$("reset").onclick = () => setMode(mode);
+render();
+</script>
+</body>
+</html>

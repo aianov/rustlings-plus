@@ -1,0 +1,12 @@
+{
+  "event_id": "evt-user.muted",
+  "type": "user.muted",
+  "schema": 1,
+  "version": 1,
+  "occurred_at": 1700000000000,
+  "aggregate_id": "u_2",
+  "payload": {
+    "muted_id": "u_1",
+    "user_id": "u_2"
+  }
+}

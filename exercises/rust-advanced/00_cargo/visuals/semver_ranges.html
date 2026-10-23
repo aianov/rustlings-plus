@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Semver: какие версии пускает требование</title>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--line:#d6d4cc;--acc:#c2410c;--ok:#15803d;--okbg:#dcfce7;--no:#a1a19a;--btn:#1d1d1b;--btnfg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#ecebe6;--mut:#9a9a92;--card:#201f1d;--line:#3a3935;--acc:#fb923c;--ok:#4ade80;--okbg:#14301d;--no:#6b6b66;--btn:#ecebe6;--btnfg:#161614}}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--mut);margin:0 0 14px}
+.reqs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.reqs button{font:13px ui-monospace,Menlo,Consolas,monospace;padding:5px 10px;background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:6px;cursor:pointer}
+.reqs button.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.line{display:flex;gap:4px;overflow-x:auto;padding:30px 2px 36px}
+.v{flex:1 0 62px;text-align:center;position:relative}
+.box{border:2px solid var(--line);border-radius:8px;padding:8px 2px;background:var(--card);font:12.5px ui-monospace,Menlo,Consolas,monospace;color:var(--no);transition:all .3s}
+.v.ok .box{background:var(--okbg);border-color:var(--ok);color:var(--ok);font-weight:700}
+.mark{position:absolute;left:0;right:0;font-size:11px;color:var(--acc);font-weight:700;white-space:nowrap}
+.mark.lo{top:-24px}.mark.hi{bottom:-28px}
+.mark.lo::after{content:"▼";display:block;line-height:1}
+.mark.hi::before{content:"▲";display:block;line-height:1}
+.note{margin:6px 0 12px;padding:12px 14px;border-left:4px solid var(--acc);background:var(--card);border-radius:0 8px 8px 0;min-height:72px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button.c{font:inherit;padding:7px 14px;border-radius:8px;border:0;background:var(--btn);color:var(--btnfg);cursor:pointer}
+button.c.alt{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button.c:disabled{opacity:.4;cursor:default}
+.cnt{color:var(--mut);margin-left:auto}
+</style>
+</head>
+<body>
+<h1>Semver: какие версии пускает требование</h1>
+<p class="sub">Любое требование это диапазон «от нижней границы включительно до верхней не включая».</p>
+<div class="reqs" id="reqs"></div>
+<div class="line" id="line"></div>
+<div class="note" id="note"></div>
+<div class="bar">
+  <button class="c" id="step">Шаг</button>
+  <button class="c alt" id="play">Играть</button>
+  <button class="c alt" id="reset">Сначала</button>
+  <span class="cnt" id="cnt"></span>
+</div>
+<script>
+const VERS=['0.0.3','0.0.4','0.1.0','0.2.2','0.2.3','0.2.9','0.3.0','1.0.0','1.2.2','1.2.3','1.2.9','1.3.0','1.9.0','2.0.0'];
+const REQS=[
+ {r:'^1.2.3',lo:'1.2.3',hi:'2.0.0',why:'У каретки главный разряд первый ненулевой. Здесь это major, поэтому верхняя граница 2.0.0.'},
+ {r:'^0.2.3',lo:'0.2.3',hi:'0.3.0',why:'Правило нуля: major равен нулю, значит главный разряд minor. Верхняя граница 0.3.0, а 1.x и подавно не подходит.'},
+ {r:'^0.0.3',lo:'0.0.3',hi:'0.0.4',why:'Нули и в major, и в minor: главный разряд patch. Подходит ровно 0.0.3.'},
+ {r:'~1.2.3',lo:'1.2.3',hi:'1.3.0',why:'Тильда фиксирует minor, если он указан: разрешены только патчи.'},
+ {r:'=1.2.3',lo:'1.2.3',hi:'1.2.4',why:'Знак равенства значит ровно одна версия.'},
+ {r:'1.*',lo:'1.0.0',hi:'2.0.0',why:'Звёздочка в конце заменяет любые числа справа. Это то же, что ~1.'},
+ {r:'*',lo:'0.0.0',hi:null,why:'Подходит любая версия, верхней границы нет. На crates.io такая запись не принимается, опубликовать крейт с ней нельзя.'}
+];
+const cmp=(a,b)=>{const x=a.split('.').map(Number),y=b.split('.').map(Number);for(let i=0;i<3;i++){if(x[i]!==y[i])return x[i]-y[i]}return 0};
+let sel=0,phase=3,timer=null;
+const total=REQS.length*3;
+function flat(){return sel*3+phase}
+function render(){
+  const q=REQS[sel];
+  document.querySelectorAll('#reqs button').forEach((b,i)=>b.classList.toggle('sel',i===sel));
+  const line=document.getElementById('line');
+  line.innerHTML='';
+  VERS.forEach(v=>{
+    const d=document.createElement('div');d.className='v';
+    const ok=phase>=3&&cmp(v,q.lo)>=0&&(q.hi===null||cmp(v,q.hi)<0);
+    if(ok)d.classList.add('ok');
+    let m='';
+    if(phase>=1&&v===q.lo)m+='<div class="mark lo">от</div>';
+    if(phase>=2&&q.hi&&v===q.hi)m+='<div class="mark hi">до, не вкл.</div>';
+    d.innerHTML=m+'<div class="box">'+v+'</div>';
+    line.appendChild(d);
+  });
+  const texts=['Выбери требование. Версии ниже: какие из них подойдут?',
+    'Нижняя граница: '+q.r+' начинается с '+q.lo+' включительно.',
+    q.hi?('Верхняя граница: '+q.hi+', саму её уже не пускаем. '+q.why):('Верхней границы нет. '+q.why),
+    'Подходящие версии подсвечены. '+q.why];
+  document.getElementById('note').textContent=texts[phase];
+  document.getElementById('cnt').textContent='требование '+(sel+1)+' из '+REQS.length;
+  const last=sel===REQS.length-1&&phase===3;
+  document.getElementById('step').disabled=last;
+  if(last)stop();
+}
+function advance(){
+  if(phase<3){phase++;}
+  else if(sel<REQS.length-1){sel++;phase=0;}
+  render();
+}
+function stop(){if(timer){clearInterval(timer);timer=null;}document.getElementById('play').textContent='Играть';}
+const rq=document.getElementById('reqs');
+REQS.forEach((q,i)=>{const b=document.createElement('button');b.textContent=q.r;b.onclick=()=>{stop();sel=i;phase=3;render();};rq.appendChild(b);});
+document.getElementById('step').onclick=advance;
+document.getElementById('reset').onclick=()=>{stop();sel=0;phase=0;render();};
+document.getElementById('play').onclick=()=>{
+  if(timer){stop();return;}
+  if(sel===REQS.length-1&&phase===3){sel=0;phase=0;render();}
+  document.getElementById('play').textContent='Пауза';
+  timer=setInterval(advance,1800);
+};
+sel=0;phase=0;render();
+</script>
+</body>
+</html>

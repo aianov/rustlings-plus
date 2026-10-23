@@ -1,0 +1,29 @@
+[chapter]
+title.en = "Vecs"
+title.ru = "Векторы"
+
+[[exercises]]
+name = "vecs1"
+hint.en = """
+In Rust, there are two basic ways to define a Vector.
+1. One way is to use the `Vec::new()` function to create a new vector
+   and fill it with the `push()` method.
+2. The second way is to use the `vec![]` macro and define your elements
+   inside the square brackets. This way is simpler when you exactly know
+   the initial values.
+
+Check this chapter: https://doc.rust-lang.org/book/ch08-01-vectors.html
+of the Rust book to learn more."""
+hint.ru = """В Rust есть два основных способа создать вектор.
+1. Первый: вызвать функцию `Vec::new()`, создав новый вектор,
+   и заполнить его методом `push()`.
+2. Второй: использовать макрос `vec![]` и перечислить элементы
+   в квадратных скобках. Так проще, когда начальные значения известны точно.
+
+Больше об этом в главе книги: https://doc.rust-lang.ru/book/ch08-01-vectors.html"""
+
+[[exercises]]
+name = "vecs2"
+hint.en = """
+Use the `.push()` method on the vector to push new elements to it."""
+hint.ru = """Используй метод `.push()` вектора, чтобы добавлять в него новые элементы."""

@@ -1,0 +1,56 @@
+[chapter]
+title.en = "If"
+title.ru = "Условия if"
+
+[[exercises]]
+name = "if1"
+hint.en = """
+It's possible to do this in one line if you would like!
+
+Some similar examples from other languages:
+- In C(++) this would be: `a > b ? a : b`
+- In Python this would be:  `a if a > b else b`
+
+Remember in Rust that:
+- The `if` condition does not need to be surrounded by parentheses
+- `if`/`else` conditionals are expressions
+- Each condition is followed by a `{}` block"""
+hint.ru = """Если хочешь, это можно сделать в одну строку!
+
+Похожие примеры из других языков:
+- В C(++) это было бы: `a > b ? a : b`
+- В Python это было бы: `a if a > b else b`
+
+Помни, что в Rust:
+- условие `if` не нужно брать в круглые скобки
+- условные конструкции `if`/`else` являются выражениями
+- после каждого условия идёт блок `{}`"""
+
+[[exercises]]
+name = "if2"
+hint.en = """
+For that first compiler error, it's important in Rust that each conditional
+block returns the same type!
+
+To get the tests passing, you will need a couple conditions checking different
+input values. Read the tests to find out what they expect."""
+hint.ru = """Что до первой ошибки компилятора: в Rust важно, чтобы каждая ветка условия
+возвращала значение одного и того же типа!
+
+Чтобы тесты прошли, понадобится несколько условий, проверяющих разные входные
+значения. Прочитай тесты, чтобы узнать, чего они ждут."""
+
+[[exercises]]
+name = "if3"
+hint.en = """
+In Rust, every arm of an `if` expression has to return the same type of value.
+Make sure the type is consistent across all arms."""
+hint.ru = """В Rust каждая ветка выражения `if` должна возвращать значение одного и того же типа.
+Проследи, чтобы тип был одинаковым во всех ветках."""
+
+[[exercises]]
+name = "quiz1"
+quiz = true
+hint.en = """
+No hints this time ;)"""
+hint.ru = """В этот раз без подсказок ;)"""

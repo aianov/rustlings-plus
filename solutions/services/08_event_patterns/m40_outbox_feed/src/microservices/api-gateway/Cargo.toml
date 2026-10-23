@@ -1,0 +1,37 @@
+[package]
+name = "api-gateway"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+admin.workspace = true
+contracts.workspace = true
+grpc-kit.workspace = true
+http-client.workspace = true
+http-engine.workspace = true
+nats-engine.workspace = true
+proto.workspace = true
+serde.workspace = true
+service-runtime.workspace = true
+tls-edge.workspace = true
+tokio.workspace = true
+tonic.workspace = true
+websocket-engine.workspace = true
+
+[dev-dependencies]
+async-nats.workspace = true
+auth-service.workspace = true
+certgen.workspace = true
+chat-service.workspace = true
+feed-service.workspace = true
+notify-service.workspace = true
+tonic-health.workspace = true
+post-service.workspace = true
+social-cli.workspace = true
+tokio-stream.workspace = true
+user-service.workspace = true
+
+[lints]
+workspace = true

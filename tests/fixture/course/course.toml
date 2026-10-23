@@ -1,0 +1,20 @@
+format_version = 2
+default_locale = "en"
+welcome_message = "Welcome to the test course"
+final_message.en = "All done"
+final_message.ru = "Всё решено"
+
+[[tracks]]
+id = "basics"
+title.en = "Basics"
+title.ru = "Основы"
+chapters = ["00_intro", "01_proj", "02_journey", "03_not_written"]
+
+[tracks.dependencies]
+
+[[journeys]]
+id = "backend"
+dir = "backend"
+title.en = "Test project"
+title.ru = "Тестовый проект"
+milestones = ["ms_first", "ms_second"]

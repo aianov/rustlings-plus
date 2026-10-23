@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package me.v1;
+
+service Me {
+  rpc WhoAmI (WhoAmIRequest) returns (WhoAmIReply);
+}
+
+service Public {
+  rpc Ping (PingRequest) returns (PingReply);
+}
+
+message WhoAmIRequest {}
+
+message WhoAmIReply {
+  uint64 user_id = 1;
+}
+
+message PingRequest {}
+
+message PingReply {
+  string text = 1;
+}

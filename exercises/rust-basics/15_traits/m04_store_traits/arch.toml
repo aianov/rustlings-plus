@@ -1,0 +1,79 @@
+[[rules]]
+kind = "exists"
+paths = [
+  "Cargo.toml",
+  "src/lib.rs",
+  "src/domain/mod.rs",
+  "src/domain/error.rs",
+  "src/domain/user.rs",
+  "src/domain/post.rs",
+  "src/network/mod.rs",
+  "src/network/follows.rs",
+  "src/network/tags.rs",
+  "src/ports/mod.rs",
+  "src/storage/mod.rs",
+]
+message.ru = "Не хватает файла из дерева вехи. Типы и ошибки домена живут в src/domain/ (DomainError в src/domain/error.rs), сеть подписок в src/network/, трейты хранилищ в src/ports/, их реализации в памяти в src/storage/, а src/lib.rs только объявляет модули."
+
+[[rules]]
+kind = "absent"
+globs = ["src/tests", "src/tests/**"]
+message.ru = "Тесты курса переехали в tests/. Удали src/tests/ и строку `mod tests;` из src/lib.rs."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/**/*.rs"]
+regex = 'allow\(dead_code\)'
+message.ru = "Глушилка `allow(dead_code)` больше не нужна: всё, чем пользуются тесты, теперь pub. Удали её, пусть компилятор снова подсказывает про забытый код."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/lib.rs"]
+regex = 'struct '
+message.ru = "src/lib.rs теперь фасад: только `mod ...;` и `pub use ...;`. Структуры живут в src/domain/ и src/network/."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/lib.rs"]
+regex = 'enum '
+message.ru = "src/lib.rs теперь фасад: только `mod ...;` и `pub use ...;`. Перечисления живут в src/domain/."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/lib.rs"]
+regex = 'impl[ <]'
+message.ru = "src/lib.rs теперь фасад: только `mod ...;` и `pub use ...;`. Методы пишутся рядом со своими типами."
+
+[[rules]]
+kind = "uniform_modules"
+roots = ["src"]
+message.ru = "В одной папке смешаны файлы-модули и папки-модули. В src/ лежат lib.rs и папки domain/, network/, ports/, storage/, внутри папок только файлы .rs."
+
+[[rules]]
+kind = "absent"
+globs = ["**/utils.rs", "**/helpers.rs"]
+message.ru = "Файлы-свалки utils.rs и helpers.rs не заводим: положи функцию в модуль, которому она принадлежит (нормализация ника в domain/user.rs, разбор тегов в network/tags.rs)."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/**/*.rs"]
+regex = '\.unwrap\(\)'
+message.ru = "В коде крейта нашёлся `.unwrap()`. Он роняет программу, как только что-то пошло не так. Верни `Result` или `Option` и пробрось ошибку через `?`."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/**/*.rs"]
+regex = 'panic!'
+message.ru = "В коде крейта нашёлся `panic!`. Правила соцсети нарушаются каждый день, это не повод падать: верни `Err(DomainError::...)`."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/domain/**/*.rs", "src/network/**/*.rs"]
+regex = 'storage::'
+message.ru = "Домен и сеть не должны знать про storage: они работают через трейты UserStore и PostStore из ports. Конкретное хранилище выбирает тот, кто собирает Network."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/network/**/*.rs"]
+regex = 'Vec<Post>'
+message.ru = "В network/ остался свой Vec<Post>. Посты хранит PostStore, а Network только просит его: get, get_mut, all."

@@ -1,0 +1,154 @@
+name: social
+
+x-service: &service
+  restart: unless-stopped
+  volumes:
+    - ./certs:/certs:ro
+  environment: &common
+    NATS_URL: nats://nats:4222
+    RUST_LOG: info
+    AUTH_GRPC_ADDR: auth-service:50051
+    AUTH_HTTP_ADDR: auth-service:7881
+    USERS_GRPC_ADDR: user-service:50052
+    POSTS_GRPC_ADDR: post-service-1:50053
+    CHAT_GRPC_ADDR: chat-service:50054
+    FEED_GRPC_ADDR: feed-service:50055
+
+services:
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8222/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  user-service:
+    <<: *service
+    build:
+      context: .
+      dockerfile: src/microservices/user-service/Dockerfile
+    environment:
+      <<: *common
+      USERS_GRPC_ADDR: 0.0.0.0:50052
+      USERS_FILES_DIR: /data/files
+    volumes:
+      - ./certs:/certs:ro
+      - user-files:/data
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  post-service-1:
+    <<: *service
+    build:
+      context: .
+      dockerfile: src/microservices/post-service/Dockerfile
+    environment:
+      <<: *common
+      POSTS_GRPC_ADDR: 0.0.0.0:50053
+      POSTS_NODE: "1"
+      POSTS_PREVIEW: "true"
+    depends_on:
+      user-service:
+        condition: service_healthy
+
+  post-service-2:
+    <<: *service
+    build:
+      context: .
+      dockerfile: src/microservices/post-service/Dockerfile
+    environment:
+      <<: *common
+      POSTS_GRPC_ADDR: 0.0.0.0:50053
+      POSTS_NODE: "2"
+      POSTS_PREVIEW: "true"
+    depends_on:
+      user-service:
+        condition: service_healthy
+
+  auth-service:
+    <<: *service
+    build:
+      context: .
+      dockerfile: src/microservices/auth-service/Dockerfile
+    environment:
+      <<: *common
+      AUTH_GRPC_ADDR: 0.0.0.0:50051
+      AUTH_HTTP_ADDR: 0.0.0.0:7881
+    depends_on:
+      user-service:
+        condition: service_healthy
+      post-service-1:
+        condition: service_healthy
+
+  chat-service:
+    <<: *service
+    build:
+      context: .
+      dockerfile: src/microservices/chat-service/Dockerfile
+    environment:
+      <<: *common
+      CHAT_GRPC_ADDR: 0.0.0.0:50054
+    depends_on:
+      user-service:
+        condition: service_healthy
+
+  feed-service:
+    <<: *service
+    build:
+      context: .
+      dockerfile: src/microservices/feed-service/Dockerfile
+    environment:
+      <<: *common
+      FEED_GRPC_ADDR: 0.0.0.0:50055
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  notify-service:
+    <<: *service
+    build:
+      context: .
+      dockerfile: src/microservices/notify-service/Dockerfile
+    depends_on:
+      user-service:
+        condition: service_healthy
+
+  api-gateway:
+    <<: *service
+    build:
+      context: .
+      dockerfile: src/microservices/api-gateway/Dockerfile
+    environment:
+      <<: *common
+      GATEWAY_POSTS_REPLICAS: post-service-1:50053,post-service-2:50053
+      GATEWAY_LINK_KEY_FILE: /run/secrets/link_key
+    secrets:
+      - link_key
+    ports:
+      - "7880:7880"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      post-service-1:
+        condition: service_healthy
+      post-service-2:
+        condition: service_healthy
+      chat-service:
+        condition: service_healthy
+      feed-service:
+        condition: service_healthy
+      notify-service:
+        condition: service_healthy
+
+secrets:
+  link_key:
+    file: ./secrets/link_key
+
+volumes:
+  nats-data:
+  user-files:

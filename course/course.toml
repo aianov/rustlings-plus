@@ -1,0 +1,324 @@
+format_version = 2
+default_locale = "ru"
+locales = ["en", "ru"]
+
+welcome_message.en = """
+Is this your first time? Don't worry, Rustlings is made for beginners!
+The course has six tracks, from Rust basics to async, networking protocols,
+microservices and databases, plus a long-running project: a small social
+network you build from scratch. Any track and any exercise can be opened at
+any time from the list (`l`). The order is only a recommendation.
+
+1. You solve exercises. Each one has compiler or logic errors that make it
+   fail to build or fail its tests. Find and fix them!
+2. Open your editor in the `rustlings/` directory. The path of the current
+   exercise is shown under the progress bar. Save the file and Rustlings reruns
+   the check. When everything is fixed, it offers to move on.
+3. Stuck? Press `h` for a hint. Each chapter has its theory in README.md.
+4. Projects and quizzes are whole Cargo workspaces with a spec in README.md and
+   acceptance tests. Milestones grow your own backend in `backend/`.
+5. Exercises with databases or NATS need the environment: `docker compose up -d`.
+   Run `rustlings doctor` if something does not work."""
+
+final_message.en = """
+That's it, you made it through the whole course! You can now write your own
+engines on tokio, gRPC microservices, work with PostgreSQL, ScyllaDB and Redis,
+and put it all together into a real backend."""
+
+welcome_message.ru = """
+Впервые здесь? Не переживай, Rustlings сделан для новичков!
+В курсе шесть разделов: от основ Rust до async, сетевых протоколов,
+микросервисов и баз данных. А ещё сквозной проект: маленькая соцсеть, которую
+ты строишь с нуля. Любой раздел и любую задачу можно открыть в любой момент
+через список (`l`). Порядок задач лишь рекомендация.
+
+1. Главное здесь решать задачи. В каждой есть ошибки компиляции или логики,
+   из-за которых она не собирается или не проходит тесты. Найди и исправь их!
+2. Открой редактор в папке `rustlings/`. Путь к текущей задаче показан под
+   полосой прогресса. Сохранил файл, и Rustlings сам перезапустил проверку.
+   Когда всё исправлено, он предложит идти дальше.
+3. Застрял? Нажми `h`, чтобы увидеть подсказку. Теория каждой главы лежит
+   в README.md рядом с задачами.
+4. Проекты и квизы это целые Cargo-воркспейсы с ТЗ в README.md и приёмочными
+   тестами. Вехи достраивают твой собственный бэкенд в папке `backend/`.
+5. Для задач с базами данных и NATS подними окружение: `docker compose up -d`.
+   Если что-то не работает, запусти `rustlings doctor`."""
+
+final_message.ru = """
+Поздравляем, курс пройден! Теперь ты умеешь писать свои движки на tokio,
+gRPC-микросервисы, работать с PostgreSQL, ScyllaDB и Redis и собирать из
+этого настоящий бэкенд."""
+
+# support crate: course/support -> materialised as `support/` in the learner dir.
+# "@support" in a dependency path is replaced by the real relative path.
+
+[[tracks]]
+id = "rust-basics"
+title.en = "Rust basics"
+title.ru = "Основы Rust"
+description.en = "The classic Rustlings exercises: syntax, ownership, traits, iterators, threads."
+description.ru = "Классические задачи Rustlings: синтаксис, владение, трейты, итераторы, потоки."
+chapters = [
+  "00_intro", "01_variables", "02_functions", "03_if", "04_primitive_types",
+  "05_vecs", "06_move_semantics", "07_structs", "08_enums", "09_strings",
+  "10_modules", "11_hashmaps", "12_options", "13_error_handling", "14_generics",
+  "15_traits", "16_lifetimes", "17_tests", "18_iterators", "19_smart_pointers",
+  "20_threads", "21_macros", "22_clippy", "23_conversions", "24_async",
+]
+
+[tracks.dependencies]
+tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
+
+
+[[tracks]]
+id = "rust-advanced"
+title.en = "Rust in depth"
+title.ru = "Rust углублённо"
+description.ru = "Cargo, воркспейсы, библиотеки и скрипты запуска, замыкания, итераторы, трейт-объекты, обобщения, времена жизни, умные указатели, конкурентность, Pin и Future, макросы, тесты, производительность."
+chapters = [
+  "00_cargo",
+  "01_workspaces",
+  "02_tooling",
+  "03_patterns",
+  "04_closures",
+  "05_traits",
+  "06_generics",
+  "07_iterators",
+  "08_lifetimes",
+  "09_smart_pointers",
+  "10_error_patterns",
+  "11_serde",
+  "12_collections",
+  "13_bytes_strings",
+  "14_concurrency",
+  "15_unsafe",
+  "16_pin_futures",
+  "17_macros",
+  "18_testing",
+  "19_performance",
+]
+
+[tracks.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[[tracks]]
+id = "tokio"
+title.en = "Tokio and async Rust"
+title.ru = "Tokio и async"
+description.ru = "Рантайм, задачи, время, select/join, синхронизация, каналы, паттерны, async I/O, стримы, свой executor, тестирование async-кода."
+chapters = [
+  "00_runtime",
+  "01_tasks",
+  "02_time",
+  "03_sync",
+  "04_channels",
+  "05_select_join",
+  "06_async_traits",
+  "07_actors",
+  "08_lifecycle",
+  "09_io",
+  "10_streams",
+  "11_internals",
+  "12_testing",
+  "13_debugging",
+]
+
+[tracks.dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+bytes = "1"
+futures = "0.3"
+
+[[tracks]]
+id = "net"
+title.en = "Networking and protocols: TCP, HTTP, WebSocket, gRPC"
+title.ru = "Сети и протоколы: TCP, HTTP, WebSocket, gRPC"
+description.ru = "TCP и фрейминг, HTTP/1.1 изнутри, свои HTTP-сервер и клиент, свой WebSocket, protobuf, HTTP/2 и gRPC на tonic."
+chapters = [
+  "00_tcp",
+  "01_tcp_server",
+  "02_framing",
+  "03_udp",
+  "04_http_basics",
+  "05_parser_testing",
+  "06_http_server",
+  "07_http_robust",
+  "08_http_client",
+  "09_http_advanced",
+  "10_websocket",
+  "11_ws_server",
+  "12_protobuf",
+  "13_http2",
+  "14_tonic",
+  "15_tonic_advanced",
+  "16_tls",
+]
+
+[tracks.dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+bytes = "1"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+prost = "=0.14.4"
+
+[[tracks]]
+id = "services"
+title.en = "Microservices and architecture"
+title.ru = "Микросервисы и архитектура"
+description.ru = "Слои controller/dto/service/repository, конфиг и рантайм, валидация, авторизация, шлюз, NATS, событийные паттерны, фоновые задачи, файлы, наблюдаемость, отказоустойчивость, хайлоад, безопасность, тестирование, деплой."
+chapters = [
+  "00_architecture",
+  "01_config_runtime",
+  "02_dto_validation",
+  "03_api_errors",
+  "04_auth",
+  "05_gateway",
+  "06_nats",
+  "07_jetstream",
+  "08_event_patterns",
+  "09_realtime",
+  "10_jobs",
+  "11_files",
+  "12_testing",
+  "13_observability",
+  "14_load_testing",
+  "15_profiling",
+  "16_resilience",
+  "17_highload",
+  "18_security",
+  "19_deploy",
+]
+
+[tracks.dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+bytes = "1"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+sha2 = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+async-nats = "=0.36.0"
+course-support = { path = "@support", features = ["nats"] }
+
+[[tracks]]
+id = "data"
+title.en = "Databases: PostgreSQL, ScyllaDB, Redis"
+title.ru = "Базы данных: PostgreSQL, ScyllaDB, Redis"
+description.ru = "SQL с нуля до индексов и транзакций, sqlx, миграции; моделирование и CQL в ScyllaDB; Redis и свой RESP-клиент, паттерны кэша и блокировок."
+chapters = [
+  "00_sql_select",
+  "01_sql_functions",
+  "02_sql_schema",
+  "03_sql_modify",
+  "04_sqlx",
+  "05_sql_joins",
+  "06_sql_aggregates",
+  "07_sql_subqueries",
+  "08_sql_window",
+  "09_sql_modeling",
+  "10_sql_transactions",
+  "11_sqlx_service",
+  "12_sql_indexes",
+  "13_migrations",
+  "14_sql_advanced",
+  "15_pg_ops",
+  "16_cql_basics",
+  "17_cql_modeling",
+  "18_scylla_rust",
+  "19_scylla_advanced",
+  "20_resp",
+  "21_redis_client",
+  "22_redis_types",
+  "23_redis_atomic",
+  "24_redis_patterns",
+  "25_data_together",
+]
+
+[tracks.dependencies]
+tokio = { version = "1", features = ["full"] }
+bytes = "1"
+futures = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "postgres", "uuid", "chrono", "json", "macros", "migrate"] }
+scylla = "=0.12.0"
+course-support = { path = "@support", features = ["pg", "scylla", "redis"] }
+
+# Сквозной проект: мини-соцсеть, которую ученик строит вехами по ходу всего курса.
+[[journeys]]
+id = "backend"
+dir = "backend"
+title.en = "Mini social network from scratch"
+title.ru = "Мини-соцсеть с нуля"
+milestones = [
+  "m01_user_post",
+  "m02_follow_graph",
+  "m03_domain_errors",
+  "m04_store_traits",
+  "m05_feed",
+  "m06_shared_threads",
+  "m07_text_commands",
+  "m08_workspace",
+  "m09_dev_tooling",
+  "m10_direct_messages",
+  "m11_events_notifiers",
+  "m12_feed_pages",
+  "m13_wire_contracts",
+  "m14_indexes_trends",
+  "m15_background_fanout",
+  "m16_test_support",
+  "m17_async_core",
+  "m18_async_events",
+  "m19_async_ports",
+  "m20_clean_shutdown",
+  "m21_journal",
+  "m22_live_feed",
+  "m23_task_console",
+  "m24_tcp_gateway",
+  "m25_http_api",
+  "m26_http_hardening",
+  "m27_browser_media",
+  "m28_websocket",
+  "m29_realtime_gateway",
+  "m30_grpc_split",
+  "m31_grpc_streams",
+  "m32_mtls",
+  "m33_layers",
+  "m34_service_runtime",
+  "m35_dto_errors",
+  "m36_auth",
+  "m37_gateway",
+  "m38_nats_events",
+  "m39_jetstream",
+  "m40_outbox_feed",
+  "m41_multi_gateway",
+  "m42_jobs",
+  "m43_avatars",
+  "m44_e2e",
+  "m45_observability",
+  "m46_load",
+  "m47_resilience",
+  "m48_fanout_feed",
+  "m49_security",
+  "m50_deploy",
+  "m51_postgres",
+  "m52_sql_queries",
+  "m53_threads_ranking",
+  "m54_schema_tx",
+  "m55_sqlx_service",
+  "m56_indexes_keyset",
+  "m57_migrations",
+  "m58_search_ops",
+  "m59_scylla_chat",
+  "m60_scylla_advanced",
+  "m61_redis_client",
+  "m62_redis_patterns",
+  "m63_storages_together",
+]

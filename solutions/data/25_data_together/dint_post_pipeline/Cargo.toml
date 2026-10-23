@@ -1,0 +1,13 @@
+[package]
+name = "post-pipeline"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+sqlx = { version = "=0.8.6", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
+scylla = "=0.12.0"
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }

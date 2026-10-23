@@ -1,0 +1,15 @@
+[chapter]
+title = "Projects"
+
+[[exercises]]
+name = "proj_sum"
+kind = "project"
+locked = ["tests/acceptance.rs"]
+hint = "Implement `sum`."
+
+[[exercises]]
+name = "proj_exam"
+kind = "project"
+exam = true
+locked = ["tests/acceptance.rs"]
+hint = "This hint must never be shown."

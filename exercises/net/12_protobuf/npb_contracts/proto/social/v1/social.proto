@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package social.v1;
+
+message User {
+  uint64 id = 1;
+  string handle = 2;
+  int32 followers = 3;
+  bool legacy_flag = 4;
+}
+
+message Post {
+  uint64 id = 1;
+  uint64 author_id = 2;
+  string text = 3;
+  int32 likes = 4;
+}
+
+message ChatMessage {
+  uint64 id = 1;
+  uint64 from = 2;
+  uint64 to = 3;
+  string body = 4;
+}

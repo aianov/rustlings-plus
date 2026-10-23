@@ -1,0 +1,13 @@
+[package]
+name = "obs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["registry", "std"] }
+serde_json = "1"
+tokio = { version = "1", features = ["time", "macros", "rt"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }

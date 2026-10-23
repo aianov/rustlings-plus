@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Путь запроса: от приложения до базы и обратно</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6a7385; --line: #d9dde5;
+  --accent: #2563eb; --accent-bg: #dbe7ff; --busy: #fff4cc; --idle: #e8f6ec; --msg: #2563eb; --back: #0f8a4f;
+  --code-bg: #eef1f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --panel: #1c212b; --text: #e6e9f0; --muted: #98a2b5; --line: #323a49;
+    --accent: #6ea0ff; --accent-bg: #23365e; --busy: #4a3f12; --idle: #1c3326; --msg: #6ea0ff; --back: #5fd49a;
+    --code-bg: #242b38;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 940px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.lead { color: var(--muted); margin: 0 0 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+pre.code { margin: 0; font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+.cols { display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .cols { grid-template-columns: 1fr; } }
+.col h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+.box { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; background: var(--code-bg); font-size: 14px; min-height: 40px; }
+.box.on { border-color: var(--accent); background: var(--accent-bg); }
+.conn { display: flex; justify-content: space-between; gap: 8px; }
+.conn.idle { background: var(--idle); }
+.conn.busy { background: var(--busy); border-color: var(--accent); }
+.conn small { color: var(--muted); }
+.log { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; min-height: 7.5em; }
+.log div { padding: 1px 0; }
+.log .to { color: var(--msg); }
+.log .from { color: var(--back); }
+.note { min-height: 3.4em; }
+.note b { color: var(--accent); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button, select { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+.counter { color: var(--muted); margin-left: auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Путь одного запроса через sqlx</h1>
+  <p class="lead">Задача вызывает запрос, пул даёт соединение, на сервер уходят текст и параметры отдельно, обратно приходят строки. Выбери первый или повторный вызов того же запроса и пройди по шагам.</p>
+  <div class="card controls">
+    <select id="mode"><option value="first">Первый вызов запроса</option><option value="again">Повторный вызов (на том же соединении)</option></select>
+    <button id="step" class="primary">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card"><pre class="code" id="code">sqlx::query("SELECT username FROM users WHERE id = $1")
+    .bind(7_i64)
+    .fetch_one(&amp;pool)
+    .await?</pre></div>
+  <div class="card cols">
+    <div class="col"><h3>Твоя задача</h3><div class="box" id="app"></div></div>
+    <div class="col"><h3>PgPool</h3><div id="pool"></div></div>
+    <div class="col"><h3>Postgres</h3><div class="box" id="srv"></div><div class="box" id="cache"></div></div>
+  </div>
+  <div class="card"><div class="log" id="log"></div></div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var first = [
+    { app: 'Вызвали <code>fetch_one(&amp;pool)</code>. Нужно соединение.', pool: [0, 'idle'], note: 'Запрос ещё не ушёл на сервер. Сначала <b>пул</b> должен выдать соединение: если все заняты, задача ждёт здесь.' },
+    { app: 'Держит соединение c1.', pool: [0, 'busy'], note: 'Пул отдал <b>c1</b> и пометил занятым. Пока ты не получишь результат, никто другой c1 не возьмёт.' },
+    { log: ['to', 'Parse  s1: SELECT username FROM users WHERE id = $1'], srv: 'Разбирает текст, строит план.', cache: 'Кэш c1: s1 готов', note: '<b>Parse</b>: на сервер уходит только текст запроса с $1. Сервер разбирает его один раз и запоминает под именем s1 на этом соединении.' },
+    { log: ['to', 'Bind   s1 ($1 = 7)'], srv: 'Подставляет 7 как значение, а не как кусок SQL.', note: '<b>Bind</b>: параметр едет отдельно от текста, как данные. Поэтому подстановка в строку SQL (и инъекция) невозможна.' },
+    { log: ['to', 'Execute'], srv: 'Выполняет план, читает строки.', note: '<b>Execute</b>: сервер выполняет запрос с этими значениями.' },
+    { log: ['from', 'DataRow  "alice"   CommandComplete  SELECT 1'], srv: 'Отправил 1 строку.', app: 'Получает строку, <code>Row::get</code> или FromRow превращает байты в String.', note: 'Приходят строки <b>с типами</b> (text, int8, ...). sqlx проверяет, подходит ли тип Rust: i32 для bigint здесь упадёт.' },
+    { log: ['from', 'ReadyForQuery'], pool: [0, 'idle'], app: 'Результат готов.', note: 'Соединение вернулось в <b>пул</b> вместе с кэшем подготовленных запросов. Следующий вызов того же запроса пропустит Parse.' }
+  ];
+  var again = [
+    first[0], first[1],
+    { log: ['to', 'Bind   s1 ($1 = 7)'], srv: 'Берёт готовый план s1.', cache: 'Кэш c1: s1 уже есть, Parse не нужен', note: 'Соединение c1 уже знает s1, поэтому <b>Parse пропущен</b>: сразу Bind. Это и есть кэш подготовленных запросов.' },
+    first[4], first[5], first[6]
+  ];
+  var els = {};
+  ['mode', 'step', 'play', 'reset', 'counter', 'app', 'pool', 'srv', 'cache', 'log', 'note'].forEach(function (id) { els[id] = document.getElementById(id); });
+  var steps, i, timer;
+  function render() {
+    var cur = {}, logs = [], poolState = ['idle', 'idle', 'idle'], cache = 'Кэш c1: пусто', srv = 'Ждёт запросов.', app = 'Готовится вызвать запрос.', note = 'Нажми «Шаг».';
+    var hasCache = els.mode.value === 'again';
+    if (hasCache) cache = 'Кэш c1: s1 уже есть';
+    for (var k = 0; k < i; k++) {
+      var s = steps[k];
+      if (s.log) logs.push(s.log);
+      if (s.pool) poolState[s.pool[0]] = s.pool[1];
+      if (s.cache) cache = s.cache;
+      if (s.srv) srv = s.srv;
+      if (s.app) app = s.app;
+      note = s.note;
+    }
+    els.app.innerHTML = app; els.app.className = 'box' + (i > 0 && i < steps.length ? ' on' : '');
+    els.srv.innerHTML = srv; els.srv.className = 'box' + (logs.length && i < steps.length ? ' on' : '');
+    els.cache.textContent = cache; els.cache.className = 'box';
+    els.pool.innerHTML = poolState.map(function (st, n) {
+      return '<div class="box conn ' + st + '"><span>c' + (n + 1) + '</span><small>' + (st === 'busy' ? 'занято' : 'свободно') + '</small></div>';
+    }).join('');
+    els.log.innerHTML = logs.map(function (l) { return '<div class="' + l[0] + '">' + (l[0] === 'to' ? '→ ' : '← ') + l[1].replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</div>'; }).join('');
+    els.note.innerHTML = note;
+    els.counter.textContent = 'шаг ' + i + ' из ' + steps.length;
+    els.step.disabled = i >= steps.length;
+    if (i >= steps.length) stop();
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } els.play.textContent = 'Играть'; }
+  function reset() { stop(); steps = els.mode.value === 'first' ? first : again; i = 0; render(); }
+  els.step.onclick = function () { if (i < steps.length) { i++; render(); } };
+  els.reset.onclick = reset;
+  els.mode.onchange = reset;
+  els.play.onclick = function () {
+    if (timer) { stop(); return; }
+    if (i >= steps.length) { i = 0; }
+    els.play.textContent = 'Пауза';
+    timer = setInterval(function () { i++; render(); }, 1400);
+    i++; render();
+  };
+  reset();
+})();
+</script>
+</body>
+</html>

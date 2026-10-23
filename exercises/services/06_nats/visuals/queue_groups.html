@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Группы подписчиков NATS</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+svg .mono { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+#caption { margin-top: 12px; min-height: 90px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Кто получит сообщение</h1>
+  <p class="sub">Обычные подписки получают копии, участники группы делят поток.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 520" role="img" aria-label="Кто получит сообщение">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene");
+
+const EVENTS = ["заказ 1", "заказ 2", "заказ 3", "заказ 4", "заказ 5", "заказ 6"];
+const SCEN = {
+  plain: {
+    title: "без групп: каждый получает всё",
+    intro: "Три экземпляра сервиса подписаны на одну тему обычной подпиской. Нажимай «Шаг»: касса публикует заказы.",
+    subs: [{ name: "бариста 1", group: null }, { name: "бариста 2", group: null }, { name: "бариста 3", group: null }],
+    pick: () => null,
+    steps: EVENTS.map((e, i) => ({ text: "Касса публикует «" + e + "». Подписки обычные, поэтому брокер отдаёт копию каждому из трёх. Один заказ делают трое: дубли." }))
+  },
+  group: {
+    title: "queue group: экземпляры делят работу",
+    intro: "Те же три экземпляра, но подписаны в группу «baristas». Брокер выбирает одного на каждое сообщение.",
+    subs: [{ name: "бариста 1", group: "baristas" }, { name: "бариста 2", group: "baristas" }, { name: "бариста 3", group: "baristas" }],
+    pick: i => [[1], [0], [2], [2], [0], [1]][i],
+    steps: EVENTS.map((e, i) => ({ text: "Касса публикует «" + e + "». Группа одна, брокер выбирает случайного участника: сейчас это бариста " + ([2, 1, 3, 3, 1, 2][i]) + ". Каждый заказ делает ровно один." }))
+  },
+  mixed: {
+    title: "две группы и аудит",
+    intro: "notify-service (2 экземпляра) и feed-service (2 экземпляра) в своих группах, плюс аудит без группы.",
+    subs: [{ name: "notify 1", group: "notify" }, { name: "notify 2", group: "notify" }, { name: "feed 1", group: "feed" }, { name: "feed 2", group: "feed" }, { name: "аудит", group: null }],
+    pick: i => [[0, 2], [1, 3], [1, 2], [0, 3], [0, 3], [1, 2]][i],
+    steps: EVENTS.map((e, i) => ({ text: "Событие «" + e + "». Группа notify выбирает одного из двух, группа feed тоже одного из двух, аудит без группы получает всегда. Каждая группа видит полный поток, внутри группы он делится." }))
+  }
+};
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const n = sc.subs.length;
+  const W = 170, gap = (900 - n * W) / Math.max(1, n - 1 + 0.0001);
+  const got = sc.subs.map(() => []);
+  for (let i = 0; i <= idx; i++) {
+    if (sc.pick(i) === null) got.forEach(g => g.push(i));
+    else {
+      const chosen = sc.pick(i);
+      if (sel.value === "group") got[chosen[0]].push(i);
+      else {
+        chosen.forEach(c => got[c].push(i));
+        sc.subs.forEach((s, k) => { if (s.group === null) got[k].push(i); });
+      }
+    }
+  }
+  const pubY = 40;
+  el("rect", { x: 380, y: pubY, width: 200, height: 40, rx: 8, fill: "var(--box)", stroke: "var(--boxline)" }, scene);
+  el("text", { x: 480, y: pubY + 25, "text-anchor": "middle" }, scene, idx >= 0 ? "касса: «" + EVENTS[idx] + "»" : "касса");
+  el("rect", { x: 380, y: 130, width: 200, height: 36, rx: 8, fill: "var(--box)", stroke: "var(--accent)", "stroke-width": 2 }, scene);
+  el("text", { x: 480, y: 153, "text-anchor": "middle" }, scene, "брокер NATS");
+  el("line", { x1: 480, y1: pubY + 40, x2: 480, y2: 130, stroke: "var(--boxline)", "stroke-width": 2 }, scene);
+  const gs = {};
+  sc.subs.forEach((s, k) => {
+    const x = 30 + k * (n > 1 ? gap + W : 0);
+    const cx = x + W / 2;
+    const chosenNow = idx >= 0 ? (sc.pick(idx) === null ? sc.subs.map((_, q) => q) : (sel.value === "group" ? [sc.pick(idx)[0]] : sc.pick(idx).concat(sc.subs.map((t, q) => t.group === null ? q : -1).filter(q => q >= 0)))) : [];
+    const active = chosenNow.includes(k);
+    el("line", { x1: 480, y1: 166, x2: cx, y2: 250, stroke: active ? "var(--ok)" : "var(--line)", "stroke-width": active ? 3 : 1, "stroke-dasharray": active ? "" : "4 4" }, scene);
+    el("rect", { x, y: 250, width: W, height: 220, rx: 10, fill: "none", stroke: active ? "var(--ok)" : "var(--boxline)", "stroke-width": active ? 3 : 1 }, scene);
+    el("text", { x: x + 10, y: 274, style: "font-weight:700" }, scene, s.name);
+    el("text", { x: x + 10, y: 294, class: "muted" }, scene, s.group ? "группа «" + s.group + "»" : "без группы");
+    got[k].forEach((e, j) => {
+      el("rect", { x: x + 10, y: 306 + j * 24, width: W - 20, height: 20, rx: 4, fill: j === got[k].length - 1 && e === idx ? "var(--ok)" : "var(--box)" }, scene);
+      el("text", { x: x + 18, y: 321 + j * 24, style: j === got[k].length - 1 && e === idx ? "fill:#fff;font-size:12px" : "font-size:12px" }, scene, EVENTS[e]);
+    });
+  });
+  const total = got.reduce((a, g) => a + g.length, 0);
+  el("text", { x: 20, y: 500, class: "muted" }, scene, "всего обработок: " + total + " на " + (idx + 1) + " опубликованных");
+  say(sc);
+}
+
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function total() { return SCEN[sel.value].steps.length; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < total() - 1) { idx++; render(); } else stop(); }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= total() - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2600);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() { btnPrev.disabled = idx < 0; btnNext.disabled = idx >= total() - 1; }
+function say(sc) {
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>' + sc.intro
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + sc.steps[idx].text;
+  finish();
+}
+render();
+</script>
+</body>
+</html>

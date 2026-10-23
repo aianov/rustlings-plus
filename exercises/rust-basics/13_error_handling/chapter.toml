@@ -1,0 +1,141 @@
+[chapter]
+title.en = "Error handling"
+title.ru = "Обработка ошибок"
+
+[[exercises]]
+name = "errors1"
+hint.en = """
+`Ok` and `Err` are the two variants of `Result`, so what the tests are saying
+is that `generate_nametag_text` should return a `Result` instead of an `Option`.
+
+To make this change, you'll need to:
+  - update the return type in the function signature to be a `Result<String,
+    String>` that could be the variants `Ok(String)` and `Err(String)`
+  - change the body of the function to return `Ok(…)` where it currently
+    returns `Some(…)`
+  - change the body of the function to return `Err(error message)` where it
+    currently returns `None`"""
+hint.ru = """`Ok` и `Err` это два варианта `Result`, так что тесты говорят нам, что
+`generate_nametag_text` должна возвращать `Result`, а не `Option`.
+
+Для этого нужно:
+  - поменять возвращаемый тип в сигнатуре на `Result<String, String>`, который
+    может быть вариантами `Ok(String)` и `Err(String)`
+  - в теле функции вернуть `Ok(…)` там, где сейчас возвращается `Some(…)`
+  - в теле функции вернуть `Err(сообщение об ошибке)` там, где сейчас
+    возвращается `None`"""
+
+[[exercises]]
+name = "errors2"
+hint.en = """
+One way to handle this is using a `match` statement on
+`item_quantity.parse::<i32>()` where the cases are `Ok(something)` and
+`Err(something)`.
+
+This pattern is very common in Rust, though, so there's the `?` operator that
+does pretty much what you would make that match statement do for you!
+
+Take a look at this section of the "Error Handling" chapter:
+https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html#a-shortcut-for-propagating-errors-the--operator"""
+hint.ru = """Один из способов: `match` по `item_quantity.parse::<i32>()` с ветками
+`Ok(something)` и `Err(something)`.
+
+Но этот шаблон в Rust встречается так часто, что для него есть оператор `?`,
+который делает за тебя почти то же, что этот `match`!
+
+Загляни в этот раздел главы «Обработка ошибок»:
+https://doc.rust-lang.ru/book/ch09-02-recoverable-errors-with-result.html#a-shortcut-for-propagating-errors-the--operator"""
+
+[[exercises]]
+name = "errors3"
+test = false
+hint.en = """
+If other functions can return a `Result`, why shouldn't `main`? It's a fairly
+common convention to return something like `Result<(), ErrorType>` from your
+`main` function.
+
+The unit type `()` is there because nothing is really needed in terms of a
+positive result."""
+hint.ru = """Если другие функции могут возвращать `Result`, почему не может `main`? Вполне
+обычная практика возвращать из `main` что-то вроде `Result<(), ErrorType>`.
+
+Единичный тип `()` стоит здесь потому, что в случае успеха ничего возвращать
+не нужно."""
+
+[[exercises]]
+name = "errors4"
+hint.en = """
+`PositiveNonzeroInteger::new` is always creating a new instance and returning
+an `Ok` result. But it should be doing some checking, returning an `Err` if
+those checks fail, and only returning an `Ok` if those checks determine that
+everything is… okay :)"""
+hint.ru = """`PositiveNonzeroInteger::new` сейчас всегда создаёт новый экземпляр и возвращает
+`Ok`. А ей следует кое-что проверять: возвращать `Err`, если проверки не
+пройдены, и `Ok` только когда всё… в порядке :)"""
+
+[[exercises]]
+name = "errors5"
+test = false
+hint.en = """
+There are two different possible `Result` types produced within the `main`
+function, which are propagated using the `?` operators. How do we declare a
+return type for the `main` function that allows both?
+
+Under the hood, the `?` operator calls `From::from` on the error value to
+convert it to a boxed trait object, a `Box<dyn Error>`. This boxed trait object
+is polymorphic, and since all errors implement the `Error` trait, we can capture
+lots of different errors in one `Box` object.
+
+Check out this section of The Book:
+https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html#a-shortcut-for-propagating-errors-the--operator
+
+Read more about boxing errors:
+https://doc.rust-lang.org/stable/rust-by-example/error/multiple_error_types/boxing_errors.html
+
+Read more about using the `?` operator with boxed errors:
+https://doc.rust-lang.org/stable/rust-by-example/error/multiple_error_types/reenter_question_mark.html"""
+hint.ru = """Внутри `main` получаются два разных типа `Result`, и оба передаются дальше
+оператором `?`. Как объявить возвращаемый тип `main`, чтобы подошли оба?
+
+Под капотом оператор `?` вызывает `From::from` для значения ошибки и превращает
+его в упакованный трейт-объект `Box<dyn Error>`. Этот объект полиморфен, и
+раз все ошибки реализуют трейт `Error`, в один `Box` помещается много разных
+ошибок.
+
+Загляни в этот раздел Книги:
+https://doc.rust-lang.ru/book/ch09-02-recoverable-errors-with-result.html#a-shortcut-for-propagating-errors-the--operator
+
+Подробнее об упаковке ошибок:
+https://doc.rust-lang.org/stable/rust-by-example/error/multiple_error_types/boxing_errors.html
+
+Подробнее об операторе `?` с упакованными ошибками:
+https://doc.rust-lang.org/stable/rust-by-example/error/multiple_error_types/reenter_question_mark.html"""
+
+[[exercises]]
+name = "errors6"
+hint.en = """
+This exercise uses a completed version of `PositiveNonzeroInteger` from the
+previous exercises.
+
+Below the line that `TODO` asks you to change, there is an example of using
+the `map_err()` method on a `Result` to transform one type of error into
+another. Try using something similar on the `Result` from `parse()`. You
+can then use the `?` operator to return early.
+
+Read more about `map_err()` in the `std::result` documentation:
+https://doc.rust-lang.org/std/result/enum.Result.html#method.map_err"""
+hint.ru = """В этом упражнении используется готовая версия `PositiveNonzeroInteger` из
+предыдущих упражнений.
+
+Под строкой, которую `TODO` просит изменить, есть пример метода `map_err()` у
+`Result`: он превращает один тип ошибки в другой. Попробуй сделать что-то
+похожее с `Result` от `parse()`. Затем оператор `?` вернёт ошибку досрочно.
+
+Подробнее о `map_err()` в документации `std::result`:
+https://doc.rust-lang.org/std/result/enum.Result.html#method.map_err"""
+
+[[exercises]]
+name = "m03_domain_errors"
+kind = "milestone"
+journey = "backend"
+quiz = true

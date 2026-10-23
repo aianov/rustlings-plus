@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package social.v1;
+
+// Личные сообщения. Отправитель и подписчик приходят в метаданных x-user-id.
+service Chat {
+  // Собеседника нет в Users: NOT_FOUND, пустое, длинное или себе: FAILED_PRECONDITION.
+  rpc Send(SendRequest) returns (Message);
+  // Последние limit сообщений диалога с peer_id, старые первыми.
+  rpc History(HistoryRequest) returns (HistoryReply);
+  // Сообщения, адресованные x-user-id, по мере отправки, пока клиент не закроет поток.
+  rpc Subscribe(SubscribeRequest) returns (stream Message);
+}
+
+message SendRequest {
+  uint64 peer_id = 1;
+  string text = 2;
+}
+
+message Message {
+  uint64 from_id = 1;
+  uint64 to_id = 2;
+  string text = 3;
+}
+
+message HistoryRequest {
+  uint64 peer_id = 1;
+  uint32 limit = 2;
+}
+
+message HistoryReply {
+  repeated Message messages = 1;
+}
+
+message SubscribeRequest {}

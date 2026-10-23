@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package profile.v1;
+
+message GetProfileRequest {
+  uint64 user_id = 1;
+}
+
+message UpdateProfileRequest {
+  uint64 user_id = 1;
+  optional string display_name = 2;
+  optional string bio = 3;
+  optional uint32 birth_year = 4;
+  repeated string clear_fields = 5;
+}
+
+message Profile {
+  string display_name = 1;
+  string bio = 2;
+  uint32 birth_year = 3;
+}
+
+service Profiles {
+  rpc GetProfile(GetProfileRequest) returns (Profile);
+  rpc UpdateProfile(UpdateProfileRequest) returns (Profile);
+}

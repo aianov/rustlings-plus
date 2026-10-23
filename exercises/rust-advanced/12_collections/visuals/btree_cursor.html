@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Страницы ленты на BTreeMap</title>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--line:#c9c7bd;--acc:#c2410c;--ok:#15803d;--okbg:#dcfce7;--bad:#b91c1c;--badbg:#fee2e2;--warn:#a16207;--warnbg:#fef9c3;--btn:#1d1d1b;--btnfg:#fff;--hot:#fff1e6}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#ecebe6;--mut:#9a9a92;--card:#201f1d;--line:#46443f;--acc:#fb923c;--ok:#4ade80;--okbg:#14301d;--bad:#f87171;--badbg:#3a1a1a;--warn:#facc15;--warnbg:#3a3312;--btn:#ecebe6;--btnfg:#161614;--hot:#33241a}}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--mut);margin:0 0 14px}
+.panel{max-width:860px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;min-height:150px}
+.row{display:flex;gap:10px;align-items:center;font:13px ui-monospace,Menlo,Consolas,monospace;border:2px solid var(--line);border-radius:8px;padding:7px 10px;margin:6px 0}
+.row.ok{border-color:var(--ok);background:var(--okbg)}
+.row.no{border-color:var(--bad);background:var(--badbg);text-decoration:line-through;opacity:.75}
+.row.hot{border-color:var(--warn);background:var(--warnbg)}
+.row .tag{margin-left:auto;font:12px system-ui,sans-serif;color:var(--mut);text-decoration:none}
+.box{display:inline-block;font:13px ui-monospace,Menlo,Consolas,monospace;border:2px solid var(--line);border-radius:8px;padding:8px 12px;margin:4px 6px 4px 0;vertical-align:top}
+.box.ok{border-color:var(--ok);background:var(--okbg)}
+.box.hot{border-color:var(--warn);background:var(--warnbg)}
+.box.no{border-color:var(--bad);background:var(--badbg)}
+.box small{display:block;color:var(--mut);font:12px system-ui,sans-serif}
+.arrow{display:inline-block;margin:0 4px;color:var(--mut);font-size:18px;vertical-align:middle}
+.note{margin:12px 0;padding:12px 14px;border-left:4px solid var(--acc);background:var(--card);border-radius:0 8px 8px 0;min-height:76px;max-width:860px}
+.bar2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:860px}
+button{font:inherit;padding:7px 14px;border-radius:8px;border:0;background:var(--btn);color:var(--btnfg);cursor:pointer}
+button.alt{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button:disabled{opacity:.4;cursor:default}
+.cnt{color:var(--mut);margin-left:auto}
+</style>
+</head>
+<body>
+<h1>Страницы ленты на BTreeMap</h1>
+<p class="sub">Как курсор и граница диапазона решают, повторится ли пост на стыке страниц</p>
+<div class="panel" id="panel"></div>
+<div class="note" id="note"></div>
+<div class="bar2">
+  <button id="step">Шаг</button>
+  <button id="play" class="alt">Играть</button>
+  <button id="reset" class="alt">Сначала</button>
+  <span class="cnt" id="cnt"></span>
+</div>
+<script>
+const steps=[{"p": "<p style=\"color:var(--mut);margin:8px 0 0\">BTreeMap держит ключи по порядку</p><div class=\"box \">10</div><div class=\"box \">20</div><div class=\"box \">30</div><div class=\"box \">40</div><div class=\"box \">50</div><div class=\"box \">60</div><div class=\"box \">70</div><div class=\"box \">80</div>", "n": "Лента хранится в дереве, где ключ это id поста (новее значит больше). Дерево само поддерживает порядок: идти по нему слева направо или справа налево одинаково дёшево."}, {"p": "<p style=\"color:var(--mut);margin:8px 0 0\">первая страница: берём 3 с правого конца</p><div class=\"box \">10</div><div class=\"box \">20</div><div class=\"box \">30</div><div class=\"box \">40</div><div class=\"box \">50</div><div class=\"box hot\">60</div><div class=\"box hot\">70</div><div class=\"box hot\">80</div><p style=\"color:var(--mut);margin:8px 0 0\">отдали 80, 70, 60. Курсор = 60, последний показанный пост</p>", "n": "У клиента нет номера страницы, есть курсор: id последнего поста, который он увидел. Это и есть закладка в ленте."}, {"p": "<p style=\"color:var(--mut);margin:8px 0 0\">неверно: range(..=60) включает курсор</p><div class=\"box \">10</div><div class=\"box \">20</div><div class=\"box \">30</div><div class=\"box hot\">40</div><div class=\"box hot\">50</div><div class=\"box no\">60</div><div class=\"box \">70</div><div class=\"box \">80</div><p style=\"color:var(--mut);margin:8px 0 0\">страница 2: 60, 50, 40. Пост 60 показан дважды</p>", "n": "Включённая граница возвращает пост, который клиент уже видел. На каждом стыке страниц появляется повтор."}, {"p": "<p style=\"color:var(--mut);margin:8px 0 0\">верно: range(..60) не включает курсор</p><div class=\"box \">10</div><div class=\"box \">20</div><div class=\"box ok\">30</div><div class=\"box ok\">40</div><div class=\"box ok\">50</div><div class=\"box \">60</div><div class=\"box \">70</div><div class=\"box \">80</div><p style=\"color:var(--mut);margin:8px 0 0\">страница 2: 50, 40, 30. Новый курсор = 30</p>", "n": "Верхняя граница исключается: `..cursor`. Дерево спускается к 60 и идёт влево, ничего не просматривая справа."}, {"p": "<p style=\"color:var(--mut);margin:8px 0 0\">как узнать, что страницы ещё есть: берём на один больше</p><div class=\"box \">10</div><div class=\"box warn\">20</div><div class=\"box ok\">30</div><div class=\"box ok\">40</div><div class=\"box ok\">50</div><div class=\"box \">60</div><div class=\"box \">70</div><div class=\"box \">80</div><p style=\"color:var(--mut);margin:8px 0 0\">запросили 4 (n+1): 50, 40, 30 и 20. Двадцатый лишний: значит продолжение есть, а в ответ он не идёт</p>", "n": "`take(n + 1)` отвечает на вопрос «есть ли что-то дальше» одним обходом. Лишний пост отбрасывается, а курсор остаётся на последнем отданном."}, {"p": "<p style=\"color:var(--mut);margin:8px 0 0\">последняя страница: остался один пост</p><div class=\"box ok\">10</div><div class=\"box \">20</div><div class=\"box \">30</div><div class=\"box \">40</div><div class=\"box \">50</div><div class=\"box \">60</div><div class=\"box \">70</div><div class=\"box \">80</div><p style=\"color:var(--mut);margin:8px 0 0\">range(..20) вернул 10, и больше нет: next = None</p>", "n": "Если получилось не больше `n`, продолжения нет, и курсор не отдаётся. Клиент не делает лишний пустой запрос."}];
+let i=0,timer=null;
+function stop(){if(timer){clearInterval(timer);timer=null;}document.getElementById('play').textContent='Играть';}
+function frame(){document.getElementById('panel').innerHTML=steps[i].p;document.getElementById('note').textContent=steps[i].n;document.getElementById('cnt').textContent='шаг '+(i+1)+' из '+steps.length;document.getElementById('step').disabled=i>=steps.length-1;if(i>=steps.length-1)stop();}
+document.getElementById('step').onclick=()=>{if(i<steps.length-1){i++;frame();}};
+document.getElementById('reset').onclick=()=>{stop();i=0;frame();};
+document.getElementById('play').onclick=()=>{if(timer){stop();return;}if(i>=steps.length-1){i=0;frame();}document.getElementById('play').textContent='Пауза';timer=setInterval(()=>{if(i<steps.length-1){i++;frame();}else stop();},3000);};
+frame();
+</script>
+</body>
+</html>

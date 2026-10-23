@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мультиплексирование HTTP/2</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Мультиплексирование HTTP/2</h1>
+  <p class="sub">Как кадры нескольких вызовов идут вперемешку по одному соединению и почему одна медленная часть не задерживает остальные.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Три вызова в одном соединении",
+  "boxes": [
+   "Вызовы клиента",
+   "Кадры в соединении",
+   "Сервер раскладывает по потокам",
+   "Ответы"
+  ],
+  "steps": [
+   {
+    "t": "Клиент запускает три вызова одновременно. Каждому достаётся свой нечётный номер потока: 1, 3 и 5.",
+    "s": [
+     [
+      [
+       "поток 1: загрузить ленту",
+       "info"
+      ],
+      [
+       "поток 3: пользователь",
+       "info"
+      ],
+      [
+       "поток 5: тренды",
+       "info"
+      ]
+     ],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Заголовки всех трёх вызовов отправляются сразу, один за другим. Соединение одно, TCP-рукопожатия повторять не нужно.",
+    "s": [
+     [],
+     [
+      [
+       "HEADERS s1",
+       "info"
+      ],
+      [
+       "HEADERS s3",
+       "info"
+      ],
+      [
+       "HEADERS s5",
+       "info"
+      ]
+     ],
+     [
+      [
+       "s1 открыт",
+       "ok"
+      ],
+      [
+       "s3 открыт",
+       "ok"
+      ],
+      [
+       "s5 открыт",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Тело запроса первого вызова большое, оно режется на кадры DATA. Между ними вклиниваются кадры других вызовов.",
+    "s": [
+     [],
+     [
+      [
+       "DATA s1 (часть 1)",
+       "info"
+      ],
+      [
+       "DATA s3 (всё, конец)",
+       "warn"
+      ],
+      [
+       "DATA s1 (часть 2)",
+       "info"
+      ],
+      [
+       "DATA s5 (всё, конец)",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "s1: тело частично",
+       "info"
+      ],
+      [
+       "s3: запрос готов",
+       "ok"
+      ],
+      [
+       "s5: запрос готов",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Сервер читает кадры по порядку и раскладывает по номеру потока. Запросы 3 и 5 готовы раньше, их можно обрабатывать, не дожидаясь первого.",
+    "s": [
+     [],
+     [
+      [
+       "DATA s1 (часть 3, конец)",
+       "info"
+      ]
+     ],
+     [
+      [
+       "s3: обработка",
+       "ok"
+      ],
+      [
+       "s5: обработка",
+       "ok"
+      ],
+      [
+       "s1: тело дочитано",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Ответы возвращаются в порядке готовности: быстрый s3, потом s5, потом большой s1. Ни один не ждёт остальных.",
+    "s": [
+     [],
+     [],
+     [],
+     [
+      [
+       "s3: ответ",
+       "ok"
+      ],
+      [
+       "s5: ответ",
+       "ok"
+      ],
+      [
+       "s1: ответ",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "HTTP/1.1 против HTTP/2",
+  "boxes": [
+   "HTTP/1.1, одно соединение",
+   "HTTP/1.1, шесть соединений",
+   "HTTP/2, одно соединение",
+   "Что платим"
+  ],
+  "steps": [
+   {
+    "t": "Сайту нужно получить двадцать ресурсов. В HTTP/1.1 на одном соединении запросы идут по очереди (конвейер на практике отключён).",
+    "s": [
+     [
+      [
+       "запрос 1 → ответ 1",
+       "info"
+      ],
+      [
+       "запрос 2 ждёт",
+       "warn"
+      ],
+      [
+       "запрос 3 ждёт",
+       "warn"
+      ]
+     ],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Браузер открывает шесть соединений: параллельности стало шесть. Каждое соединение это рукопожатие TCP и TLS и своя память на сервере.",
+    "s": [
+     [],
+     [
+      [
+       "6 TCP + 6 TLS",
+       "warn"
+      ],
+      [
+       "шесть запросов сразу",
+       "info"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "HTTP/2 держит одно соединение и столько потоков, сколько разрешит SETTINGS_MAX_CONCURRENT_STREAMS. Двадцать запросов уходят сразу.",
+    "s": [
+     [],
+     [],
+     [
+      [
+       "20 потоков в одном TCP",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "одно рукопожатие",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Но осталась ловушка на уровне TCP: потерянный пакет задерживает все потоки, потому что TCP отдаёт байты строго по порядку. Это и есть причина появления HTTP/3 поверх QUIC.",
+    "s": [
+     [],
+     [],
+     [
+      [
+       "потерян один пакет",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "встали все потоки",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

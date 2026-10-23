@@ -1,0 +1,9 @@
+[package]
+name = "dump"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+store = { path = "../../crates/store" }
+model = { path = "../../crates/model" }
+serde_json = "1"

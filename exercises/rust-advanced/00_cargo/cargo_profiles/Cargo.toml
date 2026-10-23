@@ -1,0 +1,11 @@
+[package]
+name = "profile-lab"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+heavy = { path = "crates/heavy" }
+
+# TODO: профили настраиваются здесь. Что именно нужно, написано в README.md.
+
+[workspace]

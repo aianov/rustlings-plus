@@ -1,0 +1,14 @@
+[package]
+name = "report-tool"
+version = "0.2.0"
+edition = "2024"
+
+# TODO: в этом манифесте три зависимости лежат не в тех секциях. README.md объясняет, что куда.
+[dependencies]
+testkit = { path = "crates/testkit" }
+stamp = { path = "crates/stamp" }
+
+[dev-dependencies]
+fmtkit = { path = "crates/fmtkit" }
+
+[workspace]

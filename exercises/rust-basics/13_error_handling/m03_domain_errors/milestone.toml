@@ -1,0 +1,13 @@
+hint.ru = [
+"""Сначала `DomainError` и `Display`, потом проверки, и только потом `Network`. Display это один
+`match self` с `write!(f, "...")` в каждой ветке, как у ошибок в главе про обработку ошибок.
+Для `std::error::Error` хватит пустого `impl Error for DomainError {}`.""",
+"""`validate_name` возвращает уже нормализованный ник: `let name = normalize_name(name);`, потом
+две проверки с `return Err(...)`, в конце `Ok(name)`. В `register` тогда первая строка
+`let name = validate_name(name)?;`, а `?` сам вернёт ошибку наружу.""",
+"""Пост по id находится через `self.posts.iter().find(|post| post.id() == id)`, это `Option<&Post>`.
+Для лайка нужен `iter_mut()`, а `Option` в `Result` превращает `.ok_or(DomainError::UnknownPost(id))?`.
+Проверку «пользователь существует» вынеси в маленький `fn ensure_user(&self, id: UserId) -> Result<(), DomainError>`.""",
+]
+story.ru = """Соцсеть научилась говорить «нет» по-человечески: «ник alice уже занят», «нельзя подписаться
+на самого себя». Ни одного unwrap, ни одной паники."""

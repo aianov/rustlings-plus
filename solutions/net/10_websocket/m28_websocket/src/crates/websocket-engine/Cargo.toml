@@ -1,0 +1,19 @@
+[package]
+name = "websocket-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+bytes.workspace = true
+http-engine.workspace = true
+sha1.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+minifuzz.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

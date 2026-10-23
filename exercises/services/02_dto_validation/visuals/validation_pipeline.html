@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Конвейер проверки</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0; --track: #e3e8f0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff; --track: #2a3342;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff; --track: #2a3342;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+#caption { margin-top: 12px; min-height: 84px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Путь входных данных</h1>
+  <p class="sub">Сырой JSON проходит serde, нормализацию и правила и становится доменным типом или списком ошибок.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Сценарий <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 940 330" role="img" aria-label="Конвейер проверки">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const STAGES = ["JSON из сети", "serde: форма", "нормализация", "правила", "результат"];
+const SCEN = {
+  good: { title: "хороший ввод", steps: [
+    [0, ['{"username":"  Maria_1 ",', ' "email":"MARIA@Mail.ru","age":30}'], "ok", "Пришли байты. Пока это просто текст: никаких гарантий."],
+    [1, ["username: String", "email: String", "age: Option<u8> = Some(30)"], "ok", "serde разобрал тело в DTO: поля на месте, типы подходят. Это проверка только формы, а не смысла."],
+    [2, ['username: "maria_1"', 'email: "maria@mail.ru"', "age: 30"], "ok", "Нормализация: trim и нижний регистр. Дальше все правила работают с единым видом значения."],
+    [3, ["username: 3..=20 символов  ✓", "username: [a-z0-9_]...  ✓", "email: похоже на адрес  ✓", "age: 13..=120  ✓"], "ok", "Правила: все прошли. Ошибки собираются в список, и сейчас он пуст."],
+    [4, ["Username(\"maria_1\")", "Email(\"maria@mail.ru\")", "age: 30"], "ok", "Результат: доменные типы. Всякий код, принявший Username, знает, что значение допустимо."]
+  ]},
+  bad: { title: "ошибки в значениях", steps: [
+    [0, ['{"username":"x",', ' "email":"nope","age":5}'], "ok", "Тело корректный JSON, но значения плохие."],
+    [1, ["username: String", "email: String", "age: Option<u8> = Some(5)"], "ok", "serde доволен: формат верный. Форма проверена, смысл нет."],
+    [2, ['username: "x"', 'email: "nope"', "age: 5"], "ok", "Нормализация ничего не меняет."],
+    [3, ["username  too_short", "email  invalid_format", "age  out_of_range"], "bad", "Правила не останавливаются на первой ошибке: собираются ВСЕ, каждая с путём и машинным кодом."],
+    [4, ["400 / 422 со списком:", "username: too_short", "email: invalid_format", "age: out_of_range"], "bad", "Результат: список ошибок. Клиент подсветит три поля сразу, а не по одному за отправку."]
+  ]},
+  shape: { title: "неверная форма", steps: [
+    [0, ['{"username":"alice",', ' "email":"a@b.co","age":"30"}'], "ok", "Возраст пришёл строкой."],
+    [1, ["age: ожидалось число, пришла строка", "разбор остановлен"], "bad", "serde отказывает ещё на этапе формы: тип не подходит. Строку 30 он числом молча не станет."],
+    [4, ["400 bad_json", "path: \"\"", "message: invalid type: string"], "bad", "Результат: одна ошибка о теле целиком. До нормализации и правил дело не дошло."]
+  ]}
+};
+const scene = document.getElementById("scene");
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const step = idx < 0 ? null : sc.steps[idx];
+  const w = 150, gap = 30, x0 = 20;
+  for (let i = 0; i < STAGES.length; i++) {
+    const x = x0 + i * (w + gap);
+    const active = step && step[0] === i;
+    const passed = step && step[0] > i;
+    const bad = active && step[2] === "bad";
+    el("rect", { x: x, y: 20, width: w, height: 56, rx: 8, fill: active ? "var(--box)" : "var(--panel)",
+      stroke: bad ? "var(--bad)" : (active ? "var(--accent)" : "var(--boxline)"), "stroke-width": active ? 3 : 1.5 }, scene);
+    el("text", { x: x + w / 2, y: 54, "text-anchor": "middle", style: "font-weight:" + (active ? 700 : 400) }, scene, STAGES[i]);
+    if (i < STAGES.length - 1) el("path", { d: "M " + (x + w + 4) + " 48 H " + (x + w + gap - 6), stroke: passed ? "var(--ok)" : "var(--line)", "stroke-width": 2.5, fill: "none" }, scene);
+  }
+  const panelY = 110;
+  el("rect", { x: 20, y: panelY, width: 900, height: 190, rx: 8, fill: "var(--box)", stroke: "var(--boxline)" }, scene);
+  el("text", { x: 36, y: panelY + 26, class: "muted" }, scene, step ? "Что сейчас лежит на этапе «" + STAGES[step[0]] + "»:" : "Выбери сценарий и нажми «Шаг»");
+  if (step) step[1].forEach((line, i) => {
+    el("text", { x: 40, y: panelY + 62 + i * 26, style: "font-family:ui-monospace,Menlo,monospace;font-size:15px;fill:var(--" + (step[2] === "bad" ? "bad" : "ink") + ")" }, scene, line);
+  });
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>Нажми «Шаг»: сырой JSON пройдёт serde, нормализацию и правила.'
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + step[3];
+  finish();
+}
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function steps() { return SCEN[sel.value].steps; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < steps().length - 1) { idx++; render(); } }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= steps().length - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2600);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() {
+  btnPrev.disabled = idx < 0;
+  btnNext.disabled = idx >= steps().length - 1;
+  if (idx >= steps().length - 1) stop();
+}
+
+
+render();
+</script>
+</body>
+</html>

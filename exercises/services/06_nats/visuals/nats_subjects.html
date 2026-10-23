@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Темы NATS и шаблоны</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+svg .mono { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+#caption { margin-top: 12px; min-height: 90px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Кому что доставит NATS</h1>
+  <p class="sub">Шаблон подписки с `*` и `>` против шести тем: слово за словом.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 360" role="img" aria-label="Кому что доставит NATS">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene");
+
+const SUBJECTS = [
+  "social.post.liked.alice", "social.post.created.bob", "social.user.followed.alice",
+  "social.post.liked.alice.extra", "social.post", "notify.unread.alice"
+];
+const PATTERNS = {
+  star: { title: "social.post.*.alice", p: "social.post.*.alice" },
+  tail: { title: "social.>", p: "social.>" },
+  inbox: { title: "social.*.*.alice", p: "social.*.*.alice" },
+  anyfirst: { title: "*.post.>", p: "*.post.>" }
+};
+function compare(pattern, subject) {
+  const pt = pattern.split("."), st = subject.split(".");
+  const marks = [];
+  for (let i = 0; i < Math.max(pt.length, st.length); i++) {
+    const p = pt[i], s = st[i];
+    if (p === ">" ) {
+      if (s === undefined) { marks.push({ p, s, ok: false, why: "после `>` нужно хотя бы одно слово, а тема кончилась" }); return { marks, ok: false }; }
+      marks.push({ p, s, ok: true, why: "`>` забирает это слово и все остальные" });
+      return { marks, ok: true };
+    }
+    if (p === undefined) { marks.push({ p, s, ok: false, why: "в шаблоне слова кончились, а в теме есть ещё `" + s + "`" }); return { marks, ok: false }; }
+    if (s === undefined) { marks.push({ p, s, ok: false, why: "тема кончилась раньше шаблона" }); return { marks, ok: false }; }
+    if (p === "*") { marks.push({ p, s, ok: true, why: "`*` берёт ровно одно слово" }); continue; }
+    if (p === s) { marks.push({ p, s, ok: true, why: "слова равны" }); continue; }
+    marks.push({ p, s, ok: false, why: "`" + p + "` не равно `" + s + "`" });
+    return { marks, ok: false };
+  }
+  return { marks, ok: true };
+}
+const SCEN = {};
+for (const k in PATTERNS) {
+  SCEN[k] = {
+    title: "шаблон " + PATTERNS[k].title,
+    intro: "Шаблон <code>" + PATTERNS[k].p + "</code>. Нажимай «Шаг»: темы проверяются по очереди, слово за словом.",
+    steps: SUBJECTS.map(s => {
+      const r = compare(PATTERNS[k].p, s);
+      const last = r.marks[r.marks.length - 1];
+      return { subject: s, result: r, text: "Тема <code>" + s + "</code>: " + (r.ok ? "<b>доставляется</b>. " : "<b>не доставляется</b>. ") + last.why + "." };
+    })
+  };
+}
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const pat = PATTERNS[sel.value].p;
+  el("text", { x: 20, y: 28, class: "muted" }, scene, "шаблон подписки");
+  el("text", { x: 20, y: 54, class: "mono", style: "font-weight:700;font-size:16px" }, scene, pat);
+  el("text", { x: 20, y: 96, class: "muted" }, scene, "публикуемые темы (серым то, что ещё не проверено)");
+  SUBJECTS.forEach((s, i) => {
+    const y = 112 + i * 34;
+    const done = idx >= i;
+    const cur = idx === i;
+    const r = sc.steps[i].result;
+    el("rect", { x: 20, y, width: 330, height: 28, rx: 6, fill: cur ? "var(--box)" : "none", stroke: cur ? "var(--accent)" : "var(--line)" }, scene);
+    el("text", { x: 30, y: y + 19, class: "mono", style: "fill:" + (done ? "var(--ink)" : "var(--muted)") }, scene, s);
+    if (done) {
+      el("text", { x: 360, y: y + 20, style: "font-weight:700;fill:" + (r.ok ? "var(--ok)" : "var(--bad)") }, scene, r.ok ? "получит" : "мимо");
+    }
+  });
+  if (idx >= 0) {
+    const st = sc.steps[idx];
+    const x0 = 470, y0 = 112;
+    el("text", { x: x0, y: y0 - 4, class: "muted" }, scene, "разбор по словам");
+    const marks = st.result.marks;
+    marks.forEach((m, i) => {
+      const x = x0 + i * 100;
+      el("rect", { x, y: y0 + 10, width: 90, height: 28, rx: 6, fill: "var(--box)", stroke: "var(--boxline)" }, scene);
+      el("text", { x: x + 8, y: y0 + 29, class: "mono" }, scene, m.p === undefined ? "(нет)" : m.p);
+      el("rect", { x, y: y0 + 54, width: 90, height: 28, rx: 6, fill: "none", stroke: m.ok ? "var(--ok)" : "var(--bad)", "stroke-width": 2 }, scene);
+      el("text", { x: x + 8, y: y0 + 73, class: "mono" }, scene, m.s === undefined ? "(нет)" : m.s);
+      el("text", { x: x + 40, y: y0 + 104, style: "font-weight:700;fill:" + (m.ok ? "var(--ok)" : "var(--bad)") }, scene, m.ok ? "да" : "нет");
+    });
+    el("text", { x: x0, y: y0 + 140, class: "muted" }, scene, "сверху слова шаблона, снизу слова темы");
+  }
+  say(sc);
+}
+
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function total() { return SCEN[sel.value].steps.length; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < total() - 1) { idx++; render(); } else stop(); }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= total() - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2600);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() { btnPrev.disabled = idx < 0; btnNext.disabled = idx >= total() - 1; }
+function say(sc) {
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>' + sc.intro
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + sc.steps[idx].text;
+  finish();
+}
+render();
+</script>
+</body>
+</html>

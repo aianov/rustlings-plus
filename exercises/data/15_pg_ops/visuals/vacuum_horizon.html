@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VACUUM и долгая транзакция: почему мёртвые версии не уходят</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --g1:#e8f6ec; --g2:#fff4cc; --g3:#fde8e8; --g4:#e6e9fb; --bad:#b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --g1:#1c3326; --g2:#4a3f12; --g3:#3b2024; --g4:#262c52; --bad:#ff8a80; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:960px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.a1 td { background:var(--g1); } tr.a2 td { background:var(--g3); }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.note { min-height:3.6em; } .note b { color:var(--accent); } .note b.bad { color:var(--bad); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Мёртвые версии строк и горизонт очистки</h1>
+  <p class="lead">Строка счётчика обновляется много раз. Смотри, какие версии VACUUM может убрать, а какие нет.</p>
+  <div class="card controls">
+    <select id="mode"><option value="clean">Без долгих транзакций</option><option value="holder">Долгая транзакция держит горизонт</option><option value="hot">HOT-обновление</option></select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card grid">
+    <div><h3>что происходит</h3><pre id="log"></pre></div>
+    <div><h3 id="thead">состояние</h3><table id="tbl"></table></div>
+  </div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var SC = {"clean": {"name": "Без долгих транзакций", "table": "версии одной строки в таблице", "head": ["версия", "создана", "удалена", "состояние"], "start": {"note": "Строка счётчика <code>likes = 10</code>. Одна версия, все её видят.", "rows": [["v1", "tx 100", "-", "живая"]]}, "steps": [{"ev": "UPDATE likes = 11 (tx 101)", "note": "UPDATE не меняет строку на месте: старая версия помечается удалённой, рядом появляется новая.", "rows": [["v1", "tx 100", "tx 101", "мёртвая"], ["v2", "tx 101", "-", "живая"]], "hl": [1], "bad": [0]}, {"ev": "UPDATE likes = 12 (tx 102)", "note": "Ещё одна версия. Таблица растёт, а видна по-прежнему одна строка.", "rows": [["v1", "tx 100", "tx 101", "мёртвая"], ["v2", "tx 101", "tx 102", "мёртвая"], ["v3", "tx 102", "-", "живая"]], "hl": [2], "bad": [0, 1]}, {"ev": "VACUUM", "note": "Старых транзакций нет, горизонт стоит на tx 102: версии v1 и v2 не нужны никому и <b>освобождаются</b> для новых записей.", "rows": [["v1", "-", "-", "свободно"], ["v2", "-", "-", "свободно"], ["v3", "tx 102", "-", "живая"]], "hl": [0, 1, 2], "bad": []}]}, "holder": {"name": "Долгая транзакция держит горизонт", "table": "версии одной строки в таблице", "head": ["версия", "создана", "удалена", "состояние"], "start": {"note": "Строка <code>likes = 10</code>. Аналитик открыл транзакцию <b>repeatable read</b> (tx 100) и прочитал таблицу: у него есть снимок.", "rows": [["v1", "tx 90", "-", "живая"]]}, "steps": [{"ev": "UPDATE likes = 11 (tx 101)", "note": "Новая версия появилась, но старую ещё видит снимок аналитика.", "rows": [["v1", "tx 90", "tx 101", "нужна снимку tx 100"], ["v2", "tx 101", "-", "живая"]], "hl": [1], "bad": [0]}, {"ev": "UPDATE likes = 12 (tx 102)", "note": "Версий всё больше. Аналитик ушёл на обед, транзакция висит.", "rows": [["v1", "tx 90", "tx 101", "нужна снимку tx 100"], ["v2", "tx 101", "tx 102", "мёртвая"], ["v3", "tx 102", "-", "живая"]], "hl": [2], "bad": [0, 1]}, {"ev": "VACUUM", "note": "Горизонт очистки стоит на tx 100. Всё, что удалено позже этого момента, убирать <b class=\"bad\">нельзя</b>: таблица раздувается, сколько бы раз ни запускали VACUUM.", "rows": [["v1", "tx 90", "tx 101", "остаётся"], ["v2", "tx 101", "tx 102", "остаётся"], ["v3", "tx 102", "-", "живая"]], "hl": [], "bad": [0, 1]}, {"ev": "pg_terminate_backend(аналитик)", "note": "Снимок исчез, горизонт поехал вперёд.", "rows": [["v1", "tx 90", "tx 101", "мёртвая"], ["v2", "tx 101", "tx 102", "мёртвая"], ["v3", "tx 102", "-", "живая"]], "hl": [2], "bad": [0, 1]}, {"ev": "VACUUM", "note": "Теперь версии v1 и v2 не нужны никому и <b>освобождаются</b>.", "rows": [["v1", "-", "-", "свободно"], ["v2", "-", "-", "свободно"], ["v3", "tx 102", "-", "живая"]], "hl": [0, 1, 2], "bad": []}]}, "hot": {"name": "HOT-обновление", "table": "страница таблицы и индекс", "head": ["что", "состояние"], "start": {"note": "Страница таблицы со свободным местом. Индекс по первичному ключу указывает на первую версию.", "rows": [["индекс (id) →", "v1"], ["страница", "v1 (likes = 10), свободно 2 места"]]}, "steps": [{"ev": "UPDATE likes = 11, индекса по likes нет", "note": "Новая версия помещается на ту же страницу, а индексированный столбец не менялся. Индекс остаётся как был: версии связаны цепочкой внутри страницы (<b>HOT</b>).", "rows": [["индекс (id) →", "v1 (по цепочке до v2)"], ["страница", "v1 → v2 (likes = 11), свободно 1 место"]], "hl": [1], "bad": []}, {"ev": "ещё 5 обновлений", "note": "Страница заполняется. Пока есть место и пока старые версии можно подрезать при чтении страницы, обновления остаются дешёвыми.", "rows": [["индекс (id) →", "v1 (по цепочке до v7)"], ["страница", "v1 … v7, свободного места нет"]], "hl": [1], "bad": []}, {"ev": "ещё одно обновление", "note": "Новой версии негде лежать на этой странице: обновление уходит на другую страницу и <b class=\"bad\">должно записаться во все индексы</b>. Поэтому горячим таблицам оставляют запас (fillfactor).", "rows": [["индекс (id) →", "v1 и новая запись на другую страницу"], ["страница", "полная"]], "hl": [], "bad": [0, 1]}]}};
+  var $ = function (id) { return document.getElementById(id); };
+  var i = 0, timer = null, total = 0;
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function render() {
+    var sc = SC[$('mode').value]; total = sc.steps.length;
+    var log = [];
+    for (var k = 0; k < i; k++) log.push((k === i - 1 ? '> ' : '  ') + sc.steps[k].ev);
+    $('log').textContent = log.join('\n') || '(пока ничего)';
+    var st = i > 0 ? sc.steps[i - 1] : sc.start;
+    $('thead').textContent = sc.table;
+    $('tbl').innerHTML = '<tr>' + sc.head.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr>' + st.rows.map(function (r, idx) {
+      var cls = (st.hl || []).indexOf(idx) >= 0 ? 'a1' : ((st.bad || []).indexOf(idx) >= 0 ? 'a2' : '');
+      return '<tr class="' + cls + '">' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    $('note').innerHTML = st.note;
+    $('counter').textContent = 'шаг ' + i + ' из ' + total;
+    $('step').disabled = i >= total;
+    if (i >= total) stop();
+  }
+  function reset() { stop(); i = 0; render(); }
+  $('step').onclick = function () { if (i < total) { i++; render(); } };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () {
+    if (timer) { stop(); return; }
+    if (i >= total) i = 0;
+    $('play').textContent = 'Пауза';
+    timer = setInterval(function () { if (i >= total) { stop(); return; } i++; render(); }, 1400);
+    i++; render();
+  };
+  reset();
+})();
+</script>
+</body>
+</html>

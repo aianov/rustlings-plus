@@ -1,0 +1,33 @@
+name: rustlings
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: rustlings-postgres
+    environment:
+      POSTGRES_USER: rustlings
+      POSTGRES_PASSWORD: rustlings
+      POSTGRES_DB: rustlings
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rustlings"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  scylla:
+    image: scylladb/scylla:5.4.1
+    container_name: rustlings-scylla
+    command: --smp 1 --memory 1G --overprovisioned 1 --developer-mode 1
+    ports:
+      - "127.0.0.1:59042:9042"
+  nats:
+    image: nats:2.10.22-alpine
+    container_name: rustlings-nats
+    command: -js -sd /data
+    ports:
+      - "127.0.0.1:54222:4222"
+  redis:
+    image: redis:7-alpine
+    container_name: rustlings-redis
+    ports:
+      - "127.0.0.1:56379:6379"

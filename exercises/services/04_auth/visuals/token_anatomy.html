@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Устройство токена</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+svg .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+#caption { margin-top: 12px; min-height: 90px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Устройство токена и порядок проверки</h1>
+  <p class="sub">Подпись проверяется первой: пока она не сошлась, всё внутри токена написано кем угодно.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 380" role="img" aria-label="Устройство токена и порядок проверки">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene");
+
+const CHECKS = ["разобрать три части", "алгоритм HS256 (строго)", "kid: найти ключ", "подпись (HMAC)", "срок exp и nbf", "издатель iss и аудитория aud"];
+const SCEN = {
+  good: { title: "честный токен", token: ["eyJhbGciOiJIUzI1NiIs…", "eyJzdWIiOiJ1LTEiLCJyb2xlIjoidXNlciJ9", "q3x…"], steps: [
+    { c: 0, ok: true, text: "Токен делится по точкам на заголовок, данные и подпись. Каждая часть это base64url; JSON внутри ещё не заслуживает доверия." },
+    { c: 1, ok: true, text: "Алгоритм сверяется со своим списком, а не берётся на веру: у нас он один, HS256, ровно в таком написании." },
+    { c: 2, ok: true, text: "kid из заголовка выбирает ключ из связки (текущий или ещё не выведенный из оборота). Неизвестный kid это отказ." },
+    { c: 3, ok: true, text: "HMAC пересчитывается от первых двух частей и сравнивается без раннего выхода. Совпало: теперь данные написал наш сервис." },
+    { c: 4, ok: true, text: "Теперь можно читать данные. now < exp + допуск и now + допуск >= nbf: токен в своём окне." },
+    { c: 5, ok: true, text: "Издатель и аудитория свои. Результат: Claims с ролью и subject, токен принят." }
+  ]},
+  forged: { title: "подделан: роль admin", token: ["eyJhbGciOiJIUzI1NiIs…", "eyJzdWIiOiJ1LTEiLCJyb2xlIjoiYWRtaW4ifQ", "(старая подпись)"], steps: [
+    { c: 0, ok: true, text: "Формально это токен. Атакующий поменял данные: роль user стала admin, а подпись оставил прежней." },
+    { c: 1, ok: true, text: "Алгоритм в порядке, тут обмана нет." },
+    { c: 2, ok: true, text: "kid настоящий, ключ найден." },
+    { c: 3, ok: false, text: "HMAC от изменённых данных не совпал с подписью. Отказ, и больше ничего из токена мы не читаем: роль admin так и осталась словами постороннего." }
+  ]},
+  none: { title: "alg: none", token: ["eyJhbGciOiJub25lIn0…", "eyJzdWIiOiJ1LTEiLCJyb2xlIjoiYWRtaW4ifQ", "(пусто)"], steps: [
+    { c: 0, ok: true, text: "Три части, подпись пустая. Заголовок объявляет алгоритм none, то есть «подписи нет»." },
+    { c: 1, ok: false, text: "Алгоритм не из нашего списка: отказ ещё до всякой работы с подписью. Если бы сервис доверял заголовку, токен прошёл бы, и дверь открыл бы любой." }
+  ]},
+  expired: { title: "просрочен", token: ["eyJhbGciOiJIUzI1NiIs…", "eyJleHAiOjE2…", "q3x…"], steps: [
+    { c: 0, ok: true, text: "Токен разобран." },
+    { c: 1, ok: true, text: "Алгоритм верный." },
+    { c: 2, ok: true, text: "Ключ найден." },
+    { c: 3, ok: true, text: "Подпись верна: токен настоящий." },
+    { c: 4, ok: false, text: "now >= exp + допуск: срок вышел. Клиенту отвечаем «просрочен» (auth.expired), он обменяет refresh и получит новый access." }
+  ]}
+};
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const colors = ["var(--accent)", "var(--warn)", "var(--ok)"];
+  const names = ["заголовок: alg, kid", "данные: sub, role, exp…", "подпись"];
+  sc.token.forEach((part, i) => {
+    const x = 10 + i * 316;
+    el("rect", { x, y: 14, width: 308, height: 70, rx: 10, fill: "var(--box)", stroke: colors[i], "stroke-width": 2 }, scene);
+    el("text", { x: x + 12, y: 36, class: "muted" }, scene, names[i]);
+    el("text", { x: x + 12, y: 66, class: "mono" }, scene, part.length > 34 ? part.slice(0, 34) + "…" : part);
+  });
+  CHECKS.forEach((name, i) => {
+    const y = 110 + i * 42;
+    const st = sc.steps.find(s => s.c === i);
+    const reached = st && sc.steps.indexOf(st) <= idx;
+    const cur = st && sc.steps.indexOf(st) === idx;
+    el("rect", { x: 10, y, width: 940, height: 34, rx: 8, fill: "var(--panel)", stroke: cur ? "var(--accent)" : "var(--boxline)", "stroke-width": cur ? 3 : 1 }, scene);
+    el("text", { x: 24, y: y + 22, style: "font-weight:700" }, scene, (i + 1) + ". " + name);
+    if (reached) {
+      el("circle", { cx: 900, cy: y + 17, r: 11, fill: st.ok ? "var(--ok)" : "var(--bad)" }, scene);
+      el("text", { x: 900, y: y + 22, "text-anchor": "middle", style: "fill:#fff;font-weight:700" }, scene, st.ok ? "✓" : "✗");
+    } else if (idx >= 0 && !st) {
+      el("text", { x: 880, y: y + 22, class: "muted" }, scene, "не дошли");
+    }
+  });
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>Выбери токен и нажми «Шаг»: проверки идут сверху вниз и останавливаются на первом отказе.'
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + sc.steps[idx].text;
+  finish();
+}
+
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function total() { return SCEN[sel.value].steps.length; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < total() - 1) { idx++; render(); } else stop(); }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= total() - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2800);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() { btnPrev.disabled = idx < 0; btnNext.disabled = idx >= total() - 1; }
+render();
+</script>
+</body>
+</html>

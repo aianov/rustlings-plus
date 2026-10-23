@@ -1,0 +1,11 @@
+mod m07_text_commands;
+mod m08_workspace;
+mod m10_direct_messages;
+mod m11_events_notifiers;
+mod m12_feed_pages;
+mod m13_wire_contracts;
+mod m14_indexes_trends;
+mod m15_background_fanout;
+mod m17_async_core;
+mod m18_async_events;
+mod m19_async_ports;

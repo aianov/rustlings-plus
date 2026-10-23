@@ -1,0 +1,22 @@
+[package]
+name = "notifier"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[features]
+bug_overwrite = []
+bug_debounce = []
+bug_off_by_one = []
+bug_lost_tail = []
+bug_mute_pending = []
+bug_order = []
+bug_leak = []
+bug_closed_ok = []
+
+[dependencies]
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+futures = "0.3"

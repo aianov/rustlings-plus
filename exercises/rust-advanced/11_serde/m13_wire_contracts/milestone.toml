@@ -1,0 +1,28 @@
+test_command = ["cargo", "make", "check"]
+requires = []
+hint.ru = [
+"""Иди снизу вверх и гоняй тесты по крейтам: сначала `cargo test -p contracts --test m13_wire_contracts`
+(id и ник на проводе, ошибки, конверт, ответ, методы, push), потом ядро (`-p social-core`), потом
+терминал (`-p repl`). Ядру и терминалу serde не нужен: всё, что касается JSON, они берут из contracts.
+Тесты прошлых вех не меняются, но `SharedNetwork::new` и `Terminal::new` теперь отдают свои Result:
+их вызовы с `?` и `expect` продолжают работать, если у новых ошибок есть Debug.""",
+"""Формы на проводе дают атрибуты из главы. id: `serializer.collect_str(self)` и
+`String::deserialize(d)?.parse().map_err(D::Error::custom)` (или `into`/`try_from`). Осторожно с
+`"u_+5"`: `u64::from_str` принимает плюс, поэтому сначала проверь, что после префикса одни цифры.
+Плоский ответ: `#[serde(flatten)]` на `outcome` и `rename_all = "snake_case"` у `Outcome`. `Call` и
+`Reply` пишутся как свои поля: `#[serde(untagged)]`. Push: `#[serde(tag = "push", rename_all = "snake_case")]`.""",
+"""Второй этап разбора: приватная структура данных на каждый вид `data` и `T::deserialize(&envelope.data)`,
+ссылка на Value сама умеет быть Deserializer, копировать дерево не нужно. `page`, `size` и `limit` получают
+`#[serde(default = "функция")]`. Ошибка serde из Value приходит без позиции, а из `from_str` с хвостом
+` at line .. column ..`: отрежь его по `rsplit_once(" at line ")`. Вид ошибки скажет `classify()`:
+Eof это Truncated, Syntax это Syntax, Data это BadEnvelope.""",
+"""Ошибки: Display описывает только свой уровень, причина отдаётся через `source`, а `report` идёт по
+`source` до конца и склеивает через `": "`. Если в отчёте что-то повторилось дважды, чей-то Display
+пересказывает причину. `?` пересекает границу крейтов, когда есть `From`. В main:
+`fn main() -> ExitCode` зовёт `fn start() -> Result<(), Box<dyn Error + Send + Sync>>`, неизвестный флаг
+это `format!(..).into()`. JSON-режим: добавь `Arc<PushQueue>` в Notifiers до создания сети, после
+каждого ответа выпиши `drain()`.""",
+]
+story.ru = """Соцсеть заговорила на JSON: `repl --json` принимает конверты, отвечает с тем же id и сам присылает
+push о подписках, лайках и сообщениях. Сломанный ввод больше не роняет её с `Error: Custom { .. }`:
+main печатает всю цепочку причин одной понятной строкой."""

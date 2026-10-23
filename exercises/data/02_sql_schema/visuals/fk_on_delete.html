@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Внешний ключ: что делает ON DELETE</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6a7385; --line: #d9dde5;
+  --accent: #2563eb; --accent-bg: #dbe7ff; --keep: #e8f6ec; --drop: #fde8e8; --drop-text: #b42318;
+  --new: #fff4cc; --code-bg: #eef1f6; --err: #b42318;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171d; --panel: #1c212b; --text: #e6e9f0; --muted: #98a2b5; --line: #323a49;
+    --accent: #6ea0ff; --accent-bg: #23365e; --keep: #1c3326; --drop: #3b2024; --drop-text: #ff8a80;
+    --new: #4a3f12; --code-bg: #242b38; --err: #ff8a80;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 900px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.lead { color: var(--muted); margin: 0 0 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+pre.sql { margin: 0; font: 15px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; }
+pre.sql .ln { display: block; padding: 0 8px; border-radius: 5px; border-left: 3px solid transparent; color: var(--muted); }
+pre.sql .ln.on { background: var(--accent-bg); border-left-color: var(--accent); color: var(--text); }
+.pipeline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.stage { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.stage.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.stage.done { color: var(--text); border-color: var(--accent); }
+.arrow { color: var(--muted); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+th.new, td.new { background: var(--new); }
+tr.keep td { background: var(--keep); }
+tr.drop td { background: var(--drop); color: var(--drop-text); text-decoration: line-through; }
+tr.drop td.new { background: var(--drop); }
+.note { min-height: 3.2em; }
+.note b { color: var(--accent); }
+.err { color: var(--err); font-family: ui-monospace, Menlo, monospace; margin-top: 8px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+.counter { color: var(--muted); }
+.tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.tables h3 { margin: 0 0 6px; font-size: 14px; color: var(--muted); font-weight: 600; }
+tr.null td.v { background: var(--new); }
+tr.sel td { outline: 2px solid var(--accent); outline-offset: -2px; }
+select { font: inherit; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Что происходит при удалении родителя</h1>
+  <p class="lead">Удаляем пользователя alice. Посты ссылаются на автора, комментарии на пост. Выбери правило ON DELETE у ссылки posts.author_id и пройди по шагам. Ссылка comments.post_id всегда CASCADE.</p>
+  <div class="card controls"><span class="counter">posts.author_id REFERENCES users ON DELETE</span>
+    <select id="rule"><option>CASCADE</option><option>SET NULL</option><option>RESTRICT / NO ACTION</option></select></div>
+  <div class="card"><pre class="sql" id="sql">DELETE FROM users WHERE id = 1;</pre></div>
+  <div class="card tables" id="tables"></div>
+  <div class="card note" id="note"></div>
+  <div class="card controls">
+    <button class="primary" id="step">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+</main>
+<script>
+const USERS = [[1, 'alice'], [2, 'bob']];
+const POSTS = [[1, 1, 'Hello'], [2, 1, 'Rust'], [3, 2, 'Coffee']];
+const COMMENTS = [[1, 1, 'nice'], [2, 1, 'thanks'], [3, 3, 'mmm']];
+let step = 0, timer = null;
+
+function state() {
+  const rule = document.getElementById('rule').value;
+  const s = { users: USERS.map(r => ({ c: r, k: '' })), posts: POSTS.map(r => ({ c: [...r], k: '' })),
+    comments: COMMENTS.map(r => ({ c: [...r], k: '' })), note: '', last: 3 };
+  s.note = 'Три таблицы связаны ссылками. Жми «Шаг».';
+  if (step >= 1) { s.users[0].k = 'sel'; s.note = '<b>DELETE FROM users WHERE id = 1</b>: Postgres должен решить, что делать со строками, которые ссылаются на alice.'; }
+  if (step >= 2) {
+    if (rule === 'CASCADE') {
+      s.users[0].k = 'drop'; s.posts.forEach(p => { if (p.c[1] === 1) p.k = 'drop'; });
+      s.note = '<b>CASCADE</b>: вместе с пользователем удаляются все его посты. Это сработало за пределами твоего DELETE.';
+    } else if (rule === 'SET NULL') {
+      s.users[0].k = 'drop'; s.posts.forEach(p => { if (p.c[1] === 1) { p.c[1] = 'NULL'; p.k = 'null'; } });
+      s.note = '<b>SET NULL</b>: посты остаются, но автора у них больше нет. Столбец author_id должен допускать NULL.';
+    } else {
+      s.err = 'ERROR: update or delete on table "users" violates foreign key constraint';
+      s.note = '<b>RESTRICT / NO ACTION</b>: у alice есть посты, поэтому удаление отвергнуто целиком. Ничего не изменилось.';
+    }
+  }
+  if (step >= 3) {
+    if (rule === 'CASCADE') {
+      s.comments.forEach(c => { if (c.c[1] === 1) c.k = 'drop'; });
+      s.note = 'Каскад идёт дальше: комментарии под удалёнными постами сами ссылаются на посты (CASCADE), и тоже исчезают. Одна команда убрала пять строк.';
+    } else if (rule === 'SET NULL') {
+      s.note = 'Комментарии под постами alice на месте: посты не удалялись. Данные сохранены, но «сирот» теперь придётся обрабатывать в запросах (author_id IS NULL).';
+    } else {
+      s.note = 'Хочешь удалить alice, сначала разберись с её постами сам. База не даст сделать это случайно.';
+    }
+  }
+  return s;
+}
+
+function table(title, head, rows) {
+  const body = rows.map(r => `<tr class="${r.k}">` + r.c.map(v => `<td class="${v === 'NULL' ? 'v' : ''}">${v}</td>`).join('') + '</tr>').join('');
+  return `<div><h3>${title}</h3><table><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>${body}</table></div>`;
+}
+
+function render() {
+  const s = state();
+  document.getElementById('tables').innerHTML =
+    table('users', ['id', 'username'], s.users) + table('posts', ['id', 'author_id', 'body'], s.posts) +
+    table('comments', ['id', 'post_id', 'body'], s.comments);
+  document.getElementById('note').innerHTML = (s.err ? `<div class="err">${s.err}</div>` : '') + s.note;
+  document.getElementById('counter').textContent = `шаг ${step} из ${s.last}`;
+  document.getElementById('step').disabled = step >= s.last;
+  if (step >= s.last) stop();
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; } document.getElementById('play').textContent = 'Играть'; }
+function next() { if (step < 3) { step++; render(); } else stop(); }
+document.getElementById('step').onclick = () => { stop(); next(); };
+document.getElementById('play').onclick = () => {
+  if (timer) { stop(); return; }
+  if (step >= 3) step = 0;
+  render();
+  document.getElementById('play').textContent = 'Пауза';
+  timer = setInterval(next, 1800);
+};
+document.getElementById('reset').onclick = () => { stop(); step = 0; render(); };
+document.getElementById('rule').onchange = () => { stop(); step = 0; render(); };
+render();
+</script>
+</body>
+</html>

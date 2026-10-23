@@ -1,0 +1,56 @@
+[chapter]
+title.en = "Hashmaps"
+title.ru = "Хеш-таблицы"
+
+[[exercises]]
+name = "hashmaps1"
+hint.en = """
+The number of fruits should be at least 5 and you have to put at least 3
+different types of fruits."""
+hint.ru = """Фруктов должно быть не меньше 5, и положить нужно как минимум 3
+разных вида фруктов."""
+
+[[exercises]]
+name = "hashmaps2"
+hint.en = """
+Use the `entry()` and `or_insert()` methods of `HashMap` to achieve this.
+
+Learn more in The Book:
+https://doc.rust-lang.org/book/ch08-03-hash-maps.html#only-inserting-a-value-if-the-key-has-no-value"""
+hint.ru = """Используй методы `entry()` и `or_insert()` у `HashMap`.
+
+Подробнее в книге:
+https://doc.rust-lang.ru/book/ch08-03-hash-maps.html"""
+
+[[exercises]]
+name = "hashmaps3"
+hint.en = """
+Hint 1: Use the `entry()` and `or_default()` methods of `HashMap` to insert the
+        default value of `TeamScores` if a team doesn't exist in the table yet.
+
+Hint 2: If there is already an entry for a given key, the value returned by
+        `entry()` can be updated based on the existing value.
+
+Learn more in The Book:
+https://doc.rust-lang.org/book/ch08-03-hash-maps.html#updating-a-value-based-on-the-old-value"""
+hint.ru = """Подсказка 1: используй методы `entry()` и `or_default()` у `HashMap`, чтобы вставить
+             значение `TeamScores` по умолчанию, если команды ещё нет в таблице.
+
+Подсказка 2: если запись для ключа уже есть, значение, которое возвращает
+             `entry()`, можно обновить с учётом существующего значения.
+
+Подробнее в книге:
+https://doc.rust-lang.ru/book/ch08-03-hash-maps.html"""
+
+[[exercises]]
+name = "quiz2"
+quiz = true
+hint.en = """
+The `+` operator can concatenate a `String` with a `&str`."""
+hint.ru = """Оператор `+` умеет склеивать `String` со `&str`."""
+
+[[exercises]]
+name = "m02_follow_graph"
+kind = "milestone"
+journey = "backend"
+quiz = true

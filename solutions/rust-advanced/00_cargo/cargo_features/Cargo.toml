@@ -1,0 +1,14 @@
+[package]
+name = "logfmt"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+colorize = { path = "crates/colorize", optional = true }
+
+[features]
+default = ["json"]
+json = []
+color = ["dep:colorize"]
+
+[workspace]

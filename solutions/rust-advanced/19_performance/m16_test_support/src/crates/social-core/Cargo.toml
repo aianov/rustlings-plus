@@ -1,0 +1,16 @@
+[package]
+name = "social-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+contracts.workspace = true
+worker-pool.workspace = true
+
+[dev-dependencies]
+test-support = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

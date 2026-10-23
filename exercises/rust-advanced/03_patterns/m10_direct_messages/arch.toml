@@ -1,0 +1,342 @@
+[[rules]]
+kind = "exists"
+paths = [
+  "Cargo.toml",
+  "Makefile",
+  "Makefile.toml",
+  ".env.example",
+  ".env",
+  ".cargo/config.toml",
+  "rust-toolchain.toml",
+  "rustfmt.toml",
+  "clippy.toml",
+  "src/crates/contracts/Cargo.toml",
+  "src/crates/contracts/src/lib.rs",
+  "src/crates/contracts/src/ids/mod.rs",
+  "src/crates/contracts/src/username/mod.rs",
+  "src/crates/contracts/src/command/mod.rs",
+  "src/crates/contracts/src/chat/mod.rs",
+  "src/crates/contracts/src/input/mod.rs",
+  "src/crates/social-core/Cargo.toml",
+  "src/crates/social-core/src/lib.rs",
+  "src/crates/social-core/src/commands/mod.rs",
+  "src/crates/social-core/src/chat/mod.rs",
+  "src/crates/social-core/src/domain/mod.rs",
+  "src/crates/social-core/src/network/mod.rs",
+  "src/crates/social-core/src/network/feed.rs",
+  "src/crates/social-core/src/notify/mod.rs",
+  "src/crates/social-core/src/ports/mod.rs",
+  "src/crates/social-core/src/shared/mod.rs",
+  "src/crates/social-core/src/storage/mod.rs",
+  "tools/repl/Cargo.toml",
+  "tools/repl/build.rs",
+  "tools/repl/src/main.rs",
+  "tools/repl/src/lib.rs",
+  "tools/repl/src/session/mod.rs",
+  "tools/repl/src/terminal/mod.rs",
+  "tools/xtask/Cargo.toml",
+  "tools/xtask/src/main.rs",
+]
+message.ru = "Не хватает файла из дерева вехи. Разбор строк (Command, ChatCommand, Input) живёт в src/crates/contracts, переписка в src/crates/social-core/src/chat, автомат сессии в tools/repl/src/session, терминал в tools/repl/src/terminal, скрипты разработчика в tools/xtask, файлы окружения в корне. Если нет .env, скопируй его из .env.example."
+
+[[rules]]
+kind = "allowed_children"
+dirs = ["src"]
+allowed = ["crates"]
+message.ru = "В src/ корня теперь только папка crates/. Старые модули пакета backend переехали в src/crates/social-core/src и src/crates/contracts/src."
+
+[[rules]]
+kind = "absent"
+globs = ["tests/*.rs"]
+message.ru = "В корне воркспейса нет пакета, поэтому tests/*.rs там никто не скомпилирует, и тесты молча перестанут работать. Тесты прошлых вех живут в tests/ своих пакетов."
+
+[[rules]]
+kind = "not_contains"
+globs = ["Cargo.toml"]
+regex = '^\[package\]'
+message.ru = "Корневой Cargo.toml виртуальный: в нём [workspace] и общие таблицы, а [package] нет. Пакеты это src/crates/* и tools/*."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = 'resolver = "3"'
+message.ru = "В виртуальном корне нужна строка `resolver = \"3\"` в [workspace]: у корня нет edition, и без неё cargo молча возьмёт старый резолвер."
+
+[[rules]]
+kind = "workspace_members"
+members = ["src/crates/social-core", "src/crates/contracts", "tools/repl", "tools/xtask"]
+message.ru = "В [workspace] members не попадают все пакеты. Удобнее всего две маски: \"src/crates/*\" и \"tools/*\"."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = '^\[workspace.package\]'
+message.ru = "Общие поля пакетов (version, edition, rust-version, publish) живут в [workspace.package] корня."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/*/Cargo.toml", "tools/repl/Cargo.toml", "tools/xtask/Cargo.toml"]
+regex = '^version.workspace = true'
+message.ru = "Версию пакет наследует из корня: `version.workspace = true`. Тогда версия у всех одна и правится в одном месте."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/*/Cargo.toml", "tools/repl/Cargo.toml", "tools/xtask/Cargo.toml"]
+regex = '^edition.workspace = true'
+message.ru = "Edition пакет наследует из корня: `edition.workspace = true`."
+
+[[rules]]
+kind = "workspace_deps"
+packages = ["src/crates/*", "tools/repl", "tools/xtask"]
+message.ru = "Зависимость объявлена в пакете напрямую. Все зависимости, и внутренние крейты тоже, описываются в [workspace.dependencies] корня, а в пакете `имя.workspace = true`."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/contracts"
+allow_only = []
+message.ru = "contracts это нижний слой: типы, ники, команды. Он ни от кого не зависит, а ядро и терминал зависят от него. Стрелки идут только вниз."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/social-core"
+forbid = ["repl"]
+message.ru = "Ядро не знает про терминал: repl зависит от social-core, а не наоборот."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = '^\[workspace.lints'
+message.ru = "Правила проверок общие для всех: [workspace.lints.rust] и [workspace.lints.clippy] в корне."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = 'unsafe_code = "forbid"'
+message.ru = "В [workspace.lints.rust] нужен `unsafe_code = \"forbid\"`: соцсети unsafe не нужен, и пусть компилятор это гарантирует."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = 'unwrap_used = "deny"'
+message.ru = "В [workspace.lints.clippy] нужен `unwrap_used = \"deny\"`: договорённость «без unwrap» теперь проверяет clippy, в том числе в тестах (там вместо него expect с объяснением)."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/*/Cargo.toml", "tools/repl/Cargo.toml", "tools/xtask/Cargo.toml"]
+regex = '^workspace = true'
+message.ru = "Пакет не подключил общие правила. Без `[lints]` и строки `workspace = true` под ней правила корня на него не действуют, и никто этого не заметит."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = '^\[profile.release\]'
+message.ru = "Профиль релизной сборки задаётся в корне воркспейса: [profile.release] в пакетах cargo игнорирует."
+
+[[rules]]
+kind = "contains"
+globs = ["tools/repl/build.rs"]
+regex = 'rustc-env=REPL_VERSION='
+message.ru = "build.rs терминала должен передавать строку версии в компиляцию: `cargo::rustc-env=REPL_VERSION=...`."
+
+[[rules]]
+kind = "contains"
+globs = ["tools/repl/src/main.rs"]
+regex = 'env!\("REPL_VERSION"\)'
+message.ru = "Строку для --version main.rs берёт из build.rs через `env!(\"REPL_VERSION\")`, а не пишет руками."
+
+[[rules]]
+kind = "max_lines"
+globs = ["tools/repl/src/main.rs"]
+max = 40
+message.ru = "tools/repl/src/main.rs разросся. main только читает строки и печатает ответы Terminal: сессия живёт в session/, разбор в contracts, исполнение в social-core."
+
+[[rules]]
+kind = "uniform_modules"
+roots = ["src/crates/social-core/src", "src/crates/contracts/src", "tools/repl/src", "tools/xtask/src"]
+message.ru = "В одной папке смешаны файлы-модули и папки-модули. Рядом с lib.rs лежат только папки-модули, внутри папок только файлы .rs."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/lib.rs", "tools/repl/src/lib.rs"]
+regex = 'struct '
+message.ru = "lib.rs крейта это фасад: только `mod ...;` и `pub use ...;`. Структуры живут в модулях."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/lib.rs", "tools/repl/src/lib.rs"]
+regex = 'enum '
+message.ru = "lib.rs крейта это фасад: только `mod ...;` и `pub use ...;`. Перечисления живут в модулях."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/lib.rs", "tools/repl/src/lib.rs"]
+regex = 'impl[ <]'
+message.ru = "lib.rs крейта это фасад: только `mod ...;` и `pub use ...;`. Методы пишутся рядом со своими типами."
+
+[[rules]]
+kind = "absent"
+globs = ["**/utils.rs", "**/helpers.rs"]
+message.ru = "Файлы-свалки utils.rs и helpers.rs не заводим: положи функцию в модуль, которому она принадлежит."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/**/*.rs", "tools/**/*.rs"]
+regex = 'allow\(dead_code\)'
+message.ru = "Глушилка `allow(dead_code)` не нужна: пусть компилятор подсказывает про забытый код."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/**/*.rs", "tools/*/src/**/*.rs", "tools/*/build.rs"]
+regex = '\.unwrap\(\)'
+message.ru = "В коде нашёлся `.unwrap()`. Верни `Result` или `Option` и пробрось ошибку через `?`."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/**/*.rs", "tools/*/src/**/*.rs", "tools/*/build.rs"]
+regex = 'panic!'
+message.ru = "В коде нашёлся `panic!`. Правила соцсети нарушаются каждый день, это не повод падать: верни ошибку."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/social-core/src/domain/**/*.rs", "src/crates/social-core/src/network/**/*.rs", "src/crates/social-core/src/commands/**/*.rs", "src/crates/social-core/src/chat/**/*.rs"]
+regex = 'storage::'
+message.ru = "Домен, сеть, переписка и команды не знают про storage: они работают через трейты UserStore и PostStore или через SharedNetwork."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/social-core/src/network/**/*.rs"]
+regex = 'Vec<Post>'
+message.ru = "В network/ остался свой Vec<Post>. Посты хранит PostStore, а Network только просит его."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/social-core/src/network/feed.rs"]
+regex = '#\[cfg\(test\)\]'
+message.ru = "В network/feed.rs пропали твои тесты ленты. Верни `#[cfg(test)] mod tests`."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/social-core/src/network/feed.rs"]
+regex = '\.clone\(\)'
+message.ru = "В ленте нашёлся `.clone()`. Лента отдаёт ссылки на посты из хранилища, копировать ничего не нужно."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/social-core/src/notify/mod.rs"]
+regex = 'mpsc'
+message.ru = "Уведомления идут через канал std::sync::mpsc и фоновый поток."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/social-core/src/notify/mod.rs"]
+regex = 'spawn'
+message.ru = "В notify/ нет фонового потока, который раскладывает уведомления по ящикам."
+
+[[rules]]
+kind = "not_contains"
+globs = [
+  "src/crates/social-core/src/domain/**/*.rs",
+  "src/crates/social-core/src/network/**/*.rs",
+  "src/crates/social-core/src/ports/**/*.rs",
+  "src/crates/social-core/src/storage/**/*.rs",
+  "src/crates/social-core/src/chat/**/*.rs",
+  "src/crates/contracts/src/**/*.rs",
+]
+regex = 'std::sync'
+message.ru = "Network, переписка, хранилища и contracts остаются однопоточными. Замки, Arc и каналы живут только в shared/ и notify/ ядра."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/**/*.rs", "tools/**/*.rs"]
+regex = 'static mut'
+message.ru = "`static mut` это общая память без всякой защиты. Общее состояние живёт в Arc<Mutex<...>>."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile"]
+regex = '^\.PHONY:'
+message.ru = "В Makefile нет .PHONY. Цели build, run, test, fmt, lint, check это команды, а не файлы: без .PHONY одноимённая папка или файл молча выключит цель."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile"]
+regex = '^SERVICE \?= '
+message.ru = "Сервис для `make run` задаётся через `SERVICE ?= repl`: так его можно переопределить и аргументом make, и переменной окружения."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = '^\[tasks.check\]'
+message.ru = "В Makefile.toml нет задачи [tasks.check]: с этой вехи курс проверяет соцсеть командой `cargo make check`."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = 'default_to_workspace = false'
+message.ru = "В [config] Makefile.toml нужен `default_to_workspace = false`, иначе cargo-make выполнит каждую задачу в каждом члене воркспейса."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = 'defaults_only = true'
+message.ru = ".env подключается через env_files с `defaults_only = true`: файл дополняет окружение, но переменная из оболочки сильнее."
+
+[[rules]]
+kind = "contains"
+globs = ["rust-toolchain.toml"]
+regex = 'channel = "\d+\.\d+\.\d+"'
+message.ru = "rust-toolchain.toml закрепляет точную версию компилятора (например, \"1.88.0\"). `stable` плывёт, и закрепление ничего не закрепляет."
+
+[[rules]]
+kind = "contains"
+globs = ["rustfmt.toml"]
+regex = 'use_field_init_shorthand = true'
+message.ru = "В rustfmt.toml нужен `use_field_init_shorthand = true`: `Point { x: x }` пишем как `Point { x }`."
+
+[[rules]]
+kind = "contains"
+globs = ["clippy.toml"]
+regex = 'disallowed-methods'
+message.ru = "clippy.toml должен запрещать хотя бы std::process::exit через disallowed-methods: из main возвращаем ExitCode."
+
+[[rules]]
+kind = "deps"
+package = "tools/repl"
+allow_only = ["contracts", "social-core"]
+message.ru = "Терминалу хватает двух крейтов: contracts (разбор строк) и social-core (исполнение)."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/contracts/src/**/*.rs"]
+regex = '_ =>'
+message.ru = "В contracts нашлась ветка `_ =>`. Она молча проглотит новый вариант enum или новую форму команды. Назови каждую ветку, а для неизвестного имени команды привяжи его: `(other, _) =>`."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/chat/mod.rs"]
+regex = 'let .+ else \{'
+message.ru = "Ранний выход в разборе команд сессии пишется через let-else: `let Some(name) = first.strip_prefix('/') else { ... };`."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/chat/mod.rs"]
+regex = '@ \.\.'
+message.ru = "Слова команды разбираются срезовыми образцами, а текст сообщения это хвост среза: `[to, text @ ..]`."
+
+[[rules]]
+kind = "not_contains"
+globs = ["tools/repl/src/session/**/*.rs"]
+regex = '_ =>'
+message.ru = "В автомате сессии нашлась ветка `_ =>`. Каждое сочетание состояния и команды должно быть названо, тогда новая команда не пройдёт мимо компилятора."
+
+[[rules]]
+kind = "not_contains"
+globs = ["tools/repl/src/session/**/*.rs"]
+regex = ', _\) =>'
+message.ru = "В автомате сессии нашлась ветка «любая команда» вида `(состояние, _) =>`. Перечисли команды через `|`: так видно, что именно запрещено в этом состоянии."
+
+[[rules]]
+kind = "not_contains"
+globs = ["tools/repl/src/session/**/*.rs"]
+regex = 'social_core'
+message.ru = "Автомат сессии чистый: он решает, куда перейти и что сделать, но сеть не трогает. Действия исполняет терминал (terminal/) через social-core."

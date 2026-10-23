@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package posts.v1;
+
+service Posts {
+  rpc CreatePost (CreatePostRequest) returns (Post);
+}
+
+enum Visibility {
+  VISIBILITY_UNSPECIFIED = 0;
+  VISIBILITY_PUBLIC = 1;
+  VISIBILITY_FOLLOWERS = 2;
+}
+
+message CreatePostRequest {
+  uint64 author_id = 1;
+  string text = 2;
+  Visibility visibility = 3;
+}
+
+message Post {
+  uint64 id = 1;
+  uint64 author_id = 2;
+  string text = 3;
+  Visibility visibility = 4;
+}

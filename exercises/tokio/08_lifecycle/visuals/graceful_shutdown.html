@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Корректная остановка</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.cols { display:flex; gap:10px; flex-wrap:wrap; }
+.col { flex:1 1 170px; min-width:150px; border:1px solid var(--line); border-radius:8px; padding:8px; background:var(--bg); }
+.col h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.chip { display:block; margin:4px 0; padding:6px 10px; border-radius:8px; border:2px solid var(--line); font:600 13px ui-monospace,Menlo,monospace; background:var(--panel); }
+.chip.a { border-color:var(--a); } .chip.b { border-color:var(--b); } .chip.ok { border-color:var(--ok); color:var(--ok); } .chip.bad { border-color:var(--bad); color:var(--bad); }
+.chip.gone { opacity:.5; text-decoration:line-through; border-style:dashed; }
+.empty { color:var(--muted); font-size:13px; font-style:italic; }
+code { font:13px ui-monospace,Menlo,monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+.verdict { margin-top:10px; padding:8px 12px; border-radius:8px; border:2px solid var(--line); font:600 14px system-ui,sans-serif; }
+.verdict.ok { border-color:var(--ok); color:var(--ok); } .verdict.bad { border-color:var(--bad); color:var(--bad); } .verdict.info { color:var(--muted); }
+</style>
+</head>
+<body>
+<h1>Как сервис останавливается красиво</h1>
+<p class="sub">Сигнал идёт по дереву токенов, учёт задач дожидается всех, а упрямые получают abort по дедлайну.</p>
+<div class="modes" id="modes"></div>
+<div class="panel" id="view"></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+<script>
+const MODES = {"calm": {"label": "Все слушаются", "small": "остановка по течению данных", "steps": [{"cols": [{"h": "Токены", "items": [{"t": "root: жив", "s": "ok"}, {"t": "ticker: жив", "s": "ok"}, {"t": "workers: жив", "s": "ok"}]}, {"h": "Задачи", "items": [{"t": "тикер", "s": "a"}, {"t": "воркер 1", "s": "a"}, {"t": "воркер 2", "s": "a"}, {"t": "актор результатов", "s": "b"}]}, {"h": "Учёт", "items": [{"t": "живых: 4", "s": ""}]}], "v": {"k": "info", "t": "Сервис работает"}, "cap": "Токены собраны в дерево: у тикера и воркеров свои токены-дети. Учёт знает, что в работе четыре задачи."}, {"cols": [{"h": "Токены", "items": [{"t": "root: ОТМЕНЁН", "s": "bad"}, {"t": "ticker: отменён", "s": "bad"}, {"t": "workers: отменён", "s": "bad"}]}, {"h": "Задачи", "items": [{"t": "тикер: видит сигнал", "s": "a"}, {"t": "воркер 1", "s": "a"}, {"t": "воркер 2", "s": "a"}, {"t": "актор результатов", "s": "b"}]}, {"h": "Учёт", "items": [{"t": "живых: 4", "s": ""}]}], "v": {"k": "info", "t": "Сигнал дошёл до всех сразу"}, "cap": "Отмена корня видна всем детям мгновенно: токен спрашивает предков, а не ждёт пересылки. Но у сигнала разные последствия: тикеру велено остановиться, а воркерам сначала доделать взятое."}, {"cols": [{"h": "Токены", "items": [{"t": "root: отменён", "s": "bad"}]}, {"h": "Задачи", "items": [{"t": "тикер: вышел", "s": "gone"}, {"t": "воркер 1: доделывает очередь", "s": "a"}, {"t": "воркер 2: доделывает очередь", "s": "a"}, {"t": "актор результатов", "s": "b"}]}, {"h": "Учёт", "items": [{"t": "живых: 3", "s": ""}]}], "v": {"k": "ok", "t": "Новая работа больше не рождается"}, "cap": "Первым остановился источник: он выбросил отправителя очереди. Всё, что уже лежит в очереди, воркеры доработают. Порядок такой: сначала то, что порождает работу."}, {"cols": [{"h": "Токены", "items": [{"t": "root: отменён", "s": "bad"}]}, {"h": "Задачи", "items": [{"t": "тикер: вышел", "s": "gone"}, {"t": "воркер 1: вышел", "s": "gone"}, {"t": "воркер 2: вышел", "s": "gone"}, {"t": "актор результатов", "s": "b"}]}, {"h": "Учёт", "items": [{"t": "живых: 1", "s": ""}]}], "v": {"k": "ok", "t": "Очередь пуста, воркеры вышли"}, "cap": "Очередь закрыта и пуста, воркеры получили <code>None</code> и вышли. Результаты последних заданий уже в канале актора."}, {"cols": [{"h": "Токены", "items": [{"t": "root: отменён", "s": "bad"}]}, {"h": "Задачи", "items": [{"t": "все вышли", "s": "gone"}]}, {"h": "Учёт", "items": [{"t": "живых: 0", "s": "ok"}, {"t": "wait() вернулся", "s": "ok"}]}], "v": {"k": "ok", "t": "Чистая остановка: ничего не потеряно"}, "cap": "Актор остановился последним, когда выброшены все, кто присылал ему результаты, поэтому ни один результат не пропал. <code>wait()</code> вернулся, живых задач нет."}]}, "stuck": {"label": "Одна задача не слушается", "small": "дедлайн и abort", "steps": [{"cols": [{"h": "Токены", "items": [{"t": "root: ОТМЕНЁН", "s": "bad"}]}, {"h": "Задачи", "items": [{"t": "воркер 1: слушается", "s": "a"}, {"t": "воркер 2: застрял в чужом коде", "s": "b"}]}, {"h": "Учёт", "items": [{"t": "живых: 2", "s": ""}, {"t": "дедлайн: 300 мс", "s": ""}]}], "v": {"k": "info", "t": "Сигнал послан, идёт отсчёт"}, "cap": "Сигнал дошёл до всех, но второй воркер завис на чужой операции и токена не проверяет. Без срока остановка висела бы вечно, поэтому у неё есть дедлайн."}, {"cols": [{"h": "Токены", "items": [{"t": "root: отменён", "s": "bad"}]}, {"h": "Задачи", "items": [{"t": "воркер 1: вышел", "s": "gone"}, {"t": "воркер 2: всё ещё работает", "s": "b"}]}, {"h": "Учёт", "items": [{"t": "живых: 1", "s": ""}, {"t": "прошло: 120 мс из 300", "s": ""}]}], "v": {"k": "info", "t": "Вежливые уже вышли, ждём упрямого"}, "cap": "Вежливая задача вышла сама и ждать до дедлайна ей не пришлось. Остановка ждёт только тех, кто ещё работает."}, {"cols": [{"h": "Токены", "items": [{"t": "root: отменён", "s": "bad"}]}, {"h": "Задачи", "items": [{"t": "воркер 2: abort()", "s": "bad"}]}, {"h": "Учёт", "items": [{"t": "живых: 1", "s": ""}, {"t": "прошло: 300 мс из 300", "s": "bad"}]}], "v": {"k": "bad", "t": "Срок вышел: принудительная остановка"}, "cap": "Дедлайн истёк. Остановка зовёт <code>abort()</code> у каждой оставшейся задачи. Но <code>abort</code> только ставит пометку: задача снимется там, где она ждёт на <code>.await</code>."}, {"cols": [{"h": "Токены", "items": [{"t": "root: отменён", "s": "bad"}]}, {"h": "Задачи", "items": [{"t": "воркер 2: уничтожен, Drop выполнен", "s": "gone"}]}, {"h": "Учёт", "items": [{"t": "живых: 0", "s": "ok"}, {"t": "остановлено силой: 1", "s": "bad"}]}], "v": {"k": "ok", "t": "Дочитали join_next: задача действительно ушла"}, "cap": "Остановка дочитала <code>join_next</code> до конца и убедилась, что задача уничтожена, а её <code>Drop</code> уже выполнен. Цикл без единого <code>.await</code> так не остановить: abort его не достанет."}]}};
+const KEYS = Object.keys(MODES);
+let mode = KEYS[0], pos = 0, timer = null;
+const $ = id => document.getElementById(id);
+function view(s) {
+  const cols = s.cols.map(c => {
+    const items = c.items.length ? c.items.map(i => `<span class="chip ${i.s || ""}">${i.t}</span>`).join("") : `<span class="empty">пусто</span>`;
+    return `<div class="col"><h2>${c.h}</h2>${items}</div>`;
+  }).join("");
+  return `<div class="cols">${cols}</div><div class="verdict ${s.v.k}">${s.v.t}</div>`;
+}
+function render() {
+  const steps = MODES[mode].steps, s = steps[pos];
+  $("view").innerHTML = view(s);
+  $("caption").innerHTML = s.cap;
+  $("counter").textContent = `шаг ${pos} из ${steps.length - 1}`;
+  const end = pos >= steps.length - 1;
+  $("step").disabled = end; $("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if (timer) { clearInterval(timer); timer = null; } $("play").textContent = "Играть"; }
+function step(){ if (pos < MODES[mode].steps.length - 1) { pos++; render(); } }
+function setMode(m){ stop(); mode = m; pos = 0; document.querySelectorAll(".mode").forEach(b => b.classList.toggle("on", b.dataset.m === m)); render(); }
+$("modes").innerHTML = KEYS.map(k => `<button class="mode ${k === mode ? "on" : ""}" data-m="${k}">${MODES[k].label}<small>${MODES[k].small}</small></button>`).join("");
+document.querySelectorAll(".mode").forEach(b => b.onclick = () => setMode(b.dataset.m));
+$("step").onclick = () => { stop(); step(); };
+$("play").onclick = () => { if (timer) { stop(); return; } $("play").textContent = "Пауза"; timer = setInterval(step, 1800); };
+$("reset").onclick = () => setMode(mode);
+render();
+</script>
+</body>
+</html>

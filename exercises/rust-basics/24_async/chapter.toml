@@ -1,0 +1,21 @@
+[chapter]
+title.en = "Async"
+title.ru = "Асинхронность"
+
+[[exercises]]
+name = "async1"
+test = false
+input_files = ["scores_class_a.txt", "scores_class_b.txt", "scores_class_c.txt"]
+hint.en = """
+Asynchronous runtimes like tokio can only spawn tasks that are defined as async
+functions, not regular ones. Add the "async" keyword before the "fn" keyword of
+the functions "tim", "carl" and "nick".
+
+An async task can wait for another one to complete by "awaiting" it. Add
+".await" after the three "task_name" variables in the "block_on" call."""
+hint.ru = """Асинхронные рантаймы вроде tokio запускают только задачи, определённые как
+async-функции, а не обычные. Добавь ключевое слово "async" перед "fn" у
+функций "tim", "carl" и "nick".
+
+Асинхронная задача может ждать завершения другой, «дожидаясь» её через await.
+Добавь ".await" после трёх переменных "task_name" в вызове "block_on"."""

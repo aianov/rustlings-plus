@@ -1,0 +1,5 @@
+[[rules]]
+kind = "exists"
+paths = ["Cargo.toml", "src/lib.rs"]
+message.en = "The project needs Cargo.toml and src/lib.rs"
+message.ru = "В проекте нужны Cargo.toml и src/lib.rs"

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>notify_waiters раньше notified: пробуждение потеряно</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+@media (max-width:700px) { .grid { grid-template-columns:1fr; } }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.code { background:var(--code); border-radius:8px; padding:6px 0; font:13px/1.55 ui-monospace,"SF Mono",Menlo,monospace; margin-bottom:8px; }
+.code div { padding:0 10px; border-left:3px solid transparent; white-space:pre; }
+.code div.cur { background:color-mix(in srgb,var(--a) 20%,transparent); border-left-color:var(--a); }
+.code .t { color:var(--muted); font:11px system-ui,sans-serif; padding:2px 10px; }
+.state { display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+.badge { padding:4px 12px; border-radius:12px; font:600 13px system-ui,sans-serif; border:2px solid var(--line); }
+.badge.on { border-color:var(--ok); color:var(--ok); } .badge.bad { border-color:var(--bad); color:var(--bad); } .badge.wait { border-color:var(--b); color:var(--b); }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+</style>
+</head>
+<body>
+<h1>notify_waiters раньше notified: пробуждение потеряно</h1>
+<p class="sub">Две задачи: подающая сигнал и ждущая. Порядок их шагов решает, проснётся ли ждущая.</p>
+
+<div class="modes">
+  <button class="mode on" id="mBad">notify_waiters(), потом notified()<small>сигнал опередил ожидание</small></button>
+  <button class="mode" id="mOk">notified() создан до проверки<small>шаблон с проверкой состояния</small></button>
+</div>
+
+<div class="grid">
+  <div class="panel"><h2>Подающая задача</h2><div class="code" id="codeP"></div></div>
+  <div class="panel"><h2>Ждущая задача</h2><div class="code" id="codeW"></div></div>
+</div>
+<div class="panel" style="margin-bottom:10px"><h2>Состояние</h2><div class="state" id="state"></div></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+
+<script>
+const P = ["ready = true;", "notify.notify_waiters();"];
+const W_BAD = ["if !ready {", "    notify.notified().await;", "}"];
+const W_OK = ["loop {", "    let n = notify.notified();", "    if ready { break; }", "    n.await;", "}"];
+const SC = {
+  bad: [
+    { p:-1, w:-1, ready:false, wake:"не подан", ws:"ещё не начала", cap:"Начало. Флаг готовности не поднят. Ждущая задача читает его первой и видит false." },
+    { p:-1, w:0, ready:false, wake:"не подан", ws:"проверила флаг: false", cap:"Ждущая задача проверила флаг и увидела false. Сейчас она собирается начать ждать, но между проверкой и ожиданием есть щель." },
+    { p:0, w:0, ready:true, wake:"не подан", ws:"проверила флаг: false", cap:"В эту щель вклинилась подающая задача: поднимает флаг." },
+    { p:1, w:0, ready:true, wake:"подан, никто не ждал", ws:"проверила флаг: false", cap:"<b>notify_waiters()</b> будит только тех, кто <b>уже</b> ждёт. Ждущих нет, и сигнал просто растворился: ничего не запомнено." },
+    { p:1, w:1, ready:true, wake:"подан, никто не ждал", ws:"спит в notified()", bad:true, cap:"Теперь ждущая задача встаёт на notified().await. Флаг давно true, но она уже не проверит его, а сигнала больше не будет. Задача спит <b>вечно</b>. Это и есть потерянное пробуждение." }
+  ],
+  ok: [
+    { p:-1, w:-1, ready:false, wake:"не подан", ws:"ещё не начала", cap:"Начало. Флаг не поднят." },
+    { p:-1, w:1, ready:false, wake:"не подан", ws:"создала Notified (ещё не ждёт)", cap:"Ждущая задача <b>сначала создаёт</b> Notified. С этого момента любой notify_waiters() его заденет, даже если опроса ещё не было." },
+    { p:-1, w:2, ready:false, wake:"не подан", ws:"проверила флаг: false", cap:"Потом проверяет флаг: false. Теперь щель есть и здесь, но она безопасна." },
+    { p:0, w:2, ready:true, wake:"не подан", ws:"проверила флаг: false", cap:"Подающая задача поднимает флаг в той же щели." },
+    { p:1, w:2, ready:true, wake:"подан, Notified заметил", ws:"проверила флаг: false", cap:"<b>notify_waiters()</b>: Notified уже создан, значит, сигнал для него сохранён." },
+    { p:1, w:3, ready:true, wake:"доставлен", ws:"n.await: готово сразу", ok:true, cap:"Ждущая задача доходит до n.await, и оно завершается немедленно: сигнал её ждал. Дальше (в цикле) она проверит флаг заново и увидит true. Пробуждение не потеряно." }
+  ]
+};
+let mode = "bad", pos = 0, timer = null;
+function lines(code, cur) { return code.map((t,i)=>`<div class="${i===cur?"cur":""}">${t}</div>`).join(""); }
+function render() {
+  const sc = SC[mode], s = sc[pos], w = mode==="bad"?W_BAD:W_OK;
+  document.getElementById("codeP").innerHTML = lines(P, s.p);
+  document.getElementById("codeW").innerHTML = lines(w, s.w);
+  document.getElementById("state").innerHTML =
+    `<span class="badge ${s.ready?"on":""}">ready = ${s.ready}</span><span class="badge">сигнал: ${s.wake}</span><span class="badge ${s.bad?"bad":(s.ok?"on":"wait")}">ждущая: ${s.ws}</span>`;
+  document.getElementById("caption").innerHTML = s.cap;
+  document.getElementById("counter").textContent = `шаг ${pos} из ${sc.length-1}`;
+  const end = pos >= sc.length-1;
+  document.getElementById("step").disabled = end; document.getElementById("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} document.getElementById("play").textContent="Играть"; }
+function step(){ if(pos<SC[mode].length-1){pos++;render();} }
+function setMode(m){ stop(); mode=m; pos=0; document.getElementById("mBad").classList.toggle("on",m==="bad"); document.getElementById("mOk").classList.toggle("on",m==="ok"); render(); }
+document.getElementById("mBad").onclick=()=>setMode("bad");
+document.getElementById("mOk").onclick=()=>setMode("ok");
+document.getElementById("step").onclick=()=>{stop();step();};
+document.getElementById("play").onclick=()=>{ if(timer){stop();return;} document.getElementById("play").textContent="Пауза"; timer=setInterval(step,1700); };
+document.getElementById("reset").onclick=()=>setMode(mode);
+render();
+</script>
+</body>
+</html>

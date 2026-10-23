@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Рассылка в комнату</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Рассылка в комнату</h1>
+  <p class="sub">Как одно сообщение превращается в доставки на все устройства участников и почему нельзя держать замок на время отправки.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Доставка на все устройства",
+  "boxes": [
+   "Алиса (телефон)",
+   "Реестр комнат",
+   "Очереди устройств",
+   "Кто получил"
+  ],
+  "steps": [
+   {
+    "t": "Алиса вызывает chat.say в комнате «кухня». В комнате двое: alice и bob. Но у Алисы два устройства, у Боба тоже два.",
+    "s": [
+     [
+      [
+       "chat.say кухня «чай?»",
+       "info"
+      ]
+     ],
+     [
+      [
+       "кухня: alice, bob",
+       "info"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Реестр берёт замок на короткое время и отбирает адресатов: все устройства всех участников, кроме соединения, откуда пришло сообщение.",
+    "s": [
+     [
+      [
+       "отправитель: соединение 1",
+       "info"
+      ]
+     ],
+     [
+      [
+       "замок взят",
+       "warn"
+      ],
+      [
+       "alice: соединения 1, 2",
+       "info"
+      ],
+      [
+       "bob: соединения 3, 4",
+       "info"
+      ]
+     ],
+     [
+      [
+       "исключено: 1",
+       "mute"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Берём копии Sender и отпускаем замок. Ждать под замком нельзя: пока мы рассылаем, никто больше не сможет войти или выйти.",
+    "s": [
+     [],
+     [
+      [
+       "замок отпущен",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "копии: 2, 3, 4",
+       "info"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "try_send в каждую очередь. Он не засыпает: если место есть, сообщение лежит в очереди, если нет, клиент считается медленным (следующая схема).",
+    "s": [
+     [],
+     [],
+     [
+      [
+       "2: «чай?» seq 1",
+       "ok"
+      ],
+      [
+       "3: «чай?» seq 1",
+       "ok"
+      ],
+      [
+       "4: «чай?» seq 1",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Каждую очередь опустошает своя задача-писатель. Номер seq у каждого соединения свой: он считает события именно для него.",
+    "s": [
+     [],
+     [],
+     [],
+     [
+      [
+       "Алиса, ноутбук",
+       "ok"
+      ],
+      [
+       "Боб, телефон",
+       "ok"
+      ],
+      [
+       "Боб, ноутбук",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Алисе, которая писала, приходит обычный ответ: ok и delivered = 3. Собственное сообщение ей как событие не возвращается.",
+    "s": [
+     [
+      [
+       "ответ {id, ok, delivered: 3}",
+       "ok"
+      ]
+     ],
+     [],
+     [],
+     [
+      [
+       "Алиса, телефон: только ответ",
+       "info"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Замок через await",
+  "boxes": [
+   "Рассылка",
+   "Замок реестра",
+   "Очередь Кэрол (полна)",
+   "Новое подключение"
+  ],
+  "steps": [
+   {
+    "t": "Рассылка берёт замок и идёт по получателям. Первый получатель Боб: его очередь свободна.",
+    "s": [
+     [
+      [
+       "для Боба: send",
+       "info"
+      ]
+     ],
+     [
+      [
+       "замок у рассылки",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "Кэрол: полна",
+       "bad"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Второй получатель Кэрол: у неё телефон в метро, очередь полна. send().await ждёт места и не отдаёт замок.",
+    "s": [
+     [
+      [
+       "для Кэрол: send ждёт",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "замок у рассылки",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "Кэрол: полна",
+       "bad"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "В это время Дэн открывает приложение. Чтобы зарегистрироваться, ему нужен тот же замок.",
+    "s": [
+     [
+      [
+       "ждёт Кэрол",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "замок у рассылки",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "Кэрол: полна",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "ждёт замок",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Теперь стоят все: рассылка ждёт Кэрол, Дэн ждёт рассылку, CPU на нуле. Один зависший телефон остановил весь шлюз.",
+    "s": [
+     [
+      [
+       "зависла",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "замок занят",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "Кэрол: полна",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "зависло",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Исправление: копии отправителей под замком, рассылка уже без замка и через try_send. Кэрол просто не получит сообщение.",
+    "s": [
+     [
+      [
+       "try_send: Боб ok, Кэрол полна",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "замок свободен",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "Кэрол: пропуск",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "Дэн вошёл сразу",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

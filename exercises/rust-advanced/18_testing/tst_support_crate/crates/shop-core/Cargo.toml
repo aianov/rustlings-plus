@@ -1,0 +1,9 @@
+[package]
+name = "shop-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+contracts = { path = "../contracts" }
+test-support = { path = "../test-support" }

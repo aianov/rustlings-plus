@@ -1,0 +1,37 @@
+use contracts::{CHAT_COMMAND_NAMES, COMMAND_NAMES, ChatCommand, Command, ParseError};
+
+#[test]
+fn network_command_names_match_the_parser() {
+    assert_eq!(
+        COMMAND_NAMES[..14],
+        [
+            "register", "post", "follow", "like", "feed", "inbox", "mute", "delete", "page",
+            "posts", "comment", "reply", "thread", "trends"
+        ],
+        "COMMAND_NAMES начинается с сетевых команд в порядке из ТЗ, новые вехи дописывают свои в конец"
+    );
+    for name in COMMAND_NAMES {
+        assert!(
+            !matches!(name.parse::<Command>(), Err(ParseError::UnknownCommand(_))),
+            "разбор Command должен знать команду {name:?} из COMMAND_NAMES"
+        );
+    }
+}
+
+#[test]
+fn chat_command_names_match_the_parser() {
+    assert_eq!(
+        CHAT_COMMAND_NAMES[..6],
+        ["/login", "/logout", "/whoami", "/msg", "/say", "/history"],
+        "CHAT_COMMAND_NAMES начинается с команд сессии вместе со слэшем, новые вехи дописывают свои в конец"
+    );
+    for name in CHAT_COMMAND_NAMES {
+        assert!(
+            !matches!(
+                name.parse::<ChatCommand>(),
+                Err(ParseError::UnknownCommand(_))
+            ),
+            "разбор ChatCommand должен знать команду {name:?} из CHAT_COMMAND_NAMES"
+        );
+    }
+}

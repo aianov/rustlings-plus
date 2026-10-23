@@ -1,0 +1,20 @@
+[config]
+default_to_workspace = false
+
+[env]
+SERVICE_SLEEP_MS = "3000"
+
+[tasks.api]
+command = "cargo"
+args = ["run", "--quiet", "-p", "api"]
+
+[tasks.auth]
+command = "cargo"
+args = ["run", "--quiet", "-p", "auth"]
+
+[tasks.worker]
+command = "cargo"
+args = ["run", "--quiet", "-p", "worker"]
+
+[tasks.run-all]
+dependencies = ["api", "auth", "worker"]

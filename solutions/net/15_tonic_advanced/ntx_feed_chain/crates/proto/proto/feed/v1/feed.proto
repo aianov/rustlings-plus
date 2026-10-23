@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package feed.v1;
+
+import "users/v1/users.proto";
+
+service Feed {
+  rpc Publish (PublishRequest) returns (PublishReply);
+  rpc Timeline (TimelineRequest) returns (stream Item);
+}
+
+message PublishRequest {
+  string text = 1;
+}
+
+message PublishReply {
+  uint64 id = 1;
+}
+
+message TimelineRequest {
+  uint32 limit = 1;
+}
+
+message Item {
+  uint64 id = 1;
+  users.v1.User author = 2;
+  string text = 3;
+}

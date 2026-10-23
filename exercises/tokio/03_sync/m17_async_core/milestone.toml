@@ -1,0 +1,33 @@
+test_command = ["cargo", "make", "check"]
+requires = []
+hint.ru = [
+"""Начни с переезда, а не с новых возможностей. `shared/mod.rs` превращается в `app/mod.rs`: та же ручка с `Arc`
+внутри, тот же `Mutex<Network>`, только методы `async fn`, ошибка `AppError`, а запуск берёт `Handle::try_current()`.
+Тело каждого метода прежнее: `Ok(self.lock().follow(who, whom)?)`. Guard живёт до конца выражения и умирает до любого
+`.await`, поэтому future остаётся `Send`. Потом команды и `serve`: `async fn` и `.await` у вызовов ядра, тексты те же.
+Старые тесты курса уже переписаны на `App` и сами покажут, где ты отстал.""",
+"""Рассылка без пула: на каждого получателя `handle.spawn(async move { notifiers.notify(user, n) })`. Чтобы `flush`
+знал, когда всё доставлено, заведи `AtomicUsize` задач в полёте и `Notify`. Счётчик увеличивай до `spawn`, а
+уменьшай в `Drop` маленькой структуры внутри задачи: так он вернётся и при панике уведомителя, и при отмене. Ожидание
+нуля: `let mut notified = pin!(idle.notified()); notified.as_mut().enable();`, только потом проверка счётчика и
+`notified.await`. Без `enable` пробуждение между проверкой и ожиданием потеряется, и `flush` уснёт навсегда.""",
+"""`run_heavy`: `timeout(op_timeout, Arc::clone(&semaphore).acquire_owned())`, потом `spawn_blocking(move || { let
+_permit = permit; job() })` и снова `timeout` на `JoinHandle`. Разрешение переезжает в замыкание: если результат
+ждать перестали, работа всё равно держит место до конца. `JoinError` у `spawn_blocking` бывает только от паники, это
+`AppError::Panicked(op)`. Тренды: под замком сети склонируй лайки и возьми `now()`, отпусти замок, `top` посчитай в
+`run_heavy`. Тикер: `interval_at(Instant::now() + every, every)`, `set_missed_tick_behavior(Skip)`, внутри цикла
+`weak.upgrade()`.""",
+"""Импорт: разбор целиком в `run_heavy`, каждая непустая строка через `line.parse::<Command>()`, допустимы только
+`Register`, `Follow` и `Post`. Записи раздели на три волны (`partition`): пользователи, подписки, посты, а посты ещё и по авторам, чтобы посты одного автора шли одной задачей в порядке файла. Окно как в tk_import: пока
+`set.len() < window`, бери следующую запись и `set.spawn_on(..)`, затем `join_next().await`. Ошибка записи это
+ранний `return`: дроп `JoinSet` отменяет всех, кто ещё в полёте. Для паники запомни `task.id()` при запуске в
+`HashMap` и найди строку по `JoinError::id()`.""",
+"""Терминал: `Builder::new_multi_thread().worker_threads(2).thread_name("repl-core").enable_all().build()`,
+`App` создавай под `let _entered = runtime.enter();`. Сетевые команды шины зовут `app.handle().block_on(..)`, это
+работает, пока `dispatch` идёт из обычного потока. В `Drop` терминала `runtime.block_on(app.flush())`, иначе
+рантайм умрёт раньше, чем лог `--log` допишет последние строки. В тестах тикера помни: `tokio::time::advance` двигает
+замороженные часы, а `std::time::Instant` они не трогают.""",
+]
+story.ru = """Ядро соцсети живёт в tokio: рассылку разносят задачи, файл стартовых данных грузится волнами не больше
+восьми записей сразу, тренды сами пересчитываются раз в минуту, а любое ожидание знает свой предел. Порт открывать ещё
+рано, но ядро к нему готово."""

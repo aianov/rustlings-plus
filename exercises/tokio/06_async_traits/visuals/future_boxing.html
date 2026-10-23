@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>async fn в трейте и Pin&lt;Box&lt;dyn Future&gt;&gt;</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+.lbl { color:var(--muted); font-size:13px; min-width:150px; }
+.slot { width:54px; height:44px; border-radius:8px; border:2px dashed var(--line); display:flex; align-items:center; justify-content:center; font:600 16px ui-monospace,Menlo,monospace; }
+.slot.full { border-style:solid; border-color:var(--a); background:color-mix(in srgb,var(--a) 14%,transparent); }
+.slot.new { border-color:var(--ok); background:color-mix(in srgb,var(--ok) 16%,transparent); }
+.slot.lost { border-style:solid; border-color:var(--bad); color:var(--bad); background:color-mix(in srgb,var(--bad) 12%,transparent); }
+.chip { min-width:40px; height:34px; padding:0 8px; border-radius:17px; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font:600 14px ui-monospace,Menlo,monospace; }
+.chip.live { border-color:var(--a); } .chip.gone { opacity:.5; text-decoration:line-through; border-style:dashed; }
+.chip.ptr { box-shadow:0 0 0 3px color-mix(in srgb,var(--b) 55%,transparent); }
+.badge { padding:4px 12px; border-radius:12px; font:600 13px system-ui,sans-serif; border:2px solid var(--line); }
+.badge.on { border-color:var(--ok); color:var(--ok); } .badge.bad { border-color:var(--bad); color:var(--bad); } .badge.wait { border-color:var(--b); color:var(--b); }
+code { font:13px ui-monospace,Menlo,monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+.code { font:13px/1.55 ui-monospace,Menlo,monospace; background:var(--code); border-radius:8px; padding:8px 10px; white-space:pre; overflow-x:auto; }
+.code .cur { background:color-mix(in srgb,var(--a) 22%,transparent); border-radius:3px; display:block; }
+.chip2 { padding:6px 12px; border-radius:8px; border:2px solid var(--line); font:600 13px ui-monospace,Menlo,monospace; background:var(--panel); }
+.chip2.a { border-color:var(--a); } .chip2.b { border-color:var(--b); } .chip2.ok { border-color:var(--ok); } .chip2.bad { border-color:var(--bad); }
+.arrow { color:var(--muted); font-size:18px; }
+.verdict { margin-top:8px; padding:8px 12px; border-radius:8px; border:2px solid var(--line); font:600 14px system-ui,sans-serif; }
+.verdict.ok { border-color:var(--ok); color:var(--ok); } .verdict.bad { border-color:var(--bad); color:var(--bad); } .verdict.info { color:var(--muted); }
+</style>
+</head>
+<body>
+<h1>Как async живёт в трейте</h1>
+<p class="sub">Метод с <code>async fn</code> удобен, но прячет тип future. Посмотри, что это значит для <code>spawn</code> и <code>dyn</code>, и чем помогает явный <code>Pin&lt;Box&lt;dyn Future + Send&gt;&gt;</code>.</p>
+<div class="modes"><button class="mode on" data-m="plain">async fn в трейте<small>удобно, но тип скрыт</small></button><button class="mode" data-m="boxed">Pin&lt;Box&lt;dyn Future + Send&gt;&gt;<small>один тип, Send записан</small></button></div>
+<div class="panel" id="view"></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+<script>
+const PLAIN = ["trait Cache {", "    async fn get(&self, key: u32) -> Option<String>;", "}", "impl Cache for MemCache  { async fn get(..) { .. } }", "impl Cache for SlowCache { async fn get(..) { sleep(..).await; .. } }"];
+const BOXED = ["trait Cache: Send + Sync {", "    fn get(&self, key: u32)", "        -> Pin<Box<dyn Future<Output = Option<String>> + Send + '_>>;", "}", "impl Cache for MemCache  { fn get(..) { Box::pin(async move { .. }) } }", "impl Cache for SlowCache { fn get(..) { Box::pin(async move { sleep(..).await; .. }) } }"];
+const SC = {
+  plain: [
+    { code:PLAIN, cur:[0,1,2], chips:[], v:{k:"info", t:"Трейт объявлен через async fn"}, cap:"Так выглядит порт с <code>async fn</code>. Писать удобно: тело реализации выглядит как обычная функция." },
+    { code:PLAIN, cur:[3,4], chips:[{t:"MemCache::get → Future#1 (анонимный тип)", s:"a"},{t:"SlowCache::get → Future#2 (другой анонимный тип)", s:"b"}], v:{k:"info", t:"У каждой реализации свой скрытый тип future"}, cap:"Компилятор превращает метод в <code>fn get(&self, key) -> impl Future&lt;Output = ..&gt;</code>. Для каждой реализации тип свой, и в общем коде о нём известно только, что он «какой-то future»." },
+    { code:PLAIN, cur:[], chips:[{t:"fn warm&lt;C: Cache&gt;(c: Arc&lt;C&gt;) { spawn(async move { c.get(1).await }) }", s:"a"},{t:"spawn требует: future: Send + 'static", s:"b"}], v:{k:"bad", t:"future cannot be sent between threads safely"}, cap:"В обобщённом коде <code>spawn</code> просит <code>Send</code>, а трейт его не обещал. Компилятор не угадывает: для какой-то реализации future может держать <code>Rc</code> через <code>.await</code>. Отказ." },
+    { code:PLAIN, cur:[], chips:[{t:"let layers: Vec&lt;Arc&lt;dyn Cache&gt;&gt;", s:"a"},{t:"dyn: метод возвращает ОДИН тип", s:"b"},{t:"Future#1 ≠ Future#2", s:"bad"}], v:{k:"bad", t:"the trait Cache is not dyn compatible"}, cap:"Для <code>dyn Cache</code> у метода должен быть один общий возвращаемый тип, а тут их столько, сколько реализаций. Трейт-объект собрать нельзя." }
+  ],
+  boxed: [
+    { code:BOXED, cur:[1,2], chips:[], v:{k:"info", t:"Возвращаемый тип записан явно"}, cap:"Метод возвращает <code>Pin&lt;Box&lt;dyn Future&lt;Output = ..&gt; + Send + '_&gt;&gt;</code>. Это обычный тип, а не «что-то там». Свойство <code>Send</code> записано в нём." },
+    { code:BOXED, cur:[4,5], chips:[{t:"MemCache::get → Pin&lt;Box&lt;dyn Future + Send&gt;&gt;", s:"ok"},{t:"SlowCache::get → Pin&lt;Box&lt;dyn Future + Send&gt;&gt;", s:"ok"}], v:{k:"ok", t:"Один и тот же тип у всех реализаций"}, cap:"Каждая реализация упаковывает свой future в коробку. Снаружи видна одна и та же <code>Pin&lt;Box&lt;dyn ..&gt;&gt;</code>: два указателя (на данные и на таблицу методов)." },
+    { code:BOXED, cur:[4,5], chips:[{t:"Box::pin(async move { let rc = Rc::new(1); sleep(..).await; })", s:"bad"}], v:{k:"bad", t:"ошибка у автора реализации: future не Send"}, cap:"Проверка <code>Send</code> происходит <b>на месте реализации</b>: упаковывать в <code>dyn Future + Send</code> можно только Send-future. Если внутри <code>Rc</code> живёт через <code>.await</code>, компилятор откажет здесь, а не где-то в далёком <code>spawn</code>." },
+    { code:BOXED, cur:[], chips:[{t:"Vec&lt;Arc&lt;dyn Cache&gt;&gt;", s:"ok"},{t:"spawn(async move { c.get(1).await })", s:"ok"}], v:{k:"ok", t:"dyn собирается, spawn собирается"}, cap:"Теперь всё по-другому: <code>dyn Cache</code> имеет один тип результата, а <code>spawn</code> видит <code>Send</code> прямо в типе. Цена: одна аллокация на каждый вызов метода. Для хранилища и сети это ничто." }
+  ]
+};
+function view(s) {
+  const code = s.code.map((l,i)=>`<span class="${s.cur.includes(i)?"cur":""}">${l.replace(/&(?!lt;|gt;|amp;)/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</span>`).join("");
+  const chips = s.chips.map(c=>`<span class="chip2 ${c.s}">${c.t}</span>`).join('<span class="arrow">&rarr;</span>');
+  return `<h2>Код</h2><div class="code">${code}</div>${s.chips.length?`<h2 style="margin-top:10px">Что видит компилятор</h2><div class="row">${chips}</div>`:""}<div class="verdict ${s.v.k}">${s.v.t}</div>`;
+}
+let mode = "plain", pos = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SC[mode], s = sc[pos];
+  $("view").innerHTML = view(s);
+  $("caption").innerHTML = s.cap;
+  $("counter").textContent = `шаг ${pos} из ${sc.length-1}`;
+  const end = pos >= sc.length-1;
+  $("step").disabled = end; $("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} $("play").textContent="Играть"; }
+function step(){ if(pos<SC[mode].length-1){pos++;render();} }
+function setMode(m){ stop(); mode=m; pos=0; document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("on",b.dataset.m===m)); render(); }
+document.querySelectorAll(".mode").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+$("step").onclick=()=>{stop();step();};
+$("play").onclick=()=>{ if(timer){stop();return;} $("play").textContent="Пауза"; timer=setInterval(step,1800); };
+$("reset").onclick=()=>setMode(mode);
+render();
+</script>
+</body>
+</html>

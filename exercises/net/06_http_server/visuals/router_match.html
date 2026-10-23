@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Роутер: какой маршрут выигрывает</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Роутер: какой маршрут выигрывает</h1>
+  <p class="sub">Три маршрута и несколько запросов. Статичный сегмент сильнее параметра, сравниваем слева направо.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "/menu/today против /menu/:item",
+  "boxes": [
+   "Запрос",
+   "Маршруты (в порядке регистрации)",
+   "Оценка (статичный = 1)",
+   "Выбран"
+  ],
+  "steps": [
+   {
+    "t": "Зарегистрированы два маршрута. Параметрический стоит первым: при «первый подошёл» он перехватил бы всё.",
+    "s": [
+     [],
+     [
+      [
+       "1: GET /menu/:item",
+       "info"
+      ],
+      [
+       "2: GET /menu/today",
+       "info"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Приходит GET /menu/latte. Совпадают оба маршрута: `:item` захватывает latte, второй не подходит (today != latte).",
+    "s": [
+     [
+      [
+       "GET /menu/latte",
+       "info"
+      ]
+     ],
+     [
+      [
+       "1: подходит",
+       "ok"
+      ],
+      [
+       "2: не подходит",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "1: [menu=1, item=0]",
+       "info"
+      ]
+     ],
+     [
+      [
+       "1: /menu/:item",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Приходит GET /menu/today. Теперь подходят оба. Сравниваем оценки сегментов слева направо.",
+    "s": [
+     [
+      [
+       "GET /menu/today",
+       "info"
+      ]
+     ],
+     [
+      [
+       "1: подходит",
+       "ok"
+      ],
+      [
+       "2: подходит",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "1: [1, 0]",
+       "warn"
+      ],
+      [
+       "2: [1, 1]",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "На втором сегменте у маршрута 2 единица, у маршрута 1 нуль: статичный побеждает. Порядок регистрации не участвовал.",
+    "s": [
+     [
+      [
+       "GET /menu/today",
+       "info"
+      ]
+     ],
+     [
+      [
+       "1: уступил",
+       "mute"
+      ],
+      [
+       "2: победил",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "[1, 1] > [1, 0]",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "2: /menu/today",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Конфликт слева направо",
+  "boxes": [
+   "Запрос",
+   "Маршруты (в порядке регистрации)",
+   "Оценка (статичный = 1)",
+   "Выбран"
+  ],
+  "steps": [
+   {
+    "t": "Два маршрута, у каждого один параметр, но в разных местах.",
+    "s": [
+     [],
+     [
+      [
+       "1: GET /a/:x/c",
+       "info"
+      ],
+      [
+       "2: GET /a/b/:y",
+       "info"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Приходит GET /a/b/c. Подходят оба: первый захватывает x=b, второй захватывает y=c.",
+    "s": [
+     [
+      [
+       "GET /a/b/c",
+       "info"
+      ]
+     ],
+     [
+      [
+       "1: подходит",
+       "ok"
+      ],
+      [
+       "2: подходит",
+       "ok"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Оценки: у первого [1, 0, 1], у второго [1, 1, 0]. Сравнение идёт с первого сегмента: равны. На втором у маршрута 2 единица.",
+    "s": [
+     [
+      [
+       "GET /a/b/c",
+       "info"
+      ]
+     ],
+     [
+      [
+       "1: подходит",
+       "ok"
+      ],
+      [
+       "2: подходит",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "1: [1, 0, 1]",
+       "warn"
+      ],
+      [
+       "2: [1, 1, 0]",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Побеждает маршрут 2: его статичные сегменты левее. Количество статичных у обоих два, поэтому «у кого больше» не помогло бы.",
+    "s": [
+     [
+      [
+       "GET /a/b/c",
+       "info"
+      ]
+     ],
+     [
+      [
+       "1: уступил",
+       "mute"
+      ],
+      [
+       "2: победил",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "2: /a/b/:y, y = c",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "404 и 405",
+  "boxes": [
+   "Запрос",
+   "Подходящие по пути",
+   "Подходящие по методу",
+   "Ответ"
+  ],
+  "steps": [
+   {
+    "t": "Зарегистрированы GET /orders и POST /orders/:id.",
+    "s": [
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Запрос GET /orders/7. По пути подходит только шаблон /orders/:id.",
+    "s": [
+     [
+      [
+       "GET /orders/7",
+       "info"
+      ]
+     ],
+     [
+      [
+       "POST /orders/:id",
+       "ok"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "По методу не подходит ни один: путь есть, метод нет. Это 405, а не 404.",
+    "s": [
+     [
+      [
+       "GET /orders/7",
+       "info"
+      ]
+     ],
+     [
+      [
+       "POST /orders/:id",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "нет совпадений",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "405 Method Not Allowed",
+       "warn"
+      ],
+      [
+       "Allow: POST",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Запрос GET /nothing. По пути не подходит ничего: 404, и Allow тут не нужен.",
+    "s": [
+     [
+      [
+       "GET /nothing",
+       "info"
+      ]
+     ],
+     [
+      [
+       "нет совпадений",
+       "bad"
+      ]
+     ],
+     [],
+     [
+      [
+       "404 Not Found",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Запрос проходит по слоям</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --on: #dbe9ff; --online: #2f6fe0;
+  --pkt: #e8590c; --ok: #1f8a4c; --bad: #c92a2a; --store: #f3ead6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --on: #1f3556; --online: #6ea4ff;
+    --pkt: #ff922b; --ok: #51cf66; --bad: #ff6b6b; --store: #3a3322;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --on: #1f3556; --online: #6ea4ff;
+  --pkt: #ff922b; --ok: #51cf66; --bad: #ff6b6b; --store: #3a3322;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--online); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+.box rect { fill: var(--box); stroke: var(--boxline); stroke-width: 1.5; transition: fill .25s, stroke .25s; }
+.box.on rect { fill: var(--on); stroke: var(--online); stroke-width: 2.5; }
+.box text { fill: var(--ink); font-size: 14px; text-anchor: middle; }
+.box .small { fill: var(--muted); font-size: 11px; }
+.box.store rect { fill: var(--store); }
+.link { stroke: var(--line); stroke-width: 2; fill: none; }
+.link.dash { stroke-dasharray: 5 4; }
+#pkt { transition: transform .6s ease; }
+#pkt rect { fill: var(--pkt); }
+#pkt text { fill: #fff; font-size: 12px; text-anchor: middle; font-family: ui-monospace, Menlo, monospace; }
+#pkt.bad rect { fill: var(--bad); }
+#pkt.good rect { fill: var(--ok); }
+#caption { margin-top: 12px; min-height: 78px; }
+#caption b { color: var(--online); }
+.step { color: var(--muted); font-size: 13px; }
+.legend { color: var(--muted); font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Запрос проходит по слоям</h1>
+  <p class="sub">Один POST /posts от клиента до хранилища и обратно. Выбери сценарий, жми «Шаг» или «Играть».</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Сценарий
+        <select id="scenario">
+          <option value="ok">пост создан</option>
+          <option value="empty">пустой текст</option>
+          <option value="badjson">битый JSON</option>
+          <option value="dup">дубликат поста</option>
+        </select>
+      </label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme" title="Переключить тему">Тема</button>
+    </div>
+    <svg viewBox="0 0 940 330" role="img" aria-label="Слои сервиса">
+      <g id="links"></g>
+      <g id="boxes"></g>
+      <g id="pkt"><rect rx="8" ry="8" height="24" width="150" x="-75" y="-12"></rect><text y="4"></text></g>
+    </svg>
+    <div class="legend">Оранжевая плашка это данные в том виде, в котором их видит текущий слой.</div>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NODES = {
+  client: { x: 70,  y: 90,  w: 110, h: 60, t: "Клиент", s: "сеть" },
+  ctl:    { x: 220, y: 90,  w: 120, h: 60, t: "controller", s: "вход и выход" },
+  dto:    { x: 380, y: 90,  w: 100, h: 60, t: "dto", s: "форма на границе" },
+  svc:    { x: 530, y: 90,  w: 120, h: 60, t: "service", s: "правила" },
+  repo:   { x: 700, y: 90,  w: 120, h: 60, t: "repository", s: "порт и in-memory" },
+  store:  { x: 860, y: 90,  w: 100, h: 60, t: "Mutex<Vec>", s: "данные", cls: "store" },
+  users:  { x: 530, y: 250, w: 150, h: 56, t: "UserDirectory", s: "порт к user-service", cls: "store" }
+};
+const LINKS = [["client","ctl"],["ctl","dto"],["ctl","svc"],["svc","repo"],["repo","store"],["svc","users","dash"]];
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const gBoxes = document.getElementById("boxes"), gLinks = document.getElementById("links");
+const boxEls = {};
+for (const [a, b, dash] of LINKS) {
+  const A = NODES[a], B = NODES[b];
+  if (a === "ctl" && b === "svc") el("path", { d: "M 240 120 Q 370 200 500 120", class: "link" }, gLinks);
+  else if (A.y === B.y) el("line", { x1: A.x + A.w / 2, y1: A.y, x2: B.x - B.w / 2, y2: B.y, class: "link" }, gLinks);
+  else el("line", { x1: A.x, y1: A.y + A.h / 2, x2: B.x, y2: B.y - B.h / 2, class: "link " + (dash || "") }, gLinks);
+}
+for (const id in NODES) {
+  const n = NODES[id];
+  const g = el("g", { class: "box " + (n.cls || ""), }, gBoxes);
+  el("rect", { x: n.x - n.w / 2, y: n.y - n.h / 2, width: n.w, height: n.h, rx: 8, ry: 8 }, g);
+  const t = el("text", { x: n.x, y: n.y - 2 }, g); t.textContent = n.t;
+  const s = el("text", { x: n.x, y: n.y + 16, class: "small" }, g); s.textContent = n.s;
+  boxEls[id] = g;
+}
+
+const REQ = '{"author":1,"text":"  привет "}';
+const SCEN = {
+  ok: [
+    ["client", 'POST /posts', "Клиент шлёт запрос. Для сервера это просто байты: метод, путь и тело. Он ещё не знает, что в них.", ""],
+    ["ctl", 'POST /posts', "<b>controller</b> смотрит на метод и путь и выбирает ручку create. Больше он ничего не решает: ни про текст, ни про автора.", ""],
+    ["dto", 'CreatePostDto', "<b>controller через serde</b> разбирает тело в форму CreatePostDto { author: 1, text: \"  привет \" }. Сам dto это только описание формы. Битый JSON отлавливается здесь.", ""],
+    ["ctl", 'UserId(1), "  привет "', "Контроллер достаёт из DTO обычные доменные значения и зовёт service. С этого места про JSON никто не помнит.", ""],
+    ["svc", 'trim → "привет"', "<b>service</b>: правила соцсети. Текст обрезан, не пустой, не больше 280 символов (символов, не байт). Это место, где живёт правило.", ""],
+    ["users", 'exists(UserId(1))', "Автор должен существовать. Данные пользователей принадлежат user-service, поэтому спрашиваем через порт UserDirectory, а не лезем в чужую базу.", ""],
+    ["svc", 'Ok(true)', "Сосед ответил «да». Если бы он молчал, мы отдали бы 503, а не «автора нет»: это разные факты.", ""],
+    ["repo", 'create_if_absent(1, "привет")', "<b>repository</b>: «создай, если такого поста ещё нет» одной операцией. Проверка и запись неделимы, гонки между запросами нет.", ""],
+    ["store", 'Post { id: 1, … }', "Под замком Mutex: проверили, выдали id, записали. Хранилище знает только о хранении.", ""],
+    ["svc", 'Ok(Post)', "Результат возвращается вверх доменным значением Post. Никаких статус-кодов.", "good"],
+    ["dto", 'PostDto { id: 1, … }', "На границе работает From<Post> for PostDto: наружу уходит только то, что стоит показать клиенту.", "good"],
+    ["ctl", '201 Created', "controller собирает ответ: статус и JSON. Перевод результата в статус-код делает только он.", "good"],
+    ["client", '{"id":1,"author":1,"text":"привет"}', "Клиент получил ответ. Каждый слой сделал одно дело, и ни один не знал лишнего.", "good"]
+  ],
+  empty: [
+    ["client", 'POST /posts', "Клиент шлёт пост из одних пробелов.", ""],
+    ["ctl", 'POST /posts', "controller выбирает ручку create.", ""],
+    ["dto", 'CreatePostDto', "С точки зрения формата всё в порядке: JSON валидный, поля на месте. DTO пропускает.", ""],
+    ["ctl", 'UserId(1), "   "', "Доменные значения передаются в service как есть.", ""],
+    ["svc", 'trim → ""', "<b>service</b> обрезал текст и увидел пустоту. Правило нарушено: возвращаем PostError::Empty. До соседа и до хранилища дело не дошло.", "bad"],
+    ["ctl", 'Err(Empty) → 422', "controller переводит доменную ошибку в статус 422 и код empty_text. Service о числе 422 не знает.", "bad"],
+    ["client", '422 {"error":"empty_text"}', "Клиент получил понятный отказ. Ни одной лишней аллокации и ни одного похода по сети.", "bad"]
+  ],
+  badjson: [
+    ["client", 'POST /posts {oops', "Клиент прислал мусор вместо JSON.", ""],
+    ["ctl", 'POST /posts', "controller выбирает ручку create.", ""],
+    ["dto", 'serde_json::from_str', "Разбор тела в CreatePostDto не удался. Это ошибка формата, она не имеет отношения к правилам соцсети.", "bad"],
+    ["ctl", 'Err → 400', "Контроллер отвечает 400 bad_json, не позвав service. Правилам нечего проверять: данных нет.", "bad"],
+    ["client", '400 {"error":"bad_json"}', "Отказ на самой границе, как и положено.", "bad"]
+  ],
+  dup: [
+    ["client", 'POST /posts (второй раз)', "Тот же автор шлёт тот же текст ещё раз (двойной клик).", ""],
+    ["ctl", 'POST /posts', "controller выбирает ручку create.", ""],
+    ["dto", 'CreatePostDto', "Формат в порядке.", ""],
+    ["svc", 'trim → "привет"', "Правила текста пройдены.", ""],
+    ["users", 'exists(UserId(1))', "Автор существует.", ""],
+    ["repo", 'create_if_absent(1, "привет")', "Репозиторий видит, что у автора уже есть такой пост, и отказывает: RepoError::Conflict.", "bad"],
+    ["svc", 'Err(Duplicate)', "service переводит ошибку хранилища в доменную PostError::Duplicate.", "bad"],
+    ["ctl", 'Err(Duplicate) → 409', "controller: 409 duplicate_post.", "bad"],
+    ["client", '409 {"error":"duplicate_post"}', "Если бы проверка и запись были двумя шагами, два одновременных клика создали бы два поста. Одна атомарная операция это исключает.", "bad"]
+  ]
+};
+
+const pkt = document.getElementById("pkt");
+const pktText = pkt.querySelector("text"), pktRect = pkt.querySelector("rect");
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+
+function render() {
+  const steps = SCEN[sel.value];
+  for (const id in boxEls) boxEls[id].classList.remove("on");
+  if (idx < 0) {
+    pkt.style.opacity = 0;
+    caption.innerHTML = '<span class="step">Шаг 0 из ' + steps.length + '</span><br>Нажми «Шаг», чтобы отправить запрос.';
+  } else {
+    const [at, data, text, mood] = steps[idx];
+    const n = NODES[at];
+    boxEls[at].classList.add("on");
+    pkt.style.opacity = 1;
+    pkt.style.transform = "translate(" + n.x + "px," + (n.y - n.h / 2 - 22) + "px)";
+    pktText.textContent = data.length > 24 ? data.slice(0, 23) + "…" : data;
+    pktRect.setAttribute("width", Math.max(70, Math.min(190, pktText.textContent.length * 7.4 + 16)));
+    pktRect.setAttribute("x", -Math.max(70, Math.min(190, pktText.textContent.length * 7.4 + 16)) / 2);
+    pkt.setAttribute("class", mood);
+    caption.innerHTML = '<span class="step">Шаг ' + (idx + 1) + ' из ' + steps.length + '</span><br>' + text;
+  }
+  btnPrev.disabled = idx < 0;
+  btnNext.disabled = idx >= steps.length - 1;
+  if (idx >= steps.length - 1) stop();
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < SCEN[sel.value].length - 1) { idx++; render(); } }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= SCEN[sel.value].length - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2400);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+render();
+</script>
+</body>
+</html>

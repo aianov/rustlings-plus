@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TLS-рукопожатие по шагам</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TLS-рукопожатие по шагам</h1>
+  <p class="sub">Как клиент и сервер договариваются о ключе, как клиент проверяет сертификат и что видит тот, кто слушает провод. На примере TLS 1.3.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Удачное рукопожатие",
+  "boxes": [
+   "Клиент",
+   "Сеть (видит слушатель)",
+   "Сервер",
+   "Что известно сторонам"
+  ],
+  "steps": [
+   {
+    "t": "Клиент знает адрес, имя хоста и свой список доверенных CA. Он идёт к серверу и хочет понять, что это именно он.",
+    "s": [
+     [
+      [
+       "имя: api.shop.test",
+       "info"
+      ],
+      [
+       "доверяет: наш CA",
+       "info"
+      ]
+     ],
+     [],
+     [
+      [
+       "слушает порт 443",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "общего секрета нет",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "ClientHello: версии, наборы шифров, ключевая доля клиента, имя сервера (SNI) и список протоколов ALPN. Всё открытым текстом.",
+    "s": [
+     [
+      [
+       "ClientHello",
+       "info"
+      ]
+     ],
+     [
+      [
+       "видно: SNI api.shop.test",
+       "warn"
+      ],
+      [
+       "видно: ALPN h2, http/1.1",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "сеть знает, к кому идёт клиент",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "ServerHello: сервер выбрал шифр и прислал свою ключевую долю. С этого момента обе стороны умеют вычислить общий ключ, а всё дальнейшее шифруется.",
+    "s": [
+     [
+      [
+       "получил ServerHello",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "видно: только шифр и ключевые доли",
+       "info"
+      ]
+     ],
+     [
+      [
+       "ServerHello",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "общий ключ готов у обеих сторон",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Зашифрованно сервер присылает сертификат и подпись, которой доказывает владение закрытым ключом, и сообщение Finished.",
+    "s": [
+     [],
+     [
+      [
+       "видно: непонятные байты",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "сертификат + подпись",
+       "info"
+      ],
+      [
+       "Finished",
+       "info"
+      ]
+     ],
+     [
+      [
+       "слушатель сертификата не читает",
+       "mute"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент проверяет сертификат: цепочка до его CA, срок, назначение и главное, что имя api.shop.test есть в SAN. Подпись подтверждает, что ключ у сервера.",
+    "s": [
+     [
+      [
+       "цепочка: ок",
+       "ok"
+      ],
+      [
+       "срок: ок",
+       "ok"
+      ],
+      [
+       "имя в SAN: ок",
+       "ok"
+      ]
+     ],
+     [],
+     [],
+     [
+      [
+       "сервер доказал, кто он",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент отправляет свой Finished. Рукопожатие закончено, дальше идут шифрованные данные приложения. Слушатель видит только размеры и время пакетов.",
+    "s": [
+     [
+      [
+       "данные приложения",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "видно: размеры и время",
+       "info"
+      ]
+     ],
+     [
+      [
+       "данные приложения",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "пароль в запросе недоступен слушателю",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "В конце сторона отправляет close_notify. Без него обрыв соединения нельзя отличить от усечения данных злоумышленником.",
+    "s": [
+     [
+      [
+       "получил close_notify",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "видно: конец сеанса",
+       "info"
+      ]
+     ],
+     [
+      [
+       "close_notify",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "данные пришли целиком",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Чужой сертификат",
+  "boxes": [
+   "Клиент",
+   "Сеть (видит слушатель)",
+   "Сервер",
+   "Что известно сторонам"
+  ],
+  "steps": [
+   {
+    "t": "Между клиентом и настоящим сервером встал злоумышленник. Он может читать и менять байты в сети.",
+    "s": [
+     [
+      [
+       "доверяет: наш CA",
+       "info"
+      ]
+     ],
+     [
+      [
+       "злоумышленник",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "настоящий сервер",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "общего секрета нет",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Он отвечает клиенту сам и предъявляет сертификат, выписанный на то же имя, но подписанный его собственным CA.",
+    "s": [
+     [
+      [
+       "получил сертификат",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "подмена",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "сервера нет",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "подпись не нашей цепочки",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент строит цепочку и не находит в ней своего CA: ошибка UnknownIssuer. Рукопожатие обрывается алертом, данные не уходят. Шифрование здесь не при чём: проверка спасла, а не защита от подслушивания.",
+    "s": [
+     [
+      [
+       "UnknownIssuer",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "алерт: bad certificate",
+       "bad"
+      ]
+     ],
+     [],
+     [
+      [
+       "соединение не состоялось",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Верификатор «принимаю всё» на этом шаге сказал бы «ок». Канал был бы зашифрован, но со злоумышленником. Поэтому он не бывает «временным решением».",
+    "s": [
+     [
+      [
+       "принял бы любой сертификат",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "читает всё",
+       "bad"
+      ]
+     ],
+     [],
+     [
+      [
+       "шифрование без проверки",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Имя не совпало",
+  "boxes": [
+   "Клиент",
+   "Сеть (видит слушатель)",
+   "Сервер",
+   "Что известно сторонам"
+  ],
+  "steps": [
+   {
+    "t": "Сертификат настоящий, подписан нашим CA, но выписан на billing.shop.test, а клиент идёт на api.shop.test.",
+    "s": [
+     [
+      [
+       "идёт на api.shop.test",
+       "info"
+      ]
+     ],
+     [],
+     [
+      [
+       "сертификат на billing.shop.test",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "CA тот же",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент проверяет подпись (ок) и срок (ок), потом сверяет имя с SAN и не находит: NotValidForName.",
+    "s": [
+     [
+      [
+       "подпись: ок",
+       "ok"
+      ],
+      [
+       "срок: ок",
+       "ok"
+      ],
+      [
+       "имя: нет",
+       "bad"
+      ]
+     ],
+     [],
+     [],
+     [
+      [
+       "сертификат не для этого имени",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Без проверки имени любой владелец любого настоящего сертификата мог бы выдать себя за твой сервис. Поэтому имя проверяют по SAN, а не по CN и не по адресу подключения.",
+    "s": [
+     [
+      [
+       "отказ",
+       "bad"
+      ]
+     ],
+     [],
+     [],
+     [
+      [
+       "защита от подмены сервиса",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

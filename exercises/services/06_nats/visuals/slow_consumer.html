@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Медленный потребитель</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+svg .mono { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+#caption { margin-top: 12px; min-height: 90px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Что делает NATS, когда читатель не успевает</h1>
+  <p class="sub">Буфер подписки переполняется, и новые сообщения отбрасываются.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 470" role="img" aria-label="Что делает NATS, когда читатель не успевает">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const scene = document.getElementById("scene");
+
+function simulate(cfg) {
+  const states = [];
+  let buffer = [], processed = [], dropped = [], queue = [], seq = 0, slow = 0;
+  for (let t = 0; t < cfg.ticks; t++) {
+    const arrived = [];
+    if (t < cfg.burstTicks) {
+      for (let a = 0; a < cfg.perTick; a++) {
+        seq++;
+        arrived.push(seq);
+        if (cfg.mode === "buffer") {
+          if (buffer.length < cfg.capacity) buffer.push(seq); else { dropped.push(seq); slow++; }
+        } else {
+          buffer.push(seq);
+        }
+      }
+    }
+    if (cfg.mode === "buffer") {
+      for (let r = 0; r < cfg.readPerTick && buffer.length; r++) processed.push(buffer.shift());
+    } else {
+      while (buffer.length) {
+        const m = buffer.shift();
+        if (queue.length < cfg.capacity) queue.push(m); else { dropped.push(m); slow++; }
+      }
+      for (let r = 0; r < cfg.readPerTick && queue.length; r++) processed.push(queue.shift());
+    }
+    states.push({ t, arrived, buffer: buffer.slice(), queue: queue.slice(), processed: processed.slice(), dropped: dropped.slice(), slow });
+  }
+  return states;
+}
+const CFG = {
+  small: { mode: "buffer", capacity: 4, perTick: 3, burstTicks: 4, readPerTick: 1, ticks: 9 },
+  big: { mode: "buffer", capacity: 16, perTick: 3, burstTicks: 4, readPerTick: 1, ticks: 14 },
+  pool: { mode: "pool", capacity: 5, perTick: 3, burstTicks: 4, readPerTick: 2, ticks: 9 }
+};
+const SCEN = {
+  small: { title: "буфер 4, обработчик читает по одному", cfg: CFG.small,
+    intro: "Каждый такт прилетают 3 сообщения (всплеск на 4 такта), а обработчик успевает прочитать одно." },
+  big: { title: "буфер 16: всплеск помещается", cfg: CFG.big,
+    intro: "Тот же всплеск, но буфер подписки на 16. Обработчик так же медленен." },
+  pool: { title: "быстрый приём + очередь 5 + 2 работника", cfg: CFG.pool,
+    intro: "Цикл приёма сразу переносит сообщения в ограниченную очередь на 5, обрабатывают два работника. Лишнее не пропадает молча, а считается." }
+};
+for (const k in SCEN) {
+  const st = simulate(SCEN[k].cfg);
+  SCEN[k].states = st;
+  SCEN[k].steps = st.map(s => {
+    let text = "Такт " + (s.t + 1) + ". ";
+    if (s.arrived.length) text += "Прилетели: " + s.arrived.join(", ") + ". ";
+    const lostNow = s.arrived.filter(m => s.dropped.includes(m));
+    if (SCEN[k].cfg.mode === "buffer") {
+      if (lostNow.length) text += "Буфер полон, сообщения " + lostNow.join(", ") + " отброшены, клиент получает событие SlowConsumer. Издатель ничего не знает. ";
+      text += "Обработчик взял одно из начала буфера.";
+    } else {
+      if (s.arrived.length) text += "Цикл приёма сразу переложил всё в очередь. ";
+      if (lostNow.length) text += "Очередь заполнена, сообщения " + lostNow.join(", ") + " выброшены и учтены в счётчике dropped. ";
+      text += "Работники взяли по сообщению из очереди.";
+    }
+    if (s.t === SCEN[k].cfg.ticks - 1) text += " Итог: обработано " + s.processed.length + ", потеряно " + s.dropped.length + (s.dropped.length ? " (" + s.dropped.join(", ") + "): пропали сообщения, которые пришли, пока место было занято. Издатель об этом не узнал." : ".");
+    return { text };
+  });
+}
+function cell(x, y, label, fill, stroke) {
+  el("rect", { x, y, width: 44, height: 34, rx: 6, fill, stroke }, scene);
+  el("text", { x: x + 22, y: y + 22, "text-anchor": "middle", class: "mono" }, scene, label);
+}
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const s = idx >= 0 ? sc.states[idx] : { arrived: [], buffer: [], queue: [], processed: [], dropped: [], slow: 0, t: -1 };
+  const cap = sc.cfg.capacity;
+  const pool = sc.cfg.mode === "pool";
+  el("text", { x: 20, y: 28, class: "muted" }, scene, "издатель");
+  s.arrived.forEach((m, i) => cell(20 + i * 50, 40, "#" + m, "var(--accent)", "var(--accent)"));
+  el("text", { x: 20, y: 120, class: "muted" }, scene, pool ? "буфер подписки (цикл приёма опустошает его сразу)" : "буфер подписки, ёмкость " + cap);
+  const bufCells = pool ? s.arrived.length : cap;
+  for (let i = 0; i < (pool ? 0 : cap); i++) {
+    const m = s.buffer[i];
+    cell(20 + i * 50, 130, m ? "#" + m : "", m ? "var(--box)" : "none", "var(--boxline)");
+  }
+  if (pool) {
+    el("text", { x: 20, y: 150, class: "muted" }, scene, "очередь, ёмкость " + cap);
+    for (let i = 0; i < cap; i++) {
+      const m = s.queue[i];
+      cell(20 + i * 50, 160, m ? "#" + m : "", m ? "var(--box)" : "none", "var(--boxline)");
+    }
+  }
+  const baseY = 230;
+  el("text", { x: 20, y: baseY, class: "muted" }, scene, "обработано");
+  s.processed.forEach((m, i) => cell(20 + (i % 18) * 50, baseY + 10 + Math.floor(i / 18) * 40, "#" + m, "var(--ok)", "var(--ok)"));
+  el("text", { x: 20, y: baseY + 130, style: "fill:var(--bad)", class: "muted" }, scene, "потеряно" + (pool ? " (счётчик dropped)" : " (SlowConsumer)") + ": " + s.dropped.length);
+  s.dropped.forEach((m, i) => cell(20 + (i % 18) * 50, baseY + 140 + Math.floor(i / 18) * 40, "#" + m, "var(--bad)", "var(--bad)"));
+  say(sc);
+}
+
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function total() { return SCEN[sel.value].steps.length; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < total() - 1) { idx++; render(); } else stop(); }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= total() - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2600);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() { btnPrev.disabled = idx < 0; btnNext.disabled = idx >= total() - 1; }
+function say(sc) {
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>' + sc.intro
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + sc.steps[idx].text;
+  finish();
+}
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GROUP BY: строки раскладываются по группам</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --accent-bg:#dbe7ff; --g1:#e8f6ec; --g2:#fff4cc; --g3:#fde8e8; --g4:#e6e9fb; --drop-text:#b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --accent-bg:#23365e; --g1:#1c3326; --g2:#4a3f12; --g3:#3b2024; --g4:#262c52; --drop-text:#ff8a80; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:940px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1.4fr; gap:12px; } @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.cur td { outline:2px solid var(--accent); outline-offset:-2px; }
+tr.g0 td { background:var(--g1); } tr.g1 td { background:var(--g2); } tr.g2 td { background:var(--g3); } tr.g3 td { background:var(--g4); }
+tr.gone td { text-decoration:line-through; color:var(--drop-text); }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.note { min-height:3.4em; } .note b { color:var(--accent); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Как GROUP BY сворачивает строки</h1>
+  <p class="lead">Строки по одной попадают в группы по ключу, потом из каждой группы агрегат делает одну строку. NULL агрегаты пропускают, а count(*) нет. Переключи режим HAVING и посмотри, какие группы исчезнут.</p>
+  <div class="card controls">
+    <select id="mode"><option value="plain">без HAVING</option><option value="having">HAVING count(*) &gt;= 2</option></select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card"><pre id="sql"></pre></div>
+  <div class="card grid">
+    <div><h3>posts (исходные строки)</h3><table id="src"></table></div>
+    <div><h3>группы и результат</h3><table id="res"></table></div>
+  </div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var rows = [['alice', 100], ['bob', 70], ['alice', 40], ['carol', null], ['carol', 30], ['dave', null]];
+  var keys = ['alice', 'bob', 'carol', 'dave'];
+  var $ = function (id) { return document.getElementById(id); };
+  var i, timer, total;
+  function groupsAt(n) { var g = {}; keys.forEach(function (k) { g[k] = []; }); rows.slice(0, n).forEach(function (r) { g[r[0]].push(r[1]); }); return g; }
+  function agg(v) {
+    var known = v.filter(function (x) { return x !== null; });
+    return { cnt: v.length, cntv: known.length, sum: known.length ? known.reduce(function (a, b) { return a + b; }, 0) : null };
+  }
+  function render() {
+    var mode = $('mode').value;
+    $('sql').textContent = 'SELECT author, count(*) AS n, count(views) AS known, sum(views) AS total\nFROM posts\nGROUP BY author' + (mode === 'having' ? '\nHAVING count(*) >= 2' : '');
+    var n = Math.min(i, rows.length), grouped = i > rows.length, filtered = mode === 'having' && i > rows.length + 1;
+    $('src').innerHTML = '<tr><th>author</th><th>views</th></tr>' + rows.map(function (r, idx) {
+      var cls = idx < n ? 'g' + keys.indexOf(r[0]) : '';
+      if (i > 0 && i <= rows.length && idx === i - 1) cls += ' cur';
+      return '<tr class="' + cls + '"><td>' + r[0] + '</td><td>' + (r[1] === null ? 'NULL' : r[1]) + '</td></tr>';
+    }).join('');
+    var g = groupsAt(n), html = '<tr><th>группа</th><th>строки</th>' + (grouped ? '<th>n</th><th>known</th><th>total</th>' : '') + '</tr>';
+    keys.forEach(function (k, idx) {
+      if (!g[k].length) return;
+      var a = agg(g[k]), gone = filtered && a.cnt < 2;
+      html += '<tr class="g' + idx + (gone ? ' gone' : '') + '"><td>' + k + '</td><td>' + g[k].map(function (x) { return x === null ? 'NULL' : x; }).join(', ') + '</td>' + (grouped ? '<td>' + a.cnt + '</td><td>' + a.cntv + '</td><td>' + (a.sum === null ? 'NULL' : a.sum) + '</td>' : '') + '</tr>';
+    });
+    $('res').innerHTML = html;
+    var note;
+    if (i === 0) note = 'Нажми «Шаг»: каждая строка отправится в свою группу по значению author.';
+    else if (i <= rows.length) note = 'Строка <b>' + rows[i - 1][0] + '</b> попадает в группу <b>' + rows[i - 1][0] + '</b>. Группа создаётся при первой строке с таким ключом.';
+    else if (i === rows.length + 1) note = 'Агрегаты по каждой группе. У carol <b>n = 2, known = 1</b>: count(views) пропустил NULL, а count(*) нет. У dave единственная строка с NULL, поэтому <b>total = NULL</b>, а не 0.';
+    else note = '<b>HAVING</b> работает над готовыми группами: dave вычеркнут, потому что в его группе одна строка. WHERE так не умеет: групп в момент WHERE ещё нет.';
+    $('note').innerHTML = note;
+    total = rows.length + 1 + (mode === 'having' ? 1 : 0);
+    $('counter').textContent = 'шаг ' + i + ' из ' + total;
+    $('step').disabled = i >= total;
+    if (i >= total) stop();
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function reset() { stop(); i = 0; render(); }
+  $('step').onclick = function () { i++; render(); };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () { if (timer) { stop(); return; } if (i >= total) i = 0; $('play').textContent = 'Пауза'; timer = setInterval(function () { i++; render(); }, 1100); i++; render(); };
+  reset();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>select!: победитель забирает результат, проигравшие уничтожаются</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --ink:#1c2330; --muted:#667085; --line:#d5d9e0; --a:#2f6fed; --b:#d9822b; --ok:#2e9e5b; --bad:#d64545; --code:#f0f2f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b2029; --ink:#e6e9ef; --muted:#98a2b3; --line:#343b49; --a:#6b9bff; --b:#f0a85a; --ok:#4cc585; --bad:#ff7b7b; --code:#151a22; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:16px; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+h1 { font-size:18px; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 12px; }
+.modes { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mode { text-align:left; font:13px/1.4 ui-monospace,Menlo,monospace; padding:8px 12px; border-radius:8px; border:2px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+.mode.on { border-color:var(--a); } .mode small { display:block; font:12px system-ui,sans-serif; color:var(--muted); }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:6px 0; }
+.lbl { color:var(--muted); font-size:13px; min-width:150px; }
+.slot { width:54px; height:44px; border-radius:8px; border:2px dashed var(--line); display:flex; align-items:center; justify-content:center; font:600 16px ui-monospace,Menlo,monospace; }
+.slot.full { border-style:solid; border-color:var(--a); background:color-mix(in srgb,var(--a) 14%,transparent); }
+.slot.new { border-color:var(--ok); background:color-mix(in srgb,var(--ok) 16%,transparent); }
+.slot.lost { border-style:solid; border-color:var(--bad); color:var(--bad); background:color-mix(in srgb,var(--bad) 12%,transparent); }
+.chip { min-width:40px; height:34px; padding:0 8px; border-radius:17px; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; font:600 14px ui-monospace,Menlo,monospace; }
+.chip.live { border-color:var(--a); } .chip.gone { opacity:.5; text-decoration:line-through; border-style:dashed; }
+.chip.ptr { box-shadow:0 0 0 3px color-mix(in srgb,var(--b) 55%,transparent); }
+.badge { padding:4px 12px; border-radius:12px; font:600 13px system-ui,sans-serif; border:2px solid var(--line); }
+.badge.on { border-color:var(--ok); color:var(--ok); } .badge.bad { border-color:var(--bad); color:var(--bad); } .badge.wait { border-color:var(--b); color:var(--b); }
+code { font:13px ui-monospace,Menlo,monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+.caption { padding:10px 12px; border-radius:8px; background:var(--panel); border:1px solid var(--line); min-height:68px; margin-bottom:10px; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+button.ctl { font:600 14px system-ui,sans-serif; padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; }
+button.ctl:disabled { opacity:.45; cursor:default; } .counter { color:var(--muted); font-size:13px; margin-left:auto; }
+.bar { position:relative; height:26px; border-radius:6px; background:color-mix(in srgb,var(--line) 40%,transparent); margin:4px 0 4px 0; overflow:hidden; }
+.fill { position:absolute; left:0; top:0; bottom:0; border-radius:6px; background:color-mix(in srgb,var(--a) 35%,transparent); border:2px solid var(--a); }
+.fill.b { background:color-mix(in srgb,var(--b) 35%,transparent); border-color:var(--b); }
+.fill.won { background:color-mix(in srgb,var(--ok) 35%,transparent); border-color:var(--ok); }
+.fill.dropped { background:color-mix(in srgb,var(--bad) 18%,transparent); border-color:var(--bad); border-style:dashed; }
+.fill.idle { background:transparent; border-style:dashed; border-color:var(--line); }
+.cursor { position:absolute; top:0; bottom:0; width:2px; background:var(--ink); opacity:.7; }
+.name { font:13px ui-monospace,Menlo,monospace; color:var(--muted); margin-top:6px; }
+.log { font:13px ui-monospace,Menlo,monospace; background:var(--code); border-radius:8px; padding:8px 10px; min-height:44px; white-space:pre-wrap; }
+.axis { position:relative; height:18px; font:11px system-ui; color:var(--muted); }
+.axis span { position:absolute; transform:translateX(-50%); }
+</style>
+</head>
+<body>
+<h1>select!: кто первый, тот и победил</h1>
+<p class="sub">Ветки гонятся внутри одной задачи. Проигравшие не дорабатывают, их уничтожают на полпути.</p>
+<div class="modes"><button class="mode on" data-m="win">select!: гонка двух запросов<small>проигравший уничтожается</small></button><button class="mode" data-m="loop">select! в цикле с sleep<small>таймер, который не срабатывает</small></button></div>
+<div class="panel" id="view"></div>
+<div class="caption" id="caption"></div>
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button><button class="ctl" id="play">Играть</button><button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+<script>
+
+const SC = {
+  win: [
+    { t:0,  bars:[{n:"cache.fetch()  (20 мс)", p:0, s:"run"},{n:"db.fetch()  (50 мс)", p:0, s:"run"}], log:"select! { a = cache.fetch() => ..., b = db.fetch() => ... }", cap:"Оба future созданы и опрашиваются одной и той же задачей. Пока ни один не готов, задача спит." },
+    { t:10, bars:[{n:"cache.fetch()  (20 мс)", p:.5, s:"run"},{n:"db.fetch()  (50 мс)", p:.2, s:"run"}], log:"", cap:"Прошло 10 мс. Оба запроса в работе: <code>select!</code> ждёт, кто закончит первым." },
+    { t:20, bars:[{n:"cache.fetch()  (20 мс)", p:1, s:"won"},{n:"db.fetch()  (50 мс)", p:.4, s:"run"}], log:"drop Noisy(cache)   // cache дошёл до конца, локальные переменные умерли как обычно", cap:"На 20 мс кэш ответил. <code>select!</code> выбрал эту ветку. База ответит только через 30 мс." },
+    { t:20, bars:[{n:"cache.fetch()  (20 мс)", p:1, s:"won"},{n:"db.fetch()  (50 мс)", p:.4, s:"dropped"}], log:"drop Noisy(cache)\ndrop Noisy(db)      // db.fetch() уничтожен на полпути, строки после .await не выполнятся", cap:"Проигравший future <b>уничтожается</b> там, где остановился: на <code>sleep</code> внутри. Его локальные переменные умирают, дальше по коду он не пойдёт. Ни побочных эффектов, ни трат." },
+    { t:20, bars:[{n:"cache.fetch()  (20 мс)", p:1, s:"won"},{n:"db.fetch()  (50 мс)", p:.4, s:"dropped"}], log:"drop Noisy(cache)\ndrop Noisy(db)\nwon cache           // только теперь выполняется обработчик победившей ветки", cap:"И только после этого запускается обработчик победителя. Порядок такой: проигравшие уничтожены, потом обработчик. Если проигравший держал замок или соединение, оно уже свободно." }
+  ],
+  loop: [
+    { t:0, bars:[{n:"rx.recv()", p:0, s:"run"},{n:"sleep(1 с)  создан на обороте 1", p:0, s:"run"}], log:"loop { select! { Some(m) = rx.recv() => .., _ = sleep(1 с) => break } }", cap:"Первый оборот цикла. Выражение <code>sleep(1 с)</code> в ветке вычисляется на каждом обороте, значит, это <b>новый</b> таймер." },
+    { t:.4, bars:[{n:"rx.recv()", p:1, s:"won"},{n:"sleep(1 с)  создан на обороте 1", p:.4, s:"dropped"}], log:"сообщение #1 на 0,4 с", cap:"Через 0,4 с пришло сообщение. Ветка с каналом выиграла, таймер (он прошёл 40%) уничтожен." },
+    { t:.4, bars:[{n:"rx.recv()", p:0, s:"run"},{n:"sleep(1 с)  создан на обороте 2", p:0, s:"run"}], log:"оборот 2: таймер снова с нуля", cap:"Второй оборот: ещё один <code>sleep(1 с)</code>, опять с нуля. Ничего не накопилось." },
+    { t:.8, bars:[{n:"rx.recv()", p:1, s:"won"},{n:"sleep(1 с)  создан на обороте 2", p:.4, s:"dropped"}], log:"сообщение #2 на 0,8 с", cap:"Сообщения идут каждые 0,4 с, то есть чаще, чем раз в секунду. Каждый раз таймер умирает на 40% и начинается заново." },
+    { t:2.0, bars:[{n:"rx.recv()", p:1, s:"won"},{n:"sleep(1 с)  создан на обороте 6", p:0, s:"idle"}], log:"... сообщения #3, #4, #5: таймер так ни разу и не сработал", cap:"Так будет, пока сообщения идут. Таймер задумывался как «общий срок», а получился «тишина дольше секунды». Для общего срока его надо создать <b>до цикла</b> и опрашивать по <code>&mut</code>.", bad:true }
+  ]
+};
+
+
+function view(s) {
+  const bars = s.bars.map(b=>`<div class="name">${b.n}</div><div class="bar"><div class="fill ${b.s}" style="width:${Math.max(2,b.p*100)}%"></div></div>`).join('');
+  return `<h2>Время: ${s.t} ${mode==="win"?"мс":"с"}</h2>${bars}<h2>Консоль</h2><div class="log">${s.log||"&nbsp;"}</div>`;
+}
+
+let mode = Object.keys(SC)[0], pos = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SC[mode], s = sc[pos];
+  $("view").innerHTML = view(s);
+  $("caption").innerHTML = s.cap;
+  $("counter").textContent = `шаг ${pos} из ${sc.length-1}`;
+  const end = pos >= sc.length-1;
+  $("step").disabled = end; $("play").disabled = end;
+  if (end) stop();
+}
+function stop(){ if(timer){clearInterval(timer);timer=null;} $("play").textContent="Играть"; }
+function step(){ if(pos<SC[mode].length-1){pos++;render();} }
+function setMode(m){ stop(); mode=m; pos=0; document.querySelectorAll(".mode").forEach(b=>b.classList.toggle("on",b.dataset.m===m)); render(); }
+document.querySelectorAll(".mode").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+$("step").onclick=()=>{stop();step();};
+$("play").onclick=()=>{ if(timer){stop();return;} $("play").textContent="Пауза"; timer=setInterval(step,1800); };
+$("reset").onclick=()=>setMode(mode);
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+hint.ru = [
+"""Начни с трейтов в ports/mod.rs и пустых `MemUserStore` и `MemPostStore`, которые просто
+хранят то, что раньше лежало в полях `Network`. Метод по умолчанию это метод трейта с телом:
+`fn contains(&self, id: UserId) -> bool { self.get(id).is_some() }`.""",
+"""`Network<U, P>` объявляется без ограничений, а методы живут в
+`impl<U: UserStore, P: PostStore> Network<U, P> { ... }`. Внутри вместо `self.users.get(&id)`
+теперь `self.users.get(id)`, вместо счётчика id `self.users.next_id()`. Отдельный блок
+`impl<U: UserStore + Default, P: PostStore + Default>` даёт `new()` через `U::default()`.""",
+"""В `find_by_name` по умолчанию удобен `?` для Option: `let id = self.id_by_name(name)?; self.get(id)`.
+Карточка поста это `match self.kind` с двумя `write!(...)?`, а потом общий хвост
+`write!(f, " (лайков: {})", self.likes())`.""",
+]
+story.ru = """Соцсеть больше не знает, где лежат её данные, и это лучшая новость недели: когда придёт
+настоящая база, менять придётся одно хранилище, а не всю сеть."""

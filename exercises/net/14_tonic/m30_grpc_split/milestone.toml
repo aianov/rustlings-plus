@@ -1,0 +1,25 @@
+test_command = ["cargo", "make", "check"]
+requires = []
+hint.ru = [
+"""Начни с крейта proto, это ntn_shared_proto: build.rs с `tonic_prost_build::configure().compile_protos` по четырём файлам
+из proto/social/v1 и `pub mod social { pub mod v1 { tonic::include_proto!("social.v1"); } }` в lib.rs. Помощники
+`domain`, `explain`, `traced` и остальные из таблицы README проверяются отдельно: `cargo test -p proto`.""",
+"""Сервисы создай `cargo xtask new-service user-service` (и так для post-service и auth-service), потом разложи по дереву.
+user-service это ntn_two_services, только внутри не карта, а `App` ядра с журналом, как в шлюзе вех с 21 по 29: каждый метод
+gRPC это один вызов `App`, а ошибка ядра уходит как `domain(error.code(), &report(&error))`. Связи пользователя добавь в
+ядро: `Follows::following`, список скрытых в `Mutes`, `Network::relations`, метод порта с телом по умолчанию (тогда
+`Jittery` из теста m21 соберётся без правок).""",
+"""post-service держит своё `App` как зеркало профилей. Профиль из user-service попадает к нему по порядку id: спроси
+`ListProfiles` после `user_count`, регистрируй ники подряд и сверяй выданный id с id профиля. Зеркалирование под
+`tokio::sync::Mutex`, иначе два запроса зарегистрируют одного человека дважды. Перед лентой подтяни `Relations` читателя
+и повтори его подписки и скрытия: `follow` и `mute` ядра на повторе просто отвечают false.""",
+"""auth-service забирает из шлюза `Tokens` и `http/auth.rs`. Регистрация зовёт `CreateProfile` и только после ответа
+пишет учётную запись в журнал. `run` обслуживает два слушателя: HTTP-сервер движка и gRPC `serve_with_incoming_shutdown`
+под `tokio::join!` с дочерним токеном, который отменяет тот, кто закончился первым.""",
+"""Шлюз: `Upstreams::connect` делает три `connect_lazy` один раз, `Ctx` клонирует каналы. Обработчик это `acting` (`act_as`
+и `decode_call`), вызов сервиса с `ctx.traced(..)`, ошибка через `ctx.failed(..)`, пуш только если `changed`. Тесты прошлых
+вех пришли новыми версиями: `support.rs` поднимает в процессе все четыре сервиса, поэтому их надо добавить шлюзу в
+`[dev-dependencies]`.""",
+]
+story.ru = """Монолит разрезан на четыре процесса: вход, профили, посты и шлюз говорят по gRPC через один канал на сервис,
+каждый пишет свой журнал, а запрос клиента оставляет в логах всех сервисов один и тот же x-request-id."""

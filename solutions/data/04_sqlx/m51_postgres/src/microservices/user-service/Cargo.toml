@@ -1,0 +1,34 @@
+[package]
+name = "user-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+files.workspace = true
+futures.workspace = true
+jobs.workspace = true
+admin.workspace = true
+contracts.workspace = true
+db-engine.workspace = true
+grpc-kit.workspace = true
+journal.workspace = true
+nats-engine.workspace = true
+proto.workspace = true
+serde.workspace = true
+sqlx.workspace = true
+service-runtime.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tokio-stream.workspace = true
+tonic.workspace = true
+tonic-health.workspace = true
+validation.workspace = true
+
+[dev-dependencies]
+async-nats.workspace = true
+certgen.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,44 @@
+services:
+  nats:
+    image: nats:2.10
+    command: ["-m", "8222"]
+    healthcheck:
+      test: ["CMD", "/nats-server", "--help"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+  post-service:
+    build: .
+    environment:
+      DATABASE_PASSWORD_FILE: /run/secrets/db_password
+      NATS_URL: nats://nats:4222
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "127.0.0.1:8080", "/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: unless-stopped
+  api-gateway:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      NATS_URL: nats://nats:4222
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck", "127.0.0.1:8080", "/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      post-service:
+        condition: service_healthy
+    restart: unless-stopped
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt

@@ -1,0 +1,14 @@
+[chapter]
+title = "Journey"
+
+[[exercises]]
+name = "ms_first"
+kind = "milestone"
+journey = "backend"
+quiz = true
+
+[[exercises]]
+name = "ms_second"
+kind = "milestone"
+journey = "backend"
+quiz = true

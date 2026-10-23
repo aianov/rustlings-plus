@@ -1,0 +1,15 @@
+test_command = ["cargo", "make", "check"]
+requires = ["postgres", "nats"]
+hint.ru = [
+"""Хранимый tsvector: `ADD COLUMN search tsvector GENERATED ALWAYS AS (to_tsvector('russian', body)) STORED` и
+`CREATE INDEX ... USING GIN (search)`. Запрос: `FROM posts p, websearch_to_tsquery('russian', $1) q WHERE p.search @@ q`,
+порядок `ts_rank(p.search, q)`, подсветка `ts_headline`.""",
+"""pg_trgm ставится в public один раз на базу: оберни `CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public` в
+`pg_advisory_xact_lock`, иначе параллельные миграции столкнутся, и добавь public в search_path.""",
+"""Частичное обновление jsonb: `UPDATE users SET settings = settings || $2 RETURNING settings`, где `$2` это `Json(patch)`,
+а пустые поля patch не сериализуются (`skip_serializing_if`).""",
+"""`REFRESH MATERIALIZED VIEW CONCURRENTLY` требует уникального индекса на представлении. Партиции и обновление делает
+функция `SECURITY DEFINER SET search_path FROM CURRENT`: роль приложения DDL не делает, но может её вызвать.""",
+]
+story.ru = """Соцсеть ищет посты по смыслу слов с подсветкой и людей с опечатками, хранит настройки в jsonb, тренды
+считает представление, уведомления живут в партициях по месяцам, а сервисы ходят в базу ролью без права ломать схему."""

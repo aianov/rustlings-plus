@@ -1,0 +1,12 @@
+{
+  "event_id": "evt-user.registered",
+  "type": "user.registered",
+  "schema": 1,
+  "version": 1,
+  "occurred_at": 1700000000000,
+  "aggregate_id": "u_1",
+  "payload": {
+    "user_id": "u_1",
+    "username": "alice"
+  }
+}

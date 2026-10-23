@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LATERAL: топ-N комментариев для каждого поста</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --g1:#e8f6ec; --g2:#fff4cc; --g3:#fde8e8; --g4:#e6e9fb; --bad:#b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --g1:#1c3326; --g2:#4a3f12; --g3:#3b2024; --g4:#262c52; --bad:#ff8a80; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:960px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.cur td { outline:2px solid var(--accent); outline-offset:-2px; }
+tr.a0 td { background:var(--g1); } tr.a1 td { background:var(--g2); } tr.a2 td { background:var(--g3); } tr.a3 td { background:var(--g4); }
+tr.out td { color:var(--muted); text-decoration:line-through; }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.note { min-height:3.6em; } .note b { color:var(--accent); } .note b.bad { color:var(--bad); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Как работает LATERAL</h1>
+  <p class="lead">Подзапрос справа выполняется заново для каждой строки слева и может читать её столбцы. Переключи режим, чтобы увидеть, что случается с постом без комментариев.</p>
+  <div class="card controls">
+    <select id="mode"><option value="cross">CROSS JOIN LATERAL</option><option value="left">LEFT JOIN LATERAL ... ON true</option></select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card"><pre id="sql"></pre></div>
+  <div class="card grid">
+    <div><h3>posts (левая сторона)</h3><table id="left"></table></div>
+    <div><h3>подзапрос для выделенного поста</h3><table id="inner"></table></div>
+  </div>
+  <div class="card"><h3>результат</h3><table id="res"></table></div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var i = 0, timer = null, total = 1;
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function reset() { stop(); i = 0; render(); }
+  $('step').onclick = function () { if (i < total) { i++; render(); } };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () {
+    if (timer) { stop(); return; }
+    if (i >= total) i = 0;
+    $('play').textContent = 'Пауза';
+    timer = setInterval(function () { if (i >= total) { stop(); return; } i++; render(); }, 1200);
+    i++; render();
+  };
+
+  var posts = [[1, 'rust tips'], [2, 'coffee'], [4, 'photos']];
+  var comments = { 1: [[3, '10-01 14:00'], [4, '10-02 08:00'], [5, '10-02 09:00'], [2, '10-01 13:00'], [1, '10-01 12:00']], 2: [[6, '10-03 09:00']], 4: [] };
+  var LIMIT = 2;
+  function top(p) {
+    return comments[p].slice().sort(function (a, b) { return a[1] < b[1] ? 1 : a[1] > b[1] ? -1 : b[0] - a[0]; });
+  }
+  function render() {
+    var mode = $('mode').value;
+    total = posts.length + 1;
+    $('sql').textContent = 'SELECT p.id AS post_id, c.id AS comment_id\nFROM posts p\n' + (mode === 'left' ? 'LEFT JOIN LATERAL (' : 'CROSS JOIN LATERAL (') + '\n  SELECT id FROM comments\n  WHERE post_id = p.id\n  ORDER BY created_at DESC, id DESC\n  LIMIT ' + LIMIT + '\n) c' + (mode === 'left' ? ' ON true' : '');
+    var done = Math.min(i, posts.length), cur = i >= 1 && i <= posts.length ? posts[i - 1][0] : null;
+    $('left').innerHTML = '<tr><th>id</th><th>body</th></tr>' + posts.map(function (p, idx) {
+      return '<tr class="' + (idx < done ? 'a0' : '') + (p[0] === cur ? ' cur' : '') + '"><td>' + p[0] + '</td><td>' + p[1] + '</td></tr>';
+    }).join('');
+    if (cur === null) $('inner').innerHTML = '<tr><td>пока не выполнялся</td></tr>';
+    else {
+      var t = top(cur);
+      $('inner').innerHTML = '<tr><th>id комментария</th><th>created_at</th><th></th></tr>' + (t.length ? t.map(function (c, idx) {
+        return '<tr class="' + (idx < LIMIT ? 'a1' : 'out') + '"><td>' + c[0] + '</td><td>' + c[1] + '</td><td>' + (idx < LIMIT ? 'берём' : 'за LIMIT') + '</td></tr>';
+      }).join('') : '<tr><td colspan="3">пусто: у поста нет комментариев</td></tr>');
+    }
+    var rows = [];
+    for (var k = 0; k < done; k++) {
+      var p = posts[k][0], t2 = top(p).slice(0, LIMIT);
+      if (t2.length) t2.forEach(function (c) { rows.push([p, c[0], k]); });
+      else if (mode === 'left') rows.push([p, null, k]);
+    }
+    $('res').innerHTML = '<tr><th>post_id</th><th>comment_id</th></tr>' + (rows.length ? rows.map(function (r) {
+      return '<tr class="a' + (r[2] % 4) + '"><td>' + r[0] + '</td><td>' + (r[1] === null ? 'NULL' : r[1]) + '</td></tr>';
+    }).join('') : '<tr><td colspan="2">пока пусто</td></tr>');
+    var note;
+    if (i === 0) note = 'Нажми «Шаг»: подзапрос будет выполнен заново для каждой строки слева. Он видит <b>p.id</b> текущего поста.';
+    else if (i <= posts.length) {
+      var n = comments[cur].length;
+      if (n === 0) note = 'Пост <b>' + cur + '</b>: комментариев нет, подзапрос вернул пусто. ' + (mode === 'left' ? 'LEFT JOIN LATERAL оставляет пост с <b>NULL</b>.' : 'CROSS JOIN LATERAL выбрасывает пост: в результате его не будет.');
+      else note = 'Пост <b>' + cur + '</b>: комментариев ' + n + ', подзапрос сортирует их и берёт не больше ' + LIMIT + '. LIMIT действует на каждый пост отдельно.';
+    } else note = 'Итог: ' + (mode === 'left' ? 'все три поста на месте, молчащий с NULL.' : 'пост без комментариев пропал. Чтобы сохранить его, нужен LEFT JOIN LATERAL ... ON true.');
+    $('note').innerHTML = note;
+    $('counter').textContent = 'шаг ' + i + ' из ' + total;
+    $('step').disabled = i >= total;
+    if (i >= total) stop();
+  }
+  reset();
+})();
+</script>
+</body>
+</html>

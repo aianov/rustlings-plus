@@ -1,0 +1,27 @@
+[package]
+name = "api-gateway"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+contracts.workspace = true
+http-engine.workspace = true
+proto.workspace = true
+service-runtime.workspace = true
+social-core.workspace = true
+tokio.workspace = true
+tonic.workspace = true
+websocket-engine.workspace = true
+
+[dev-dependencies]
+auth-service.workspace = true
+http-client.workspace = true
+post-service.workspace = true
+social-cli.workspace = true
+tokio-stream.workspace = true
+user-service.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>live и ready</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0; --track: #e3e8f0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff; --track: #2a3342;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff; --track: #2a3342;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+#caption { margin-top: 12px; min-height: 84px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>live и ready: что делает оркестратор</h1>
+  <p class="sub">Три экземпляра сервиса, балансировщик слева. Лампа L это live (жив ли процесс), лампа R это ready (можно ли слать трафик).</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Сценарий <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 940 360" role="img" aria-label="Три экземпляра и их пробы">
+      <g id="scene"></g>
+    </svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+// instance state: [live, ready, note]; db: up/down; restarts counter
+const G = "ok", R = "bad", Y = "warn";
+const SCEN = {
+  good: {
+    title: "правильно: зависимости только в ready",
+    steps: [
+      { db: "down", inst: [[1, 0, "ждёт базу"], [1, 0, "ждёт базу"], [1, 0, "ждёт базу"]], restarts: 0,
+        text: "Старт. Базы пока нет. Экземпляры <b>живы</b> (процесс отвечает), но <b>не готовы</b>: трафик на них не идёт. Они ждут зависимость с дедлайном, а не падают." },
+      { db: "up", inst: [[1, 1, "готов"], [1, 1, "готов"], [1, 1, "готов"]], restarts: 0,
+        text: "База поднялась, проверки готовности прошли. Балансировщик начинает слать запросы." },
+      { db: "down", inst: [[1, 0, "база недоступна"], [1, 0, "база недоступна"], [1, 0, "база недоступна"]], restarts: 0,
+        text: "База пропала на пару секунд. <b>ready</b> у всех отвечает 503: трафик остановлен, пользователи получают отказ от балансировщика. А <b>live</b> в порядке: перезапускать нечего, процессы просто ждут." },
+      { db: "up", inst: [[1, 1, "готов"], [1, 1, "готов"], [1, 1, "готов"]], restarts: 0,
+        text: "База вернулась, все экземпляры снова готовы, перезапусков не было. Нагрузки лавиной на базу нет: подключения уже установлены." },
+      { db: "up", inst: [[1, 1, "готов"], [1, 1, "готов"], [1, 0, "остановка"]], restarts: 0,
+        text: "Выкат: третий экземпляр получил SIGTERM. <b>ready</b> у него сразу 503, трафик уходит на двух других, а <b>live</b> всё ещё 200: процесс спокойно дренирует запросы." }
+    ]
+  },
+  bad: {
+    title: "ошибка: liveness проверяет базу",
+    steps: [
+      { db: "down", inst: [[0, 0, "live ходит в базу"], [0, 0, "live ходит в базу"], [0, 0, "live ходит в базу"]], restarts: 0,
+        text: "Кто-то решил, что <code>/health</code> должен проверять базу «для надёжности». Старт при недоступной базе: live уже красный." },
+      { db: "up", inst: [[1, 1, "готов"], [1, 1, "готов"], [1, 1, "готов"]], restarts: 3,
+        text: "Только после трёх перезапусков база поднялась, и всё заработало, но три перезапуска уже были зря. Счётчик перезапусков уже показывает три." },
+      { db: "down", inst: [[0, 0, "live: база не отвечает"], [0, 0, "live: база не отвечает"], [0, 0, "live: база не отвечает"]], restarts: 3,
+        text: "База пропала на пару секунд. <b>live</b> красный у ВСЕХ экземпляров сразу: проверка зависимости считается проверкой жизни процесса." },
+      { db: "down", inst: [[0, 0, "перезапуск"], [0, 0, "перезапуск"], [0, 0, "перезапуск"]], restarts: 6,
+        text: "Оркестратор убивает и запускает заново всех. Новые процессы стартуют, снова не видят базу, снова красные: цикл смерти. Перезапуск процесса не лечит чужую базу." },
+      { db: "up", inst: [[1, 1, "готов"], [1, 1, "готов"], [1, 1, "готов"]], restarts: 6,
+        text: "База вернулась, и три только что стартовавших экземпляра одновременно открывают подключения. База, которая едва ожила, получает лавину. Лечится одним правилом: зависимости только в <b>ready</b>." }
+    ]
+  }
+};
+const scene = document.getElementById("scene");
+function lamp(x, y, label, on) {
+  el("circle", { cx: x, cy: y, r: 11, fill: "var(--" + (on ? "ok" : "bad") + ")" }, scene);
+  el("text", { x: x, y: y + 4, "text-anchor": "middle", style: "fill:#fff;font-weight:700;font-size:12px" }, scene, label);
+}
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const step = idx < 0 ? null : sc.steps[idx];
+  el("rect", { x: 10, y: 130, width: 120, height: 70, rx: 8, fill: "var(--box)", stroke: "var(--boxline)" }, scene);
+  el("text", { x: 70, y: 160, "text-anchor": "middle" }, scene, "балансировщик");
+  el("text", { x: 70, y: 180, "text-anchor": "middle", class: "muted" }, scene, "шлёт трафик");
+  el("text", { x: 70, y: 188, "text-anchor": "middle", class: "muted" }, scene, "");
+  const ys = [40, 150, 260];
+  for (let i = 0; i < 3; i++) {
+    const st = step ? step.inst[i] : [1, 0, "..."];
+    const y = ys[i];
+    el("rect", { x: 320, y: y - 10, width: 330, height: 80, rx: 8, fill: "var(--box)", stroke: "var(--boxline)" }, scene);
+    el("text", { x: 335, y: y + 14 }, scene, "экземпляр " + (i + 1));
+    el("text", { x: 335, y: y + 36, class: "muted" }, scene, st[2]);
+    lamp(590, y + 20, "L", st[0]);
+    lamp(620, y + 20, "R", st[1]);
+    const traffic = step && st[1] && st[0];
+    el("line", { x1: 130, y1: 165, x2: 320, y2: y + 30, stroke: traffic ? "var(--ok)" : "var(--line)", "stroke-width": traffic ? 3 : 1.5, "stroke-dasharray": traffic ? "0" : "5 4" }, scene);
+  }
+  const dbUp = step ? step.db === "up" : false;
+  el("rect", { x: 760, y: 130, width: 150, height: 70, rx: 8, fill: "var(--box)", stroke: "var(--" + (step ? (dbUp ? "ok" : "bad") : "boxline") + ")", "stroke-width": 2.5 }, scene);
+  el("text", { x: 835, y: 160, "text-anchor": "middle" }, scene, "база данных");
+  el("text", { x: 835, y: 182, "text-anchor": "middle", style: "fill:var(--" + (dbUp ? "ok" : "bad") + ");font-weight:700" }, scene, step ? (dbUp ? "работает" : "недоступна") : "");
+  const restarts = step ? step.restarts : 0;
+  el("text", { x: 760, y: 235 }, scene, "перезапусков всего:");
+  el("text", { x: 900, y: 235, style: "font-weight:700;fill:var(--" + (restarts > 3 ? "bad" : "ink") + ")" }, scene, String(restarts));
+  caption.innerHTML = idx < 0
+    ? '<span class="step">Шаг 0 из ' + sc.steps.length + '</span><br>Нажми «Шаг». В сценарии можно выбрать правильную схему или типичную ошибку.'
+    : '<span class="step">Шаг ' + (idx + 1) + ' из ' + sc.steps.length + '</span><br>' + step.text;
+  finish();
+}
+const caption = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btnPrev = document.getElementById("prev"), btnNext = document.getElementById("next");
+const btnPlay = document.getElementById("play"), btnReset = document.getElementById("reset");
+let idx = -1, timer = null;
+for (const k in SCEN) { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); }
+function steps() { return SCEN[sel.value].steps; }
+function stop() { if (timer) { clearInterval(timer); timer = null; } btnPlay.textContent = "Играть"; }
+function next() { if (idx < steps().length - 1) { idx++; render(); } }
+btnNext.onclick = () => { stop(); next(); };
+btnPrev.onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btnReset.onclick = () => { stop(); idx = -1; render(); };
+btnPlay.onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= steps().length - 1) idx = -1;
+  btnPlay.textContent = "Пауза";
+  next();
+  timer = setInterval(next, 2600);
+};
+sel.onchange = () => { stop(); idx = -1; render(); };
+document.getElementById("theme").onclick = () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue("--bg").trim() === "#14181f";
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+function finish() {
+  btnPrev.disabled = idx < 0;
+  btnNext.disabled = idx >= steps().length - 1;
+  if (idx >= steps().length - 1) stop();
+}
+render();
+</script>
+</body>
+</html>

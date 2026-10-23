@@ -1,0 +1,115 @@
+env_files = [{ path = ".env", defaults_only = true }]
+
+[config]
+default_to_workspace = false
+
+[tasks.fmt]
+clear = true
+command = "cargo"
+args = ["fmt", "--all", "--check"]
+
+[tasks.lint]
+clear = true
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
+
+[tasks.test]
+clear = true
+command = "cargo"
+args = ["test", "--workspace"]
+
+[tasks.check]
+clear = true
+dependencies = ["fmt", "lint", "test"]
+
+[tasks.run]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "${SERVICE}"]
+
+[tasks.certs]
+clear = true
+command = "cargo"
+args = ["xtask", "certs", "--keep"]
+
+[tasks.build-all]
+clear = true
+command = "cargo"
+args = ["build", "--quiet", "--workspace", "--bins"]
+
+[tasks.user-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "user-service"]
+
+[tasks.post-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "post-service"]
+
+[tasks.chat-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "chat-service"]
+
+[tasks.auth-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "auth-service"]
+
+[tasks.api-gateway]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "api-gateway"]
+
+[tasks.api-gateway-2]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "api-gateway"]
+env = { GATEWAY_HTTP_ADDR = "127.0.0.1:7890", GATEWAY_ADMIN_ADDR = "127.0.0.1:9890" }
+
+[tasks.notify-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "notify-service"]
+
+[tasks.feed-service]
+clear = true
+command = "cargo"
+args = ["run", "--quiet", "-p", "feed-service"]
+
+[tasks.run-all]
+clear = true
+dependencies = ["build-all", "certs"]
+run_task = { name = ["user-service", "post-service", "chat-service", "auth-service", "notify-service", "feed-service", "api-gateway", "api-gateway-2"], parallel = true }
+
+[tasks.up]
+description = "вся соцсеть: devctl поднимает сервисы по зависимостям и ждёт /ready"
+dependencies = ["build-all", "certs"]
+command = "cargo"
+args = ["run", "--quiet", "-p", "devctl", "--", "up"]
+
+[tasks.down]
+description = "остановить всё в обратном порядке: SIGTERM, дедлайн, SIGKILL"
+command = "cargo"
+args = ["run", "--quiet", "-p", "devctl", "--", "down"]
+
+[tasks.demo]
+clear = true
+dependencies = ["build-all", "certs"]
+script_runner = "@shell"
+script = '''
+cargo run --quiet -p devctl -- up || exit 1
+trap 'cargo run --quiet -p devctl -- down' EXIT
+cargo run --quiet -p social-cli
+'''
+
+[tasks.e2e]
+description = "e2e: весь стек в одном процессе против NATS курса"
+command = "cargo"
+args = ["test", "-p", "e2e"]
+
+[tasks.load]
+description = "нагрузка на шлюз: закрытая модель, отчёт и сравнение с прошлым прогоном"
+command = "cargo"
+args = ["run", "-p", "loadgen", "--release", "--", "--duration", "10", "--compare", "target/load-last.json", "--save", "target/load-last.json"]

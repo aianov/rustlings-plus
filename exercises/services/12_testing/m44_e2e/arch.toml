@@ -1,0 +1,3987 @@
+[[rules]]
+kind = "exists"
+paths = [
+  "Cargo.toml",
+  "Makefile",
+  "Makefile.toml",
+  ".env.example",
+  ".env",
+  ".cargo/config.toml",
+  "rust-toolchain.toml",
+  "rustfmt.toml",
+  "clippy.toml",
+  "src/crates/contracts/Cargo.toml",
+  "src/crates/contracts/src/lib.rs",
+  "src/crates/contracts/src/ids/mod.rs",
+  "src/crates/contracts/src/username/mod.rs",
+  "src/crates/contracts/src/command/mod.rs",
+  "src/crates/contracts/src/chat/mod.rs",
+  "src/crates/contracts/src/input/mod.rs",
+  "src/crates/contracts/src/envelope/mod.rs",
+  "src/crates/contracts/src/api/mod.rs",
+  "src/crates/contracts/src/api/views.rs",
+  "src/crates/contracts/src/push/mod.rs",
+  "src/crates/contracts/src/error/mod.rs",
+  "src/crates/contracts/src/cursor/mod.rs",
+  "tools/xtask/Cargo.toml",
+  "tools/xtask/src/main.rs",
+  "src/crates/contracts/src/clock/mod.rs",
+  "tools/xtask/src/bench.rs",
+  "src/crates/contracts/src/setting/mod.rs",
+  "src/crates/service-runtime/Cargo.toml",
+  "src/crates/service-runtime/src/lib.rs",
+  "src/crates/service-runtime/src/token/mod.rs",
+  "src/crates/service-runtime/src/tracker/mod.rs",
+  "src/crates/service-runtime/src/supervisor/mod.rs",
+  "src/crates/service-runtime/src/shutdown/mod.rs",
+  "src/crates/contracts/src/journal/mod.rs",
+  "src/crates/contracts/src/visibility/mod.rs",
+  "src/crates/service-runtime/src/console/mod.rs",
+  "src/crates/service-runtime/src/console/traced.rs",
+  "src/crates/framing/Cargo.toml",
+  "src/crates/framing/src/lib.rs",
+  "src/crates/framing/src/codec/mod.rs",
+  "src/crates/framing/src/framed/mod.rs",
+  "src/crates/framing/src/lines/mod.rs",
+  "src/crates/framing/src/length/mod.rs",
+  "src/crates/http-engine/Cargo.toml",
+  "src/crates/http-engine/src/lib.rs",
+  "src/crates/http-engine/src/method/mod.rs",
+  "src/crates/http-engine/src/status/mod.rs",
+  "src/crates/http-engine/src/headers/mod.rs",
+  "src/crates/http-engine/src/request/mod.rs",
+  "src/crates/http-engine/src/response/mod.rs",
+  "src/crates/http-engine/src/parse/mod.rs",
+  "src/crates/http-engine/src/router/mod.rs",
+  "src/crates/http-engine/src/server/mod.rs",
+  "src/crates/http-engine/src/parse/chunked.rs",
+  "src/crates/http-engine/src/parse/text.rs",
+  "src/crates/minifuzz/Cargo.toml",
+  "src/crates/minifuzz/src/lib.rs",
+  "src/crates/minifuzz/src/rng/mod.rs",
+  "src/crates/minifuzz/src/mutate/mod.rs",
+  "src/crates/minifuzz/src/shrink/mod.rs",
+  "src/crates/minifuzz/src/fuzz/mod.rs",
+  "src/crates/minifuzz/src/split/mod.rs",
+  "src/crates/contracts/src/auth/mod.rs",
+  "src/crates/http-engine/src/middleware/mod.rs",
+  "src/crates/http-client/Cargo.toml",
+  "src/crates/http-client/src/lib.rs",
+  "src/crates/http-client/src/url/mod.rs",
+  "src/crates/http-client/src/wire/mod.rs",
+  "src/crates/http-client/src/pool/mod.rs",
+  "src/crates/http-client/src/client/mod.rs",
+  "src/crates/http-client/src/error/mod.rs",
+  "src/crates/http-client/src/wire/head.rs",
+  "src/crates/http-client/src/wire/body.rs",
+  "src/crates/http-client/src/client/request.rs",
+  "src/crates/http-engine/src/cors/mod.rs",
+  "src/crates/http-engine/src/cookie/mod.rs",
+  "src/crates/http-engine/src/conditional/mod.rs",
+  "src/crates/http-engine/src/body/mod.rs",
+  "src/crates/http-engine/src/upgrade/mod.rs",
+  "src/crates/http-engine/src/server/write.rs",
+  "src/crates/websocket-engine/Cargo.toml",
+  "src/crates/websocket-engine/src/lib.rs",
+  "src/crates/websocket-engine/src/base64/mod.rs",
+  "src/crates/websocket-engine/src/frame/mod.rs",
+  "src/crates/websocket-engine/src/assembler/mod.rs",
+  "src/crates/websocket-engine/src/close/mod.rs",
+  "src/crates/websocket-engine/src/stream/mod.rs",
+  "src/crates/websocket-engine/src/handshake/mod.rs",
+  "src/crates/websocket-engine/src/client/mod.rs",
+  "src/crates/proto/Cargo.toml",
+  "src/crates/proto/build.rs",
+  "src/crates/proto/src/lib.rs",
+  "src/crates/proto/src/endpoints/mod.rs",
+  "src/crates/proto/src/status/mod.rs",
+  "src/crates/proto/proto/social/v1/common.proto",
+  "src/crates/proto/proto/social/v1/auth.proto",
+  "src/crates/proto/proto/social/v1/users.proto",
+  "src/crates/proto/proto/social/v1/posts.proto",
+  "src/crates/proto/proto/social/v1/chat.proto",
+  "src/crates/grpc-kit/Cargo.toml",
+  "src/crates/grpc-kit/src/lib.rs",
+  "src/crates/grpc-kit/src/stamp/mod.rs",
+  "src/crates/grpc-kit/src/caller/mod.rs",
+  "src/crates/grpc-kit/src/budget/mod.rs",
+  "src/crates/grpc-kit/src/access/mod.rs",
+  "src/crates/grpc-kit/src/health/mod.rs",
+  "src/crates/contracts/src/live/mod.rs",
+  ".gitignore",
+  "src/crates/certgen/Cargo.toml",
+  "src/crates/certgen/src/lib.rs",
+  "src/crates/certgen/src/issue/mod.rs",
+  "src/crates/certgen/src/gitignore/mod.rs",
+  "src/crates/tls-edge/Cargo.toml",
+  "src/crates/tls-edge/src/lib.rs",
+  "src/crates/tls-edge/src/config/mod.rs",
+  "src/crates/tls-edge/src/terminate/mod.rs",
+  "src/crates/grpc-kit/src/tls/mod.rs",
+  "tools/xtask/src/certs.rs",
+  "src/microservices/api-gateway/Cargo.toml",
+  "src/microservices/api-gateway/src/bootstrap/mod.rs",
+  "src/microservices/api-gateway/src/bootstrap/state.rs",
+  "src/microservices/api-gateway/src/client/auth.rs",
+  "src/microservices/api-gateway/src/client/mod.rs",
+  "src/microservices/api-gateway/src/common/config.rs",
+  "src/microservices/api-gateway/src/common/error.rs",
+  "src/microservices/api-gateway/src/common/mod.rs",
+  "src/microservices/api-gateway/src/common/registry.rs",
+  "src/microservices/api-gateway/src/controller/avatars.rs",
+  "src/microservices/api-gateway/src/controller/conn.rs",
+  "src/microservices/api-gateway/src/controller/http.rs",
+  "src/microservices/api-gateway/src/controller/mod.rs",
+  "src/microservices/api-gateway/src/controller/posts.rs",
+  "src/microservices/api-gateway/src/controller/protocol.rs",
+  "src/microservices/api-gateway/src/controller/users.rs",
+  "src/microservices/api-gateway/src/controller/ws.rs",
+  "src/microservices/api-gateway/src/dto/mod.rs",
+  "src/microservices/api-gateway/src/lib.rs",
+  "src/microservices/api-gateway/src/main.rs",
+  "src/microservices/api-gateway/src/routes/chat.rs",
+  "src/microservices/api-gateway/src/routes/ctx.rs",
+  "src/microservices/api-gateway/src/routes/live.rs",
+  "src/microservices/api-gateway/src/routes/mod.rs",
+  "src/microservices/api-gateway/src/routes/posts.rs",
+  "src/microservices/api-gateway/src/routes/users.rs",
+  "src/microservices/auth-service/Cargo.toml",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/state.rs",
+  "src/microservices/auth-service/src/client/mod.rs",
+  "src/microservices/auth-service/src/client/users.rs",
+  "src/microservices/auth-service/src/common/account.rs",
+  "src/microservices/auth-service/src/common/config.rs",
+  "src/microservices/auth-service/src/common/error.rs",
+  "src/microservices/auth-service/src/common/mod.rs",
+  "src/microservices/auth-service/src/controller/grpc.rs",
+  "src/microservices/auth-service/src/controller/handlers.rs",
+  "src/microservices/auth-service/src/controller/http.rs",
+  "src/microservices/auth-service/src/controller/mod.rs",
+  "src/microservices/auth-service/src/dto/mod.rs",
+  "src/microservices/auth-service/src/lib.rs",
+  "src/microservices/auth-service/src/main.rs",
+  "src/microservices/auth-service/src/repository/accounts.rs",
+  "src/microservices/auth-service/src/repository/mod.rs",
+  "src/microservices/auth-service/src/service/directory.rs",
+  "src/microservices/auth-service/src/service/error.rs",
+  "src/microservices/auth-service/src/service/mod.rs",
+  "src/microservices/chat-service/Cargo.toml",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/client/mod.rs",
+  "src/microservices/chat-service/src/client/users.rs",
+  "src/microservices/chat-service/src/common/config.rs",
+  "src/microservices/chat-service/src/common/error.rs",
+  "src/microservices/chat-service/src/common/message.rs",
+  "src/microservices/chat-service/src/common/mod.rs",
+  "src/microservices/chat-service/src/controller/mod.rs",
+  "src/microservices/chat-service/src/dto/mod.rs",
+  "src/microservices/chat-service/src/lib.rs",
+  "src/microservices/chat-service/src/main.rs",
+  "src/microservices/chat-service/src/repository/memory.rs",
+  "src/microservices/chat-service/src/repository/mod.rs",
+  "src/microservices/chat-service/src/service/directory.rs",
+  "src/microservices/chat-service/src/service/error.rs",
+  "src/microservices/chat-service/src/service/mod.rs",
+  "src/microservices/post-service/Cargo.toml",
+  "src/microservices/post-service/examples/feed_bench.rs",
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/post-service/src/client/mod.rs",
+  "src/microservices/post-service/src/client/users.rs",
+  "src/microservices/post-service/src/common/config.rs",
+  "src/microservices/post-service/src/common/error.rs",
+  "src/microservices/post-service/src/common/mod.rs",
+  "src/microservices/post-service/src/common/post.rs",
+  "src/microservices/post-service/src/controller/mod.rs",
+  "src/microservices/post-service/src/dto/mod.rs",
+  "src/microservices/post-service/src/lib.rs",
+  "src/microservices/post-service/src/main.rs",
+  "src/microservices/post-service/src/repository/memory.rs",
+  "src/microservices/post-service/src/repository/mod.rs",
+  "src/microservices/post-service/src/service/directory.rs",
+  "src/microservices/post-service/src/service/error.rs",
+  "src/microservices/post-service/src/service/mod.rs",
+  "src/microservices/post-service/src/service/watch.rs",
+  "src/microservices/user-service/Cargo.toml",
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/user-service/src/common/config.rs",
+  "src/microservices/user-service/src/common/error.rs",
+  "src/microservices/user-service/src/common/mod.rs",
+  "src/microservices/user-service/src/common/user.rs",
+  "src/microservices/user-service/src/controller/mod.rs",
+  "src/microservices/user-service/src/dto/mod.rs",
+  "src/microservices/user-service/src/lib.rs",
+  "src/microservices/user-service/src/main.rs",
+  "src/microservices/user-service/src/repository/avatars.rs",
+  "src/microservices/user-service/src/repository/memory.rs",
+  "src/microservices/user-service/src/repository/mod.rs",
+  "src/microservices/user-service/src/service/error.rs",
+  "src/microservices/user-service/src/service/mod.rs",
+  "src/crates/journal/Cargo.toml",
+  "src/crates/journal/src/error/mod.rs",
+  "src/crates/journal/src/file/mod.rs",
+  "src/crates/journal/src/lib.rs",
+  "src/crates/service-runtime/src/report/mod.rs",
+  "src/crates/service-runtime/src/config/mod.rs",
+  "src/crates/service-runtime/src/config/dotenv.rs",
+  "src/crates/service-runtime/src/config/secret.rs",
+  "src/crates/service-runtime/src/signals/mod.rs",
+  "src/crates/service-runtime/src/trail/mod.rs",
+  "src/crates/service-runtime/src/health/mod.rs",
+  "src/crates/service-runtime/src/startup/mod.rs",
+  "src/crates/service-runtime/src/background/mod.rs",
+  "src/crates/service-runtime/src/lifecycle/mod.rs",
+  "src/crates/admin/Cargo.toml",
+  "src/crates/admin/src/lib.rs",
+  "src/crates/admin/src/routes/mod.rs",
+  "src/crates/admin/src/server/mod.rs",
+  "src/crates/contracts/src/health/mod.rs",
+  "src/crates/journal/src/health/mod.rs",
+  "src/crates/validation/Cargo.toml",
+  "src/crates/validation/src/lib.rs",
+  "src/crates/validation/src/pattern/mod.rs",
+  "src/crates/validation/src/rule/mod.rs",
+  "src/crates/validation/src/rule/url.rs",
+  "src/crates/validation/src/validator/mod.rs",
+  "src/crates/contracts/src/errors/mod.rs",
+  "src/crates/contracts/src/errors/json.rs",
+  "src/crates/contracts/src/email/mod.rs",
+  "src/crates/contracts/src/patch/mod.rs",
+  "src/microservices/user-service/src/common/profile.rs",
+  "src/microservices/post-service/src/common/draft.rs",
+  "src/microservices/post-service/src/repository/entry.rs",
+  "src/microservices/api-gateway/src/controller/errors.rs",
+  "src/microservices/auth-service/src/service/token/mod.rs",
+  "src/microservices/auth-service/src/service/token/base64.rs",
+  "src/microservices/auth-service/src/service/token/hmac.rs",
+  "src/microservices/auth-service/src/service/token/keys.rs",
+  "src/microservices/auth-service/src/service/password/mod.rs",
+  "src/microservices/auth-service/src/service/exits.rs",
+  "src/microservices/auth-service/src/service/letters.rs",
+  "src/microservices/auth-service/src/service/mail.rs",
+  "src/microservices/auth-service/src/repository/sessions.rs",
+  "src/microservices/auth-service/src/repository/once.rs",
+  "src/microservices/auth-service/src/client/mail.rs",
+  "src/crates/contracts/src/role/mod.rs",
+  "src/crates/service-runtime/src/config/fields.rs",
+  "src/crates/http-engine/src/proxy/mod.rs",
+  "src/crates/http-client/src/conn/mod.rs",
+  "src/microservices/api-gateway/src/common/principal.rs",
+  "src/microservices/api-gateway/src/dto/data.rs",
+  "src/microservices/api-gateway/src/controller/work.rs",
+  "src/microservices/api-gateway/src/controller/proxy.rs",
+  "src/microservices/api-gateway/src/client/upstream.rs",
+  "src/crates/nats-engine/Cargo.toml",
+  "src/crates/nats-engine/src/lib.rs",
+  "src/crates/nats-engine/src/bus/mod.rs",
+  "src/crates/nats-engine/src/bus/subscription.rs",
+  "src/crates/nats-engine/src/bus/server.rs",
+  "src/crates/nats-engine/src/config/mod.rs",
+  "src/crates/nats-engine/src/error/mod.rs",
+  "src/crates/nats-engine/src/meta/mod.rs",
+  "src/crates/nats-engine/src/subject/mod.rs",
+  "src/crates/contracts/src/topics/mod.rs",
+  "src/crates/contracts/src/notice/mod.rs",
+  "src/crates/contracts/src/api/decode.rs",
+  "src/microservices/user-service/src/client/mod.rs",
+  "src/microservices/notify-service/Cargo.toml",
+  "src/microservices/notify-service/src/main.rs",
+  "src/microservices/notify-service/src/lib.rs",
+  "src/microservices/notify-service/src/bootstrap/mod.rs",
+  "src/microservices/notify-service/src/client/mod.rs",
+  "src/microservices/notify-service/src/client/users.rs",
+  "src/microservices/notify-service/src/client/courier.rs",
+  "src/microservices/notify-service/src/common/mod.rs",
+  "src/microservices/notify-service/src/common/config.rs",
+  "src/microservices/notify-service/src/common/error.rs",
+  "src/microservices/notify-service/src/common/notice.rs",
+  "src/microservices/notify-service/src/common/stats.rs",
+  "src/microservices/notify-service/src/controller/mod.rs",
+  "src/microservices/notify-service/src/controller/events.rs",
+  "src/microservices/notify-service/src/controller/requests.rs",
+  "src/microservices/notify-service/src/dto/mod.rs",
+  "src/microservices/notify-service/src/repository/mod.rs",
+  "src/microservices/notify-service/src/repository/memory.rs",
+  "src/microservices/notify-service/src/service/mod.rs",
+  "src/microservices/notify-service/src/service/audience.rs",
+  "src/microservices/notify-service/src/service/courier.rs",
+  "src/microservices/api-gateway/src/client/notify.rs",
+  "src/microservices/api-gateway/src/controller/notices.rs",
+  "src/microservices/api-gateway/src/routes/notify.rs",
+  "src/crates/nats-engine/src/js/mod.rs",
+  "src/crates/nats-engine/src/js/feed.rs",
+  "src/crates/nats-engine/src/js/dead.rs",
+  "src/crates/contracts/src/domain/mod.rs",
+  "src/crates/contracts/src/domain/upcast.rs",
+  "src/crates/contracts/src/outbox/mod.rs",
+  "src/crates/nats-engine/src/js/replay.rs",
+  "src/crates/proto/proto/social/v1/feed.proto",
+  "src/microservices/user-service/src/common/clock.rs",
+  "src/microservices/user-service/src/client/relay.rs",
+  "src/microservices/user-service/src/repository/entry.rs",
+  "src/microservices/user-service/src/repository/outbox.rs",
+  "src/microservices/post-service/src/client/relay.rs",
+  "src/microservices/post-service/src/repository/outbox.rs",
+  "src/microservices/post-service/src/repository/state.rs",
+  "src/microservices/feed-service/Cargo.toml",
+  "src/microservices/feed-service/src/main.rs",
+  "src/microservices/feed-service/src/lib.rs",
+  "src/microservices/feed-service/src/bootstrap/mod.rs",
+  "src/microservices/feed-service/src/common/mod.rs",
+  "src/microservices/feed-service/src/common/change.rs",
+  "src/microservices/feed-service/src/common/config.rs",
+  "src/microservices/feed-service/src/common/error.rs",
+  "src/microservices/feed-service/src/controller/mod.rs",
+  "src/microservices/feed-service/src/controller/events.rs",
+  "src/microservices/feed-service/src/controller/grpc.rs",
+  "src/microservices/feed-service/src/dto/mod.rs",
+  "src/microservices/feed-service/src/repository/mod.rs",
+  "src/microservices/feed-service/src/repository/memory.rs",
+  "src/microservices/feed-service/src/service/mod.rs",
+  "src/crates/contracts/src/realtime/mod.rs",
+  "src/crates/nats-engine/src/js/live.rs",
+  "src/crates/nats-engine/src/js/history.rs",
+  "src/crates/nats-engine/src/js/kv.rs",
+  "src/microservices/api-gateway/src/common/outbox.rs",
+  "src/microservices/api-gateway/src/controller/presence.rs",
+  "src/microservices/api-gateway/src/controller/subs.rs",
+  "src/microservices/api-gateway/src/controller/revoked.rs",
+  "src/microservices/chat-service/src/common/clock.rs",
+  "src/microservices/chat-service/src/client/relay.rs",
+  "src/microservices/chat-service/src/client/typing.rs",
+  "src/microservices/chat-service/src/repository/outbox.rs",
+  "src/microservices/chat-service/src/service/typing.rs",
+  "src/microservices/auth-service/src/client/revoker.rs",
+  "src/crates/nats-engine/src/js/pull.rs",
+  "src/crates/jobs/Cargo.toml",
+  "src/crates/jobs/src/lib.rs",
+  "src/crates/jobs/src/job/mod.rs",
+  "src/crates/jobs/src/policy/mod.rs",
+  "src/crates/jobs/src/queue/mod.rs",
+  "src/crates/jobs/src/worker/mod.rs",
+  "src/crates/jobs/src/periodic/mod.rs",
+  "src/crates/jobs/src/lease/mod.rs",
+  "src/crates/jobs/src/checkpoint/mod.rs",
+  "src/crates/jobs/src/saga/mod.rs",
+  "src/microservices/auth-service/src/service/deletion.rs",
+  "src/microservices/auth-service/src/client/saga.rs",
+  "src/microservices/auth-service/src/controller/jobs.rs",
+  "src/microservices/user-service/src/repository/lifecycle.rs",
+  "src/microservices/user-service/src/repository/state.rs",
+  "src/microservices/notify-service/src/controller/jobs.rs",
+  "src/crates/files/Cargo.toml",
+  "src/crates/files/src/lib.rs",
+  "src/crates/files/src/store/mod.rs",
+  "src/crates/files/src/limit/mod.rs",
+  "src/crates/files/src/content/mod.rs",
+  "src/crates/files/src/image/mod.rs",
+  "src/crates/files/src/sign/mod.rs",
+  "src/crates/files/src/serve/mod.rs",
+  "src/microservices/user-service/src/service/avatars.rs",
+  "src/microservices/api-gateway/src/common/links.rs",
+  "src/crates/test-support/Cargo.toml",
+  "src/crates/test-support/src/lib.rs",
+  "src/crates/test-support/src/eventually/mod.rs",
+  "src/crates/test-support/src/builders/mod.rs",
+  "src/crates/test-support/src/faults/mod.rs",
+  "src/crates/test-support/src/random/mod.rs",
+  "src/crates/test-support/src/roots/mod.rs",
+  "tests/e2e/Cargo.toml",
+  "tests/e2e/src/lib.rs",
+  "tests/e2e/src/stack/mod.rs",
+  "tests/e2e/src/client/mod.rs",
+  "tests/e2e/src/golden/mod.rs",
+  "tests/e2e/src/flaky/mod.rs",
+  "tests/e2e/src/brokers/mod.rs",
+  "tests/e2e/src/waiting/mod.rs",
+  "tests/e2e/tests/scenario.rs",
+  "tests/e2e/tests/events.rs",
+  "tests/e2e/tests/faults.rs",
+  "tests/e2e/tests/model.rs",
+]
+message.ru = "Не хватает файла из дерева вехи. Ядра social-core больше нет: правила соцсети живут в сервисах. Каждый сервис в src/microservices разложен по слоям: main.rs, lib.rs, bootstrap/ (сборка и запуск), controller/ (вход gRPC или HTTP), dto/ (перевод транспортных типов), service/ (правила и порты к соседям), repository/ (хранение за трейтами, mod.rs и memory.rs), client/ (клиенты соседей), common/ (конфиг, ошибки, доменные типы). У шлюза вместо service и repository есть routes/ (таблица WS-методов). Журнал NDJSON живёт в src/crates/journal (file/, error/), отчёт об ошибке в service-runtime/src/report, замер ленты в post-service/examples/feed_bench.rs. Остальное дерево прежнее: contracts, proto, grpc-kit, certgen, tls-edge, свои движки, framing, minifuzz, http-client, service-runtime, tools/xtask и tools/social-cli. В m34 к ним добавились: service-runtime/src/config (mod.rs, dotenv.rs, secret.rs), signals, trail, health, startup, background, lifecycle; крейт src/crates/admin (routes/, server/) с /health и /ready; contracts/src/health (LiveView, ReadyView, CheckView); journal/src/health (JournalHealth). В m35 к ним добавились: крейт src/crates/validation (pattern/, rule/ с url.rs, validator/); contracts/src/errors (mod.rs, json.rs), email/, patch/; user-service/src/common/profile.rs; post-service/src/common/draft.rs и repository/entry.rs; api-gateway/src/controller/errors.rs. В m36 к ним добавились: auth-service/src/service/token (mod.rs, base64.rs, hmac.rs, keys.rs), service/password, service/exits.rs, letters.rs, mail.rs, repository/sessions.rs и once.rs, client/mail.rs; contracts/src/role; service-runtime/src/config/fields.rs. repository/tokens.rs больше нет: токены подписаны, а сессии лежат в sessions.rs. В m37 к ним добавились: http-engine/src/proxy (строка PROXY), http-client/src/conn (TCP или TLS), у шлюза common/principal.rs (Principal и Visitor), dto/data.rs (типы data методов), controller/work.rs (задачи сокета), controller/proxy.rs (обратный прокси /auth/*) и client/upstream.rs (HTTP-клиент auth-service). В m38 к ним добавились: крейт src/crates/nats-engine (bus/ с subscription.rs и server.rs, config/, error/, meta/, subject/), contracts/src/topics (схема тем) и notice/ (виды уведомлений), разбор вызовов в contracts/src/api/decode.rs, порт событий service/events.rs и адаптер client/events.rs в user-service и post-service, новый сервис src/microservices/notify-service по тем же слоям (controller/ с events.rs и requests.rs, client/ с users.rs и courier.rs, service/ с audience.rs и courier.rs, repository/ с memory.rs, common/ с config.rs, error.rs, notice.rs, stats.rs), у шлюза client/notify.rs, controller/notices.rs и routes/notify.rs. В m39 к ним добавились: nats-engine/src/js (mod.rs: stream и публикация с подтверждением, feed.rs: durable-читатель, dead.rs: мёртвая тема). В m40 к ним добавились: contracts/src/domain (конверт события, факты, upcast.rs) и outbox/, nats-engine/src/js/replay.rs, proto feed.proto, в user-service и post-service client/relay.rs и repository/outbox.rs (у user-service ещё entry.rs и common/clock.rs, у post-service state.rs), новый сервис src/microservices/feed-service по слоям (controller/ с events.rs и grpc.rs, common/ с change.rs). Порта Events и адаптеров client/events.rs больше нет: событие пишется в outbox вместе с изменением. В m41 к ним добавились: contracts/src/realtime (печатает, отзыв сессий, «в сети»), nats-engine js/live.rs, js/history.rs и js/kv.rs, в шлюзе common/outbox.rs и controller/presence.rs с соседями subs.rs и revoked.rs, в chat-service client/relay.rs, client/typing.rs, repository/outbox.rs, service/typing.rs и common/clock.rs, в auth-service client/revoker.rs. Потока Subscribe больше нет: client/inbox.rs шлюза и service/hub.rs чата удалены. В m42 к ним добавились: крейт src/crates/jobs (job, policy, queue, worker, periodic, lease, checkpoint, saga), nats-engine js/pull.rs, в auth-service service/deletion.rs, client/saga.rs и controller/jobs.rs, в user-service repository/lifecycle.rs и repository/state.rs, в notify-service controller/jobs.rs. В m43 к ним добавились: крейт src/crates/files (store, limit, content, image, sign, serve), в user-service service/avatars.rs, в шлюзе common/links.rs. В m44 к ним добавились: крейт src/crates/test-support (eventually, builders, faults, random, roots) и пакет tests/e2e (stack, client, golden, flaky, brokers, waiting и тесты scenario, events, faults, model)."
+
+[[rules]]
+kind = "allowed_children"
+dirs = ["src"]
+allowed = ["crates", "microservices"]
+message.ru = "В src/ корня только две папки: crates/ для библиотек и microservices/ для сервисов."
+
+[[rules]]
+kind = "absent"
+globs = ["tests/*.rs"]
+message.ru = "В корне воркспейса нет пакета, поэтому tests/*.rs там никто не скомпилирует, и тесты молча перестанут работать. Тесты прошлых вех живут в tests/ своих пакетов."
+
+[[rules]]
+kind = "not_contains"
+globs = ["Cargo.toml"]
+regex = '^\[package\]'
+message.ru = "Корневой Cargo.toml виртуальный: в нём [workspace] и общие таблицы, а [package] нет. Пакеты это src/crates/* и tools/*."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = 'resolver = "3"'
+message.ru = "В виртуальном корне нужна строка `resolver = \"3\"` в [workspace]: у корня нет edition, и без неё cargo молча возьмёт старый резолвер."
+
+[[rules]]
+kind = "workspace_members"
+members = [
+  "src/crates/contracts",
+  "src/crates/service-runtime",
+  "tools/xtask",
+  "src/crates/framing",
+  "src/microservices/api-gateway",
+  "tools/social-cli",
+  "src/crates/http-engine",
+  "src/crates/minifuzz",
+  "src/crates/http-client",
+  "src/crates/websocket-engine",
+  "src/crates/proto",
+  "src/microservices/user-service",
+  "src/microservices/post-service",
+  "src/microservices/auth-service",
+  "src/crates/grpc-kit",
+  "src/microservices/chat-service",
+  "src/crates/certgen",
+  "src/crates/tls-edge",
+  "src/crates/journal",
+  "src/crates/admin",
+  "src/crates/validation",
+  "src/crates/nats-engine",
+  "src/microservices/notify-service",
+  "src/microservices/feed-service",
+  "src/crates/jobs",
+  "src/crates/files",
+  "src/crates/test-support",
+  "tests/e2e",
+]
+message.ru = "В [workspace] members не попадают все пакеты. Удобнее всего три маски: \"src/crates/*\", \"src/microservices/*\" и \"tools/*\"."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = '^\[workspace.package\]'
+message.ru = "Общие поля пакетов (version, edition, rust-version, publish) живут в [workspace.package] корня."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/crates/*/Cargo.toml",
+  "tools/xtask/Cargo.toml",
+  "src/microservices/*/Cargo.toml",
+]
+regex = '^version.workspace = true'
+message.ru = "Версию пакет наследует из корня: `version.workspace = true`. Тогда версия у всех одна и правится в одном месте."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/crates/*/Cargo.toml",
+  "tools/xtask/Cargo.toml",
+  "src/microservices/*/Cargo.toml",
+]
+regex = '^edition.workspace = true'
+message.ru = "Edition пакет наследует из корня: `edition.workspace = true`."
+
+[[rules]]
+kind = "workspace_deps"
+packages = [
+  "src/crates/*",
+  "src/microservices/*",
+  "tools/xtask",
+]
+message.ru = "Зависимость объявлена в пакете напрямую. Все зависимости, и внутренние крейты тоже, описываются в [workspace.dependencies] корня, а в пакете `имя.workspace = true`."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/contracts"
+allow_only = [
+  "serde",
+  "serde_json",
+  "validation",
+]
+message.ru = "contracts это нижний слой: типы, ники, команды и контракт провода. Из чужого ему нужны только serde и serde_json, а ядро и терминал зависят от него. Стрелки идут только вниз."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = '^\[workspace.lints'
+message.ru = "Правила проверок общие для всех: [workspace.lints.rust] и [workspace.lints.clippy] в корне."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = 'unsafe_code = "forbid"'
+message.ru = "В [workspace.lints.rust] нужен `unsafe_code = \"forbid\"`: соцсети unsafe не нужен, и пусть компилятор это гарантирует."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = 'unwrap_used = "deny"'
+message.ru = "В [workspace.lints.clippy] нужен `unwrap_used = \"deny\"`: договорённость «без unwrap» теперь проверяет clippy, в том числе в тестах (там вместо него expect с объяснением)."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/crates/contracts/Cargo.toml",
+  "src/crates/service-runtime/Cargo.toml",
+  "tools/xtask/Cargo.toml",
+  "src/crates/framing/Cargo.toml",
+  "src/microservices/*/Cargo.toml",
+  "src/crates/test-support/Cargo.toml",
+  "tests/e2e/Cargo.toml",
+]
+regex = '^workspace = true'
+message.ru = "Пакет не подключил общие правила. Без `[lints]` и строки `workspace = true` под ней правила корня на него не действуют, и никто этого не заметит."
+
+[[rules]]
+kind = "contains"
+globs = ["Cargo.toml"]
+regex = '^\[profile.release\]'
+message.ru = "Профиль релизной сборки задаётся в корне воркспейса: [profile.release] в пакетах cargo игнорирует."
+
+[[rules]]
+kind = "uniform_modules"
+roots = [
+  "src/crates/contracts/src",
+  "src/crates/service-runtime/src",
+  "tools/xtask/src",
+  "src/crates/framing/src",
+  "src/microservices/api-gateway/src",
+  "src/crates/http-engine/src",
+  "src/crates/minifuzz/src",
+  "src/crates/http-client/src",
+  "src/crates/websocket-engine/src",
+  "src/crates/proto/src",
+  "src/microservices/user-service/src",
+  "src/microservices/post-service/src",
+  "src/crates/grpc-kit/src",
+  "src/microservices/chat-service/src",
+  "src/crates/certgen/src",
+  "src/crates/tls-edge/src",
+  "src/crates/admin/src",
+  "src/crates/validation/src",
+  "src/crates/nats-engine/src",
+  "src/microservices/notify-service/src",
+  "src/microservices/feed-service/src",
+  "src/crates/jobs/src",
+  "src/crates/files/src",
+  "src/crates/test-support/src",
+  "tests/e2e/src",
+]
+message.ru = "В одной папке смешаны файлы-модули и папки-модули. Рядом с lib.rs лежат только папки-модули, внутри папок только файлы .rs."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/lib.rs", "src/microservices/*/src/lib.rs"]
+regex = 'struct '
+message.ru = "lib.rs крейта и сервиса это фасад: только `mod ...;` и `pub use ...;`. Структуры живут в модулях."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/lib.rs", "src/microservices/*/src/lib.rs"]
+regex = 'enum '
+message.ru = "lib.rs крейта и сервиса это фасад: только `mod ...;` и `pub use ...;`. Перечисления живут в модулях."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/lib.rs", "src/microservices/*/src/lib.rs"]
+regex = 'impl[ <]'
+message.ru = "lib.rs крейта и сервиса это фасад: только `mod ...;` и `pub use ...;`. Методы пишутся рядом со своими типами."
+
+[[rules]]
+kind = "absent"
+globs = ["**/utils.rs", "**/helpers.rs"]
+message.ru = "Файлы-свалки utils.rs и helpers.rs не заводим: положи функцию в модуль, которому она принадлежит."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/**/*.rs", "tools/**/*.rs"]
+regex = 'allow\(dead_code\)'
+message.ru = "Глушилка `allow(dead_code)` не нужна: пусть компилятор подсказывает про забытый код."
+
+[[rules]]
+kind = "not_contains"
+globs = [
+  "src/crates/*/src/**/*.rs",
+  "tools/*/src/**/*.rs",
+  "tools/*/build.rs",
+]
+regex = '\.unwrap\(\)'
+message.ru = "В коде нашёлся `.unwrap()`. Верни `Result` или `Option` и пробрось ошибку через `?`."
+
+[[rules]]
+kind = "not_contains"
+globs = [
+  "src/crates/*/src/**/*.rs",
+  "tools/*/src/**/*.rs",
+  "tools/*/build.rs",
+]
+regex = 'panic!'
+message.ru = "В коде нашёлся `panic!`. Правила соцсети нарушаются каждый день, это не повод падать: верни ошибку."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/contracts/src/**/*.rs"]
+regex = 'std::sync::[^A]'
+message.ru = "Network, индексы, тренды, комментарии, переписка, синхронная шина событий, вызовы с провода, ошибки и contracts остаются однопоточными. Замки, атомики и каналы живут только в app/, shards/, notify/, events/bus.rs и в памяти-адаптере storage/mem. Общие неизменяемые данные в Arc можно везде: `use std::sync::Arc;`."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/**/*.rs", "tools/**/*.rs"]
+regex = 'static mut'
+message.ru = "`static mut` это общая память без всякой защиты. Общее состояние живёт в Arc<Mutex<...>>."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile"]
+regex = '^\.PHONY:'
+message.ru = "В Makefile нет .PHONY. Цели build, run, test, fmt, lint, check это команды, а не файлы: без .PHONY одноимённая папка или файл молча выключит цель."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile"]
+regex = '^SERVICE \?= '
+message.ru = "Сервис для `make run` задаётся через `SERVICE ?= api-gateway`: так его можно переопределить и аргументом make, и переменной окружения."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = '^\[tasks.check\]'
+message.ru = "В Makefile.toml нет задачи [tasks.check]: с этой вехи курс проверяет соцсеть командой `cargo make check`."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = 'default_to_workspace = false'
+message.ru = "В [config] Makefile.toml нужен `default_to_workspace = false`, иначе cargo-make выполнит каждую задачу в каждом члене воркспейса."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = 'defaults_only = true'
+message.ru = ".env подключается через env_files с `defaults_only = true`: файл дополняет окружение, но переменная из оболочки сильнее."
+
+[[rules]]
+kind = "contains"
+globs = ["rust-toolchain.toml"]
+regex = 'channel = "\d+\.\d+\.\d+"'
+message.ru = "rust-toolchain.toml закрепляет точную версию компилятора (например, \"1.88.0\"). `stable` плывёт, и закрепление ничего не закрепляет."
+
+[[rules]]
+kind = "contains"
+globs = ["rustfmt.toml"]
+regex = 'use_field_init_shorthand = true'
+message.ru = "В rustfmt.toml нужен `use_field_init_shorthand = true`: `Point { x: x }` пишем как `Point { x }`."
+
+[[rules]]
+kind = "contains"
+globs = ["clippy.toml"]
+regex = 'disallowed-methods'
+message.ru = "clippy.toml должен запрещать хотя бы std::process::exit через disallowed-methods: из main возвращаем ExitCode."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/contracts/src/**/*.rs"]
+regex = '_ =>'
+message.ru = "В contracts нашлась ветка `_ =>`. Она молча проглотит новый вариант enum или новую форму команды. Назови каждую ветку, а для неизвестного имени команды привяжи его: `(other, _) =>`."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/chat/mod.rs"]
+regex = 'let .+ else \{'
+message.ru = "Ранний выход в разборе команд сессии пишется через let-else: `let Some(name) = first.strip_prefix('/') else { ... };`."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/chat/mod.rs"]
+regex = '@ \.\.'
+message.ru = "Слова команды разбираются срезовыми образцами, а текст сообщения это хвост среза: `[to, text @ ..]`."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/**/*.rs", "tools/**/*.rs"]
+regex = 'Rc<'
+message.ru = "Нашёлся `Rc<`. Обработчики и уведомители живут в сети, которую делят потоки, а Rc не Send. Общий владелец между потоками это Arc."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/envelope/mod.rs"]
+regex = 'Value'
+message.ru = "Разбор идёт в два этапа: сначала конверт, где data это serde_json::Value, потом метод выбирает тип данных. Envelope<T = Value>."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/contracts/src/envelope/**/*.rs", "src/crates/contracts/src/api/**/*.rs"]
+regex = '\.clone\(\)'
+message.ru = "В разборе конверта нашёлся `.clone()`. Данные читаются из дерева по ссылке: `T::deserialize(&envelope.data)`, &Value сам умеет быть Deserializer."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/crates/contracts/src/error/mod.rs",
+  "src/microservices/api-gateway/src/common/error.rs",
+  "src/microservices/user-service/src/common/error.rs",
+  "src/microservices/post-service/src/common/error.rs",
+  "src/microservices/auth-service/src/common/error.rs",
+  "src/microservices/chat-service/src/common/error.rs",
+]
+regex = 'pub type Result<T>'
+message.ru = "У каждого крейта свой Error и свой алиас `pub type Result<T> = std::result::Result<T, Error>;` в его error/mod.rs: по сигнатуре видно, чья это неудача."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/api-gateway/src/common/error.rs",
+  "src/microservices/*/src/error/mod.rs",
+]
+regex = 'fn source'
+message.ru = "Ошибка, которая оборачивает причину, отдаёт её через `source`. Без этого метода причина молча пропадёт из всех отчётов."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/**/*.rs"]
+regex = 'Box<dyn .*Error'
+message.ru = "В крейте нашёлся `Box<dyn Error>`. Библиотека отдаёт типизированные ошибки, по которым можно принять решение; коробка нужна только самому верхнему слою, main терминала."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/main.rs"]
+regex = 'fn main\(\) -> Result'
+message.ru = "main не возвращает Result: тогда Rust сам напечатает ошибку через Debug (`Error: Custom { .. }`). Верни ExitCode, а ошибку напечатай сам: `ошибка: <цепочка причин>`."
+
+[[rules]]
+kind = "max_lines"
+globs = ["src/crates/*/src/**/*.rs"]
+max = 300
+message.ru = "Файл длиннее 300 строк. Разложи его по смыслу: операции с постами Network живут в network/posts.rs, с комментариями в network/comments.rs, индексы в своих файлах, отрисовка строк рядом с командами."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/contracts/src/username/**/*.rs"]
+regex = 'to_lowercase'
+message.ru = "Ник переводится в нижний регистр через to_ascii_lowercase. Юникодный to_lowercase трогает не только ASCII: \"İ\" превращается в два символа, и длина и смещения уезжают."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/contracts/src/username/**/*.rs"]
+regex = 'is_alpha'
+message.ru = "Символы ника проверяются ASCII-методами (is_ascii_lowercase, is_ascii_digit). is_alphabetic и is_alphanumeric пропустят кириллицу, и «аlice» с русской «а» станет двойником alice."
+
+[[rules]]
+kind = "absent"
+globs = ["**/tests/common.rs"]
+message.ru = "tests/common.rs cargo считает отдельным тестом (running 0 tests), а помощники в нём другим файлам не видны. Общий модуль тестов живёт в tests/common/mod.rs."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/crates/contracts/src/username/mod.rs",
+  "src/crates/contracts/src/ids/mod.rs",
+  "src/crates/contracts/src/cursor/mod.rs",
+  "src/crates/contracts/src/envelope/mod.rs",
+  "src/crates/contracts/src/clock/mod.rs",
+]
+regex = '^\s*/// ```'
+message.ru = "У публичного API contracts нет примера. Над ником, id, курсором, конвертом и часами нужен doc-тест (`/// ```` с кодом): `cargo test` его компилирует и запускает, поэтому пример не врёт."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/contracts/src/**/*.rs"]
+regex = '```ignore'
+message.ru = "Doc-тест с ignore не запускается и молча устаревает. Пример должен собираться и проходить."
+
+[[rules]]
+kind = "contains"
+globs = ["tools/xtask/src/bench.rs"]
+regex = 'feed_bench'
+message.ru = "`cargo xtask bench` запускает пример feed_bench ядра: `cargo run --release -p social-core --example feed_bench`."
+
+[[rules]]
+kind = "absent"
+globs = ["src/crates/worker-pool"]
+message.ru = "Пул потоков и SharedNetwork ушли: их работу делают задачи tokio, а ручкой ядра стал App в app/. Удали src/crates/worker-pool и social-core/src/shared."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/**/*.rs"]
+regex = 'thread::sleep'
+message.ru = "Нашёлся thread::sleep. В async-коде он держит воркер рантайма, и соседние задачи стоят; в тестах время двигает tokio::time (sleep, advance, start_paused), а работа ждёт сигнала, а не паузы."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/*/src/**/*.rs"]
+regex = 'tokio::main'
+message.ru = "#[tokio::main] ставит только бинарник: библиотечные крейты рантайм не создают, им его дают."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/**/*.rs", "tools/**/*.rs"]
+regex = 'unbounded_channel'
+message.ru = "Нашёлся unbounded_channel. Медленный потребитель, и очередь растёт, пока не кончится память. Канал с ёмкостью (mpsc::channel(n)) заставляет отправителя ждать места: это и есть backpressure."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/service-runtime"
+allow_only = ["tokio"]
+message.ru = "service-runtime это кирпич под всеми сервисами: только tokio. Ни tokio-util, ни крейтов соцсети, свой токен и учёт задач пишутся в пару экранов."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/service-runtime"
+forbid = ["tokio-util"]
+message.ru = "Готовые CancellationToken и TaskTracker из tokio-util не берём: в этой вехе их пишем сами."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/service-runtime/**/*.rs"]
+message.ru = "В крейте service-runtime нет комментариев: имена должны говорить сами."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/token/mod.rs"]
+regex = 'watch::'
+message.ru = "Токен отмены стоит на tokio::sync::watch: у watch есть текущее значение, и слушатель, пришедший после отмены, не зависнет."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/token/mod.rs"]
+regex = 'send_replace'
+message.ru = "Отмена пишется через send_replace: обычный send без получателей ничего не запишет, и сигнал потеряется."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/supervisor/mod.rs"]
+regex = 'impl<T> Drop for'
+message.ru = "Ребёнок не должен пережить супервизора: держи его JoinHandle в обёртке, которая в Drop делает abort."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/shutdown/mod.rs"]
+regex = 'timeout_at'
+message.ru = "У всей остановки один дедлайн: каждая стадия ждёт через timeout_at до общего срока, а не свой отдельный таймаут."
+
+[[rules]]
+kind = "absent"
+globs = ["src/crates/*/tests/m??_*.rs", "tools/*/tests/m??_*.rs"]
+message.ru = "Тесты вех живут в tests/journey/ своего пакета (один тестовый бинарник на пакет, mod на каждую веху в tests/journey/main.rs). Старые tests/mNN_*.rs удали: их новые версии уже лежат в tests/journey/."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/visibility/mod.rs"]
+regex = 'enum Visibility'
+message.ru = "Видимость поста теперь часть формата журнала: Visibility объявлен в contracts/src/visibility, ядро его реэкспортирует."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/journal/mod.rs"]
+regex = 'tag = "event"'
+message.ru = "Запись журнала в JSON помечена полем event: #[serde(tag = \"event\", rename_all = \"snake_case\")]."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/**/*.rs"]
+regex = 'futures::future::BoxFuture'
+message.ru = "BoxFuture уже есть в ports/repo.rs, второй из futures не нужен."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/**/*.rs"]
+regex = 'futures::executor'
+message.ru = "У futures свой block_on, но рантайм у нас tokio: граница sync и async проходится через Runtime терминала, второй исполнитель запутает таймеры и задачи."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/console/traced.rs"]
+regex = 'Future for Traced'
+message.ru = "Traced это свой Future: на каждом poll он отмечает состояние, число poll и время, а в Drop снимает задачу с учёта."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/console/traced.rs"]
+regex = 'impl<F> Drop for Traced'
+message.ru = "Задача уходит из живых в Drop обёртки: так консоль видит и завершённые, и брошенные (abort, дроп JoinSet), и упавшие задачи."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/shutdown/mod.rs"]
+regex = 'pub fn spawn'
+message.ru = "Stage::spawn(имя, задача) запускает задачу стадии через консоль: трекер стадии и консоль видят одно и то же."
+
+[[rules]]
+kind = "absent"
+globs = ["tools/repl"]
+message.ru = "Терминал tools/repl ушёл: с соцсетью теперь говорят по сети через api-gateway, а клиент курса живёт в tools/social-cli."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/framing"
+allow_only = ["tokio", "bytes"]
+message.ru = "framing это только байты и сокеты: ему хватает tokio и bytes, ни JSON, ни ядро ему не нужны."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/framing/**/*.rs"]
+message.ru = "Код framing говорит сам за себя: комментариев в нём нет."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/framing/src/codec/mod.rs"]
+regex = 'trait Decoder'
+message.ru = "Декодер это трейт: trait Decoder с decode и decode_eof."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/framing/src/codec/mod.rs"]
+regex = 'trait Encoder<'
+message.ru = "Кодер обобщён по типу сообщения: trait Encoder<Item>."
+
+[[rules]]
+kind = "not_contains"
+globs = [
+  "src/crates/framing/src/lines/**/*.rs",
+  "src/crates/framing/src/length/**/*.rs",
+  "src/crates/framing/src/codec/**/*.rs",
+]
+regex = 'AsyncRead'
+message.ru = "Кодек не делает ввод-вывод: он режет байты в буфере. Читать и писать сокет умеет только Framed."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/main.rs"]
+regex = 'TcpListener::bind'
+message.ru = "Каждый сервис занимает порт прямо в main.rs: TcpListener::bind по адресу из окружения, а lib.rs получает готовый слушатель в run."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/api-gateway"
+forbid = ["social-core"]
+message.ru = "Шлюз больше не держит ни строчки ядра: личные сообщения уехали в chat-service, остальное давно в сервисах."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/api-gateway"
+allow_only = [
+  "admin",
+  "async-nats",
+  "auth-service",
+  "certgen",
+  "chat-service",
+  "contracts",
+  "feed-service",
+  "files",
+  "futures",
+  "grpc-kit",
+  "http-client",
+  "http-engine",
+  "nats-engine",
+  "notify-service",
+  "post-service",
+  "proto",
+  "serde",
+  "service-runtime",
+  "social-cli",
+  "tls-edge",
+  "tokio",
+  "tokio-stream",
+  "tonic",
+  "tonic-health",
+  "user-service",
+  "websocket-engine",
+]
+message.ru = "Шлюзу хватает contracts, grpc-kit, proto, tonic, service-runtime, http-engine, websocket-engine, tls-edge и tokio, а http-client теперь нужен и в работе: через него идёт прокси /auth/*. Сервисы, tonic-health, tokio-stream и клиент курса нужны только тестам. Уведомления шлюз берёт из NATS через nats-engine; notify-service нужен только тестам. async-nats в тестах только убирает за собой stream своего корня. Ленту отдаёт feed-service по gRPC; сам пакет feed-service нужен только тестовому стенду. files: подпись ссылок и безопасные заголовки раздачи; futures: поток кусков аватара в user-service."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/**/*.rs"]
+regex = 'serde_json'
+message.ru = "JSON пишет и читает только contracts: шлюз собирает Response и Push типами contracts и кодирует через contracts::encode."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/**/*.rs"]
+regex = 'read_line'
+message.ru = "read_line на чужом вводе растёт без предела: сообщения шлюза читает WsStream с лимитом max_message."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/**/*.rs"]
+regex = 'unbounded_channel'
+message.ru = "Очереди шлюза ограничены: медленный клиент не должен съесть память. Нужен mpsc::channel(n)."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/common/registry.rs"]
+regex = 'pub fn deliver'
+message.ru = "Push-события теперь шлёт сам шлюз после успешного вызова сервиса: Registry::deliver раздаёт их во все соединения пользователя."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/common/registry.rs"]
+regex = 'impl Drop for Registration'
+message.ru = "Соединение уходит из реестра само: Drop у Registration, тогда ни обрыв, ни паника, ни abort не оставят мёртвых очередей."
+
+[[rules]]
+kind = "no_comments"
+globs = [
+  "src/microservices/*/src/**/*.rs",
+  "src/crates/proto/src/**/*.rs",
+  "src/crates/proto/build.rs",
+  "src/crates/grpc-kit/src/**/*.rs",
+  "src/crates/certgen/src/**/*.rs",
+  "src/crates/tls-edge/src/**/*.rs",
+]
+message.ru = "Код сервисов говорит сам за себя: комментариев в нём нет. Пояснения к контракту живут в .proto."
+
+[[rules]]
+kind = "max_lines"
+globs = ["src/microservices/*/src/**/*.rs"]
+max = 300
+message.ru = "Файл шлюза длиннее 300 строк. Разложи его по смыслу: accept в server/, соединение в connection/, разбор конверта в protocol/."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = '\[tasks\.demo\]'
+message.ru = "В Makefile.toml есть задача demo: шлюз в фоне и клиент курса в терминале."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile"]
+regex = '^demo:'
+message.ru = "В Makefile есть цель demo: шлюз в фоне и клиент курса в терминале."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/http-engine"
+forbid = [
+  "hyper",
+  "axum",
+  "httparse",
+  "tokio-util",
+]
+message.ru = "HTTP пишем сами: ни hyper, ни axum, ни httparse, ни tokio-util движку не нужны."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/http-engine"
+allow_only = [
+  "tokio",
+  "bytes",
+  "serde",
+  "serde_json",
+  "minifuzz",
+]
+message.ru = "http-engine стоит на tokio и serde (JSON-хелперы); minifuzz нужен только его тестам, в [dev-dependencies]."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/minifuzz"
+allow_only = []
+message.ru = "minifuzz обходится без зависимостей: генератор, мутатор и сжатие это несколько десятков строк."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/http-engine/**/*.rs"]
+message.ru = "Код http-engine говорит сам за себя: комментариев в нём нет."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/minifuzz/**/*.rs"]
+message.ru = "Код minifuzz говорит сам за себя: комментариев в нём нет."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/parse/mod.rs"]
+regex = 'Partial'
+message.ru = "Парсер инкрементальный: пока запрос не пришёл целиком, он отвечает Parsed::Partial, а не ждёт и не падает."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/parse/mod.rs"]
+regex = 'Smuggling'
+message.ru = "Content-Length вместе с Transfer-Encoding или два разных Content-Length это контрабанда запросов: ParseError::Smuggling."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/router/mod.rs"]
+regex = '"Allow"'
+message.ru = "Путь есть, а метода нет: 405 и заголовок Allow со списком методов."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/router/mod.rs"]
+regex = 'dyn Fn\(Request\)'
+message.ru = "Async-обработчики живут в одной таблице: Arc<dyn Fn(Request) -> BoxFuture<Response> + Send + Sync>."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/http-engine/src/**/*.rs", "src/crates/minifuzz/src/**/*.rs"]
+regex = 'tokio::main'
+message.ru = "Библиотека не создаёт рантайм: #[tokio::main] ставит только бинарник."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/minifuzz/src/rng/mod.rs"]
+regex = '0x9E37_79B9_7F4A_7C15'
+message.ru = "Генератор фаззера это splitmix64: повторяемая случайность по seed без крейтов."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/minifuzz/src/fuzz/mod.rs"]
+regex = 'catch_unwind'
+message.ru = "Фаззер ловит панику цели через catch_unwind и отдаёт вход, на котором она случилась."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/mod.rs"]
+regex = 'getrandom::fill'
+message.ru = "Refresh, jti и одноразовые токены берутся из криптостойкого генератора ОС: getrandom в service auth-service."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/auth-service/src/**/*.rs"]
+regex = 'SystemTime'
+message.ru = "Токен из часов предсказуем: его можно угадать по времени входа."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/auth-service/src/**/*.rs"]
+regex = 'RandomState'
+message.ru = "RandomState это сид для хеш-таблиц, а не генератор секретов: токен из него не криптостойкий."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/**/*.rs"]
+regex = 'minifuzz'
+message.ru = "Свой splitmix64 годится фаззеру, но не секретам: токены берутся из getrandom."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/controller/http.rs"]
+regex = '/auth/login'
+message.ru = "Вход по HTTP живёт в auth-service: POST /auth/register, /auth/login и /auth/logout в его http/mod.rs."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = '/users/:username'
+message.ru = "Профиль по ссылке: GET /users/:username."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = '/posts/:id'
+message.ru = "Пост по ссылке: GET /posts/:id."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/api-gateway/src/controller/http.rs",
+  "src/microservices/auth-service/src/controller/http.rs",
+]
+regex = '/health'
+message.ru = "Проверка живости: GET /health."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/http-client"
+forbid = [
+  "hyper",
+  "reqwest",
+  "httparse",
+]
+message.ru = "Клиент HTTP пишем сами: ни hyper, ни reqwest, ни httparse ему не нужны."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/http-client"
+allow_only = [
+  "bytes",
+  "certgen",
+  "http-engine",
+  "serde",
+  "serde_json",
+  "service-runtime",
+  "tls-edge",
+  "tokio",
+  "tokio-rustls",
+]
+message.ru = "http-client стоит на tokio и serde (JSON-хелперы), TLS берёт из tokio-rustls; http-engine ему можно, если захочешь взять оттуда типы. certgen, service-runtime и tls-edge нужны только тестам."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/http-client/**/*.rs"]
+message.ru = "Код http-client говорит сам за себя: комментариев в нём нет."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/server/mod.rs"]
+regex = 'sleep_until'
+message.ru = "Медленный клиент шлёт заголовки по байту, и таймаут на каждый read его не остановит: нужен общий дедлайн на голову запроса (head_timeout) и sleep_until."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/server/mod.rs"]
+regex = 'head_timeout'
+message.ru = "Дедлайны сервера настраиваются: idle_timeout, head_timeout и body_timeout в ServerConfig."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/server/mod.rs"]
+regex = '100 Continue'
+message.ru = "Expect: 100-continue: сервер отвечает HTTP/1.1 100 Continue, прежде чем ждать тело."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/server/mod.rs"]
+regex = 'Semaphore'
+message.ru = "Лимит соединений сервера держит Semaphore, как в шлюзе."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/middleware/mod.rs"]
+regex = 'pub fn apply'
+message.ru = "Middleware это луковица: apply надевает слои на обработчик, первый слой самый внешний."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/middleware/mod.rs"]
+regex = 'WWW-Authenticate'
+message.ru = "Отказ без токена это 401 с заголовком WWW-Authenticate: Bearer."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/middleware/mod.rs"]
+regex = 'remove\("x-user"\)'
+message.ru = "X-User, пришедший от клиента, затирается до проверки токена, иначе любой назовётся кем угодно."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-client/src/pool/mod.rs"]
+regex = 'struct Pool'
+message.ru = "Пул клиента держит keep-alive соединения по (хост, порт) и выбрасывает протухшие."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-client/src/client/mod.rs"]
+regex = 'is_idempotent'
+message.ru = "Повторять на протухшем соединении можно только идемпотентный запрос: POST второй раз создаст второй заказ."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-client/src/client/mod.rs"]
+regex = '"authorization"'
+message.ru = "Authorization и Cookie не уезжают на чужой хост вслед за редиректом."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = 'bearer_auth'
+message.ru = "/users/me закрыт Bearer-токеном: шлюз надевает bearer_auth на свои маршруты."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = 'access_log'
+message.ru = "Журнал запросов со временем: access_log в слоях шлюза."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/tests/http_api.rs"]
+regex = 'http_client'
+message.ru = "Свои интеграционные тесты HTTP-API шлюза ходят в него своим клиентом: http_client в tests/http_api.rs."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/cors/mod.rs"]
+regex = '"Vary"'
+message.ru = "Ответ, который зависит от Origin, должен сказать об этом кешам: Vary: Origin."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/cors/mod.rs"]
+regex = 'access-control-request-method'
+message.ru = "Предзапрос OPTIONS с Access-Control-Request-Method отвечает слой CORS, обработчик его не видит."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/cookie/mod.rs"]
+regex = 'HttpOnly'
+message.ru = "Set-Cookie собирается со всеми атрибутами: Max-Age, Path, HttpOnly, Secure, SameSite."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/cookie/mod.rs"]
+regex = 'NoneNeedsSecure'
+message.ru = "SameSite=None без Secure браузер отвергнет: to_header возвращает ошибку."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/conditional/mod.rs"]
+regex = '416'
+message.ru = "Диапазон за концом файла это 416 с Content-Range: bytes */длина."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/conditional/mod.rs"]
+regex = 'if-none-match'
+message.ru = "Условие If-None-Match проверяется раньше диапазона: свежей копии хватит и 304."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/body/mod.rs"]
+regex = 'struct BodyReader'
+message.ru = "Тело запроса можно читать кусками с лимитом: BodyReader для Content-Length и chunked."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/api-gateway/src/controller/http.rs",
+  "src/microservices/auth-service/src/controller/http.rs",
+]
+regex = 'vec!\[cors\('
+message.ru = "CORS стоит снаружи всех слоёв шлюза, иначе предзапрос без токена получит 401: первым в списке идёт cors(..)."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/api-gateway/src/controller/http.rs",
+  "src/microservices/auth-service/src/controller/http.rs",
+]
+regex = 'token_from_cookie'
+message.ru = "Браузер носит токен в cookie: token_from_cookie превращает её в Bearer до проверки."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/controller/handlers.rs"]
+regex = 'http_only: true'
+message.ru = "Cookie сессии недоступна скриптам страницы: http_only: true."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/controller/handlers.rs"]
+regex = 'SameSite::Lax'
+message.ru = "Cookie сессии SameSite=Lax: чужой сайт не отправит её в POST-запросе."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/controller/handlers.rs"]
+regex = 'SetCookie::delete'
+message.ru = "Выход стирает cookie: SetCookie::delete с тем же Path."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/avatars.rs"]
+regex = 'serve_bytes'
+message.ru = "Аватар отдаётся с ETag, 304 и Range через serve_bytes движка."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/common/config.rs"]
+regex = 'GATEWAY_CORS_ORIGINS'
+message.ru = "Белый список origin приходит из окружения: GATEWAY_CORS_ORIGINS в config/mod.rs."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/controller/**/*.rs"]
+regex = '"\*"'
+message.ru = "\"*\" в белом списке вместе с cookie браузер не примет, а разрешать всем отвечать с чужими cookie опасно: перечисли origin явно."
+
+[[rules]]
+kind = "absent"
+globs = [
+  "src/microservices/api-gateway/src/server",
+  "src/microservices/api-gateway/src/connection",
+]
+message.ru = "NDJSON-порт ушёл: конверты ходят текстовыми фреймами WebSocket по GET /ws на HTTP-порту, поэтому цикла accept и построчного соединения в шлюзе больше нет."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/**/*.rs"]
+regex = 'LinesCodec'
+message.ru = "Шлюз больше не режет строки: каждое сообщение WebSocket это один конверт."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/websocket-engine"
+forbid = [
+  "tungstenite",
+  "tokio-tungstenite",
+  "base64",
+  "tokio-util",
+]
+message.ru = "WebSocket пишем сами: ни tungstenite, ни tokio-tungstenite, ни base64, ни tokio-util движку не нужны."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/websocket-engine"
+allow_only = [
+  "tokio",
+  "bytes",
+  "sha1",
+  "http-engine",
+  "minifuzz",
+]
+message.ru = "websocket-engine стоит на tokio, bytes, sha1 (для Accept) и http-engine (Upgrade); minifuzz нужен только его тестам."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/websocket-engine/**/*.rs"]
+message.ru = "Код websocket-engine говорит сам за себя: комментариев в нём нет."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/websocket-engine/src/handshake/mod.rs"]
+regex = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+message.ru = "Sec-WebSocket-Accept это SHA-1 от ключа клиента и GUID из RFC 6455, в base64."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/websocket-engine/src/handshake/mod.rs"]
+regex = 'allowed_origins'
+message.ru = "Проверка Origin при рукопожатии: чужая страница не откроет сокет с cookie пользователя."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/websocket-engine/src/frame/mod.rs"]
+regex = 'MaskRequired'
+message.ru = "Фрейм клиента без маски это нарушение протокола: ProtoError::MaskRequired."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/websocket-engine/src/frame/mod.rs"]
+regex = '1009'
+message.ru = "Сообщение больше лимита закрывается кодом 1009."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/websocket-engine/src/assembler/mod.rs"]
+regex = 'InvalidUtf8'
+message.ru = "Текст проверяется на UTF-8 по мере сборки фрагментов: битый байт это 1007 сразу."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/websocket-engine/src/stream/mod.rs"]
+regex = 'Opcode::Pong'
+message.ru = "На ping отвечает сам WsStream: pong уходит, пока приложение ждёт в recv."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/upgrade/mod.rs"]
+regex = 'pub rest'
+message.ru = "Upgrade поверх http-engine: ответ 101 с крючком on_upgrade получает сокет вместе с уже прочитанными байтами."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/server/mod.rs"]
+regex = '101'
+message.ru = "Сервер передаёт сокет крючку сразу после ответа 101."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = '"/ws"'
+message.ru = "WebSocket шлюза живёт на том же HTTP-порту: маршрут GET /ws."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/ws.rs"]
+regex = 'check_upgrade'
+message.ru = "Рукопожатие проверяется до того, как сессия займёт место: check_upgrade раньше ожидания слота."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/ws.rs"]
+regex = 'acquire_owned'
+message.ru = "Число сессий ограничено Semaphore: лишний клиент ждёт ответа 101, пока не освободится место."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/conn.rs"]
+regex = 'idle_for'
+message.ru = "Молчание клиента меряется по последней вести от него: ws.idle_for() против idle_timeout, а pong на ping тоже весть."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/ws.rs"]
+regex = '1001'
+message.ru = "При остановке шлюз закрывает сокеты кодом 1001 (going away)."
+
+[[rules]]
+kind = "exists"
+paths = [
+  "src/microservices/api-gateway/src/routes/mod.rs",
+  "src/microservices/api-gateway/src/common/registry.rs",
+]
+message.ru = "Шлюз реального времени держит реестр соединений в registry/ и таблицу методов в routes/."
+
+[[rules]]
+kind = "absent"
+globs = [
+  "src/microservices/api-gateway/src/session",
+  "src/microservices/api-gateway/src/hub",
+  "src/crates/contracts/src/session",
+]
+message.ru = "Автомата сессии и хаба больше нет: сокет представлен с рукопожатия, соединения живут в registry/, а session.hello и session.bye ушли из контракта."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/mod.rs"]
+regex = '\.route_authed\('
+message.ru = "Таблица методов: открытые маршруты через .route, действия от имени пользователя через .route_authed."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/mod.rs"]
+regex = 'act_as'
+message.ru = "Пользователь приходит в обработчик из сокета, а не из data: act_as в маршрутах route_authed."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/client/auth.rs"]
+regex = 'validate_token'
+message.ru = "Токен проверяет auth-service: шлюз зовёт ValidateToken, а UNAUTHENTICATED отличает от недоступного сервиса."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/ws.rs"]
+regex = 'auth\.check'
+message.ru = "Токен проверяется до 101 через трейт: с чужим или просроченным токеном клиент получает 401 обычным ответом, а без токена открывается гостевой сокет."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/common/outbox.rs"]
+regex = '1008'
+message.ru = "Очередь соединения ограничена и держит место под Close: переполнение это отключение с 1008."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/conn.rs"]
+regex = 'kicked\(\)'
+message.ru = "Запись в сокет, застрявшая на медленном клиенте, прерывается сигналом отключения."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/conn.rs"]
+regex = 'interval_at'
+message.ru = "Heartbeat: сервер сам шлёт ping по interval."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/conn.rs"]
+regex = 'max_in_flight'
+message.ru = "Соединение создаёт свою работу с пределом max_in_flight: сверх него запрос получает отказ, а не очередь."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/work.rs"]
+regex = 'JoinSet'
+message.ru = "Запросы одного соединения идут параллельно в JoinSet, который живёт в controller/work.rs."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/push/mod.rs"]
+regex = 'tag = "event", content = "data"'
+message.ru = "Push это событие {event, data}: тег event и поля в data, без id."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/websocket-engine/src/stream/mod.rs"]
+regex = 'pub fn idle_for'
+message.ru = "WsStream помнит, когда в последний раз слышал собеседника: idle_for."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/proto/build.rs"]
+regex = 'tonic_prost_build'
+message.ru = "Код gRPC генерирует build.rs крейта proto через tonic_prost_build из .proto в proto/social/v1."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/proto/src/lib.rs"]
+regex = 'include_proto!\("social\.v1"\)'
+message.ru = "Сгенерированный код подключается в lib.rs крейта proto: tonic::include_proto!(\"social.v1\") внутри pub mod social { pub mod v1 }."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/proto/src/status/mod.rs"]
+regex = '"x-request-id"'
+message.ru = "Имя метаданных одно на все сервисы: x-request-id и x-error-code объявлены в крейте proto."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/proto/src/status/mod.rs"]
+regex = '"x-error-code"'
+message.ru = "Код доменной ошибки едет рядом со Status в метаданных x-error-code, чтобы шлюз вернул клиенту тот же код."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/proto"
+allow_only = [
+  "contracts",
+  "getrandom",
+  "prost",
+  "tonic",
+  "tonic-prost",
+  "tonic-prost-build",
+  "validation",
+]
+message.ru = "proto это только контракт: prost и tonic с генератором, плюс getrandom для x-request-id. Ни ядра, ни сервисов он не знает."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/user-service"
+allow_only = [
+  "admin",
+  "async-nats",
+  "certgen",
+  "contracts",
+  "files",
+  "futures",
+  "grpc-kit",
+  "jobs",
+  "journal",
+  "nats-engine",
+  "proto",
+  "serde",
+  "service-runtime",
+  "tokio",
+  "tokio-stream",
+  "tonic",
+  "tonic-health",
+  "validation",
+]
+message.ru = "user-service стоит на gRPC: proto, grpc-kit, tonic, tonic-health, tokio, tokio-stream и service-runtime, а события публикует через nats-engine. async-nats в тестах только убирает за собой stream своего корня. files: порт FileStore, лимит на лету и проверка картинки; futures: поток кусков аватара; jobs: лидер уборки сирот."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/post-service"
+allow_only = [
+  "admin",
+  "async-nats",
+  "certgen",
+  "contracts",
+  "grpc-kit",
+  "journal",
+  "nats-engine",
+  "proto",
+  "serde",
+  "service-runtime",
+  "tokio",
+  "tokio-stream",
+  "tonic",
+  "tonic-health",
+  "user-service",
+  "validation",
+]
+message.ru = "post-service стоит на gRPC и публикует события через nats-engine; user-service нужен только его тестам. async-nats в тестах только убирает за собой stream своего корня."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/auth-service"
+forbid = ["social-core"]
+message.ru = "auth-service не знает ядра соцсети: учётные записи и токены свои, профили создаёт user-service по gRPC."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/auth-service"
+allow_only = [
+  "admin",
+  "argon2",
+  "async-nats",
+  "contracts",
+  "futures",
+  "getrandom",
+  "grpc-kit",
+  "http-engine",
+  "jobs",
+  "journal",
+  "nats-engine",
+  "proto",
+  "serde",
+  "serde_json",
+  "service-runtime",
+  "sha2",
+  "tls-edge",
+  "tokio",
+  "tokio-stream",
+  "tonic",
+  "tonic-health",
+  "user-service",
+  "validation",
+]
+message.ru = "auth-service: http-engine для входа, tonic, tonic-health, proto и grpc-kit для gRPC, serde для журнала учётных записей, getrandom для токенов. nats-engine объявляет шлюзам отозванные сессии; async-nats и futures только тестам. jobs: очередь, аренда и сага удаления аккаунта."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/bootstrap/mod.rs"]
+regex = 'pub async fn run'
+message.ru = "Сервис запускается функцией run из bootstrap/: тесты поднимают его в процессе на своём слушателе, а lib.rs только реэкспортирует её."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/user-service/src/common/config.rs"]
+regex = '"USERS_JOURNAL"'
+message.ru = "У каждого сервиса свой журнал в своей переменной окружения: USERS_JOURNAL, POSTS_JOURNAL, AUTH_JOURNAL."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/common/config.rs"]
+regex = '"POSTS_JOURNAL"'
+message.ru = "У каждого сервиса свой журнал в своей переменной окружения: USERS_JOURNAL, POSTS_JOURNAL, AUTH_JOURNAL."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/common/config.rs"]
+regex = '"AUTH_JOURNAL"'
+message.ru = "У каждого сервиса свой журнал в своей переменной окружения: USERS_JOURNAL, POSTS_JOURNAL, AUTH_JOURNAL."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+]
+regex = 'serve_with_incoming_shutdown'
+message.ru = "Сервисы останавливаются мягко: serve_with_incoming_shutdown с токеном остановки, тогда журнал успевает дописаться."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/user-service/src/bootstrap/mod.rs"]
+regex = 'max_decoding_message_size'
+message.ru = "Аватар идёт одним unary-сообщением, поэтому user-service осознанно поднимает лимит размера: max_decoding_message_size."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/client/mod.rs"]
+regex = 'max_decoding_message_size'
+message.ru = "Лимит размера есть и у клиента: шлюз поднимает max_decoding_message_size для user-service, иначе не прочитает большой аватар."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/client/mod.rs"]
+regex = 'grpc_kit::channel\('
+message.ru = "Шлюз открывает канал к каждому сервису один раз через grpc_kit::channel, дальше клиенты только клонируют Channel."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/tls/mod.rs"]
+regex = 'connect_lazy'
+message.ru = "Канал к сервису создаётся один раз и лениво: connect_lazy в grpc_kit::channel, с TLS или без."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/routes/**/*.rs"]
+regex = 'connect\('
+message.ru = "Обработчик метода не открывает соединение на каждый вызов: каналы создаются один раз при старте шлюза в upstream/."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/**/*.rs"]
+regex = '\bApp::|MemNetwork|Notifiers|AppConfig'
+message.ru = "Шлюз больше не держит ядро соцсети: посты, профили и подписки живут в сервисах, шлюз зовёт их по gRPC."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/ctx.rs"]
+regex = 'Stamp::fresh\(\)\s*\.within\(self\.budget\)'
+message.ru = "Каждый WS-запрос получает свой штамп: новый x-request-id и бюджет запроса, потом роль гостя или участника и пользователь, если он есть."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/client/mod.rs"]
+regex = 'from_status\('
+message.ru = "Ошибка сервиса переводится для клиента через from_status: доменный код с полями проходит, внутренний текст нет, недоступность и таймаут остаются временными."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = 'bearer_auth_async'
+message.ru = "Защищённые пути HTTP проверяются асинхронно: bearer_auth_async ходит в auth-service только за ними."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/middleware/mod.rs"]
+regex = 'pub fn bearer_auth_async'
+message.ru = "В движке есть асинхронная проверка Bearer: bearer_auth_async, где проверка может сама закончить запрос своим ответом."
+
+[[rules]]
+kind = "absent"
+globs = [
+  "src/microservices/api-gateway/src/media",
+  "src/microservices/api-gateway/src/http/auth.rs",
+  "src/microservices/api-gateway/src/routes/domain.rs",
+]
+message.ru = "Аватары, вход и ядро ушли из шлюза: media/ в user-service, http/auth.rs в auth-service, routes/domain.rs заменили обработчики по сервисам."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = '\[tasks\.run-all\]'
+message.ru = "Все сервисы поднимаются одной командой: задача run-all в Makefile.toml."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = 'parallel = true'
+message.ru = "run-all запускает сервисы одновременно, а не по очереди: run_task с parallel = true."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = '^AUTH_HTTP_ADDR='
+message.ru = "Адреса сервисов описаны в .env.example: AUTH_HTTP_ADDR, AUTH_GRPC_ADDR, USERS_GRPC_ADDR, POSTS_GRPC_ADDR."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = '^AUTH_GRPC_ADDR='
+message.ru = "Адреса сервисов описаны в .env.example: AUTH_HTTP_ADDR, AUTH_GRPC_ADDR, USERS_GRPC_ADDR, POSTS_GRPC_ADDR."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = '^USERS_GRPC_ADDR='
+message.ru = "Адреса сервисов описаны в .env.example: AUTH_HTTP_ADDR, AUTH_GRPC_ADDR, USERS_GRPC_ADDR, POSTS_GRPC_ADDR."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = '^POSTS_GRPC_ADDR='
+message.ru = "Адреса сервисов описаны в .env.example: AUTH_HTTP_ADDR, AUTH_GRPC_ADDR, USERS_GRPC_ADDR, POSTS_GRPC_ADDR."
+
+[[rules]]
+kind = "absent"
+globs = ["src/microservices/api-gateway/src/chat"]
+message.ru = "Переписка ушла из шлюза в chat-service: папки chat/ в шлюзе больше нет."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/grpc-kit"
+allow_only = [
+  "http",
+  "proto",
+  "service-runtime",
+  "tokio",
+  "tokio-stream",
+  "tonic",
+  "tonic-health",
+  "tower",
+  "x509-parser",
+  "certgen",
+]
+message.ru = "grpc-kit это кирпичи для всех сервисов: tonic, tonic-health, tower, http, tokio, proto и service-runtime. Ядра соцсети он не знает."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/chat-service"
+allow_only = [
+  "admin",
+  "async-nats",
+  "contracts",
+  "futures",
+  "grpc-kit",
+  "journal",
+  "nats-engine",
+  "proto",
+  "serde",
+  "serde_json",
+  "service-runtime",
+  "tokio",
+  "tokio-stream",
+  "tonic",
+  "tonic-health",
+  "user-service",
+  "validation",
+]
+message.ru = "chat-service: gRPC с grpc-kit, serde для журнала сообщений, nats-engine для stream чата и «печатает»; user-service, async-nats и futures только тестам."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/stamp/mod.rs"]
+regex = 'set_timeout'
+message.ru = "Перехватчик клиента ставит срок вызова из бюджета: request.set_timeout с остатком."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/caller/mod.rs"]
+regex = 'extensions_mut\(\)\.insert'
+message.ru = "Перехватчик сервера кладёт пользователя из x-user-id в extensions запроса."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/access/mod.rs"]
+regex = 'impl<S> Layer<S> for AccessLog'
+message.ru = "Журнал вызовов это tower-слой: он видит и запрос, и ответ с кодом."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/health/mod.rs"]
+regex = '\.watch\('
+message.ru = "Готовность соседей слушается потоком Health/Watch, а не опросом Check по таймеру."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/grpc-kit/src/health/**/*.rs"]
+regex = '\.check\('
+message.ru = "Готовность не опрашивается: Check в цикле с паузой это лишняя нагрузка и задержка, Watch сам присылает перемены."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/health/mod.rs"]
+regex = 'ServingStatus::NotServing'
+message.ru = "Мягкая остановка: сначала NOT_SERVING, пауза grace, потом сервер перестаёт принимать."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+]
+regex = 'lifecycle\s*\.run\('
+message.ru = "Сервер живёт внутри Lifecycle::run: он ждёт готовности, работает до сигнала и останавливается по шагам (ready=false, grace, приём закрыт, запросы с дедлайном, фон)."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+]
+regex = '\.layer\(AccessLog::new\('
+message.ru = "Каждый сервис пишет журнал вызовов слоем AccessLog."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+]
+regex = 'health_reporter\(\)'
+message.ru = "Каждый сервис отвечает о здоровье через tonic-health."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/tls/mod.rs"]
+regex = 'caller\(request\)'
+message.ru = "Gate сначала проверяет SAN клиента, потом, как caller, кладёт пользователя из x-user-id в extensions."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+]
+regex = 'InterceptedService::new\(\w+, caller\)'
+message.ru = "Пользователя из x-user-id сервисы достают перехватчиком caller до обработчика."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/controller/mod.rs"]
+regex = 'Stamp::follow'
+message.ru = "post-service пробрасывает в user-service x-request-id, x-user-id и остаток срока: Stamp::follow."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/post-service/src/controller/mod.rs",
+  "src/microservices/user-service/src/controller/mod.rs",
+  "src/microservices/chat-service/src/controller/mod.rs",
+]
+regex = 'tokio::spawn'
+message.ru = "Запись, начатая для клиента, доделывается, даже если клиент ушёл: она идёт в tokio::spawn."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/controller/mod.rs"]
+regex = 'type WatchStream'
+message.ru = "Живая лента из post-service это server-stream Watch."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/controller/mod.rs"]
+regex = 'stop\.cancelled\(\)'
+message.ru = "Поток живой ленты закрывается на остановке сервиса, иначе мягкая остановка ждала бы его вечно."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/chat-service/src/common/config.rs"]
+regex = '"CHAT_JOURNAL"'
+message.ru = "У каждого сервиса свой журнал в своей переменной окружения: CHAT_JOURNAL у chat-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/client/mod.rs"]
+regex = 'with_interceptor'
+message.ru = "Клиенты шлюза ставят штамп перехватчиком: with_interceptor на каждом канале."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/client/mod.rs"]
+regex = 'Readiness::supervised'
+message.ru = "Шлюз следит за здоровьем сервисов наблюдателями под надзором: Readiness::supervised кладёт их в Background как критичные задачи."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = 'readiness\.missing\(\)'
+message.ru = "GET /health шлюза отвечает 200, только когда все сервисы SERVING, иначе называет, кого ждёт."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/**/*.rs"]
+regex = 'traced\('
+message.ru = "Метаданные ставит перехватчик Stamp, а не ручной traced в каждом вызове."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/ws.rs"]
+regex = 'realtime\.join'
+message.ru = "Подписка на пользователя открывается на первом устройстве до ответа 101: сообщение, отправленное сразу после входа, не пролетит мимо."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/ctx.rs"]
+regex = 'endless\(\)'
+message.ru = "Поток ленты не должен умирать по бюджету запроса: для Watch штамп без срока."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/live/mod.rs"]
+regex = 'pub fn decode_live'
+message.ru = "Живые методы ленты разбирает contracts: decode_live."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/push/mod.rs"]
+regex = 'pub enum FeedPush'
+message.ru = "Событие ленты это свой тип рядом с Push: FeedPush с тегом event."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = '\[tasks\.chat-service\]'
+message.ru = "chat-service поднимается вместе со всеми: задача chat-service в Makefile.toml."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = '^CHAT_GRPC_ADDR='
+message.ru = "Адрес chat-service описан в .env.example: CHAT_GRPC_ADDR."
+
+[[rules]]
+kind = "contains"
+globs = [".gitignore"]
+regex = '^certs/'
+message.ru = "Ключи и сертификаты не попадают в репозиторий: certs/ в .gitignore корня."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/http-engine/**/*.rs"]
+regex = 'rustls'
+message.ru = "Свои движки не трогаем: TLS живёт в терминаторе tls-edge перед http-engine, а движок по-прежнему видит открытый TCP."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/websocket-engine/**/*.rs"]
+regex = 'rustls'
+message.ru = "Свои движки не трогаем: wss:// это тот же WebSocket за терминатором tls-edge."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/**/*.rs", "tools/**/*.rs"]
+regex = 'dangerous\(\)|NoCertificateVerification|danger_accept'
+message.ru = "Проверку сертификатов не отключаем: «принимаю всё» превращает TLS в шифрование с кем попало."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/certgen"
+allow_only = ["rcgen", "x509-parser"]
+message.ru = "certgen выпускает сертификаты через rcgen, больше ему ничего не нужно (x509-parser только тестам)."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/tls-edge"
+allow_only = [
+  "rustls",
+  "service-runtime",
+  "tokio",
+  "tokio-rustls",
+  "certgen",
+]
+message.ru = "tls-edge это rustls и tokio: терминатор не знает ни HTTP, ни соцсети."
+
+[[rules]]
+kind = "deps"
+package = "tools/xtask"
+allow_only = ["certgen"]
+message.ru = "xtask выпускает сертификаты тем же certgen, что и тесты."
+
+[[rules]]
+kind = "contains"
+globs = ["tools/xtask/src/certs.rs"]
+regex = 'issue_all'
+message.ru = "cargo xtask certs выпускает CA и сертификаты сервисов в certs/ и дописывает .gitignore."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/tls/mod.rs"]
+regex = 'client_ca_root'
+message.ru = "Взаимный TLS: сервер требует клиентский сертификат от нашего CA (client_ca_root)."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/tls/mod.rs"]
+regex = 'ClientTlsConfig::new\(\)'
+message.ru = "Клиент между сервисами тоже предъявляет свой сертификат: identity в ClientTlsConfig."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/tls/mod.rs"]
+regex = 'peer_certs\(\)'
+message.ru = "Кто звонит, сервис узнаёт по SAN сертификата клиента: peer_certs."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/bootstrap/mod.rs"]
+regex = 'Gate::only\(&\[GATEWAY, AUTH\]\)'
+message.ru = "post-service принимает вызовы от шлюза и, с m42, от auth-service: сага удаления аккаунта удаляет посты от имени пользователя. Остальным сервисам сюда нельзя."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+]
+regex = 'tls_config\('
+message.ru = "Каждый gRPC-сервер слушает с TLS: tls_config."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/api-gateway/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+]
+regex = 'terminate\w*\('
+message.ru = "HTTPS и WSS снаружи: публичный порт принимает TLS-терминатор, движок слушает петлевой адрес."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/main.rs"]
+regex = 'Tls::load\('
+message.ru = "main.rs каждого сервиса читает сертификаты Tls::load из каталога config.certs (CERTS_DIR в .env): без сертификатов сервис не стартует, а ошибка подсказывает cargo xtask certs."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = '\[tasks\.certs\]'
+message.ru = "Сертификаты выпускаются до запуска: задача certs в Makefile.toml."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = '^SOCIAL_CA='
+message.ru = "Где лежат сертификаты и чему верит клиент, описано в .env.example: CERTS_DIR и SOCIAL_CA."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = '^CERTS_DIR='
+message.ru = "Где лежат сертификаты, описано в .env.example: CERTS_DIR."
+
+[[rules]]
+kind = "absent"
+globs = ["src/crates/social-core"]
+message.ru = "Ядро social-core растворилось по сервисам. test-support вернулся в m44 другим: в нём eventually, строители, расписание отказов и генератор для e2e, а не фейки ядра."
+
+[[rules]]
+kind = "allowed_children"
+dirs = ["src/microservices/*-service/src"]
+allowed = [
+  "main.rs",
+  "lib.rs",
+  "bootstrap",
+  "controller",
+  "dto",
+  "service",
+  "repository",
+  "client",
+  "common",
+]
+message.ru = "В src сервиса только слои: main.rs, lib.rs, bootstrap, controller, dto, service, repository, client, common. Новой папке не место рядом со слоями: найди ей слой."
+
+[[rules]]
+kind = "allowed_children"
+dirs = ["src/microservices/api-gateway/src"]
+allowed = [
+  "main.rs",
+  "lib.rs",
+  "bootstrap",
+  "controller",
+  "routes",
+  "client",
+  "dto",
+  "common",
+]
+message.ru = "В src шлюза только слои: main.rs, lib.rs, bootstrap, controller, routes, client, dto, common. Своих данных у шлюза нет, поэтому нет service и repository."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/controller/**/*.rs"]
+regex = 'repository::'
+message.ru = "Controller не трогает хранилище напрямую: он зовёт service, а репозиторий видит только service."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/service/**/*.rs"]
+regex = 'tonic::'
+message.ru = "Правила соцсети не знают про транспорт: в service нет tonic."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/service/**/*.rs"]
+regex = 'http_engine::'
+message.ru = "Правила соцсети не знают про транспорт: в service нет http_engine."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/repository/**/*.rs"]
+regex = 'LazyLock|OnceLock|static '
+message.ru = "Хранилище не живёт в глобальном static: его собирает bootstrap, и две сборки не делят данные."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/user-service/src/repository/mod.rs"]
+regex = 'fn create_if_absent'
+message.ru = "Регистрация ника это одна атомарная операция репозитория: create_if_absent."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/repository/mod.rs"]
+regex = 'fn like_if_absent'
+message.ru = "Лайк ставится атомарно в репозитории: like_if_absent, иначе два одновременных лайка одного человека засчитаются дважды."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/repository/mod.rs"]
+regex = 'fn create_if_absent'
+message.ru = "Учётная запись создаётся атомарно: create_if_absent в репозитории auth-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/service/directory.rs"]
+regex = 'pub trait UserDirectory'
+message.ru = "Сосед это порт на стороне потребителя: трейт UserDirectory в service/ post-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/client/users.rs"]
+regex = 'impl UserDirectory for GrpcUsers'
+message.ru = "За портом UserDirectory стоит gRPC-клиент в client/."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/service/mod.rs"]
+regex = 'users\.author\('
+message.ru = "Пост пишется только от существующего автора: service спрашивает порт users.author."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/service/mod.rs"]
+regex = '\.graph\(viewer\)'
+message.ru = "Подписки и скрытия читателя приходят через порт: users.graph перед лентой."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/chat-service/src/service/directory.rs"]
+regex = 'pub trait UserDirectory'
+message.ru = "chat-service спрашивает про собеседника через свой порт UserDirectory."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/chat-service/src/common/message.rs"]
+regex = 'pub struct MessageText'
+message.ru = "Пустое и длинное сообщение не собираются в MessageText: правило «себе» остаётся в service, а правила поля в типе."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/directory.rs"]
+regex = 'pub trait ProfileDirectory'
+message.ru = "auth-service создаёт профиль через порт ProfileDirectory, а не вызовом gRPC из обработчика."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/user-service/src/service/mod.rs"]
+regex = 'SelfFollow'
+message.ru = "Нельзя подписаться на себя: это правило в service user-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/common/draft.rs"]
+regex = 'pub struct PostText'
+message.ru = "Пустой и длинный пост не собираются в PostText: проверка в типе, и до service такой текст не доходит."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/repository/memory.rs",
+  "src/microservices/post-service/src/repository/memory.rs",
+  "src/microservices/chat-service/src/repository/memory.rs",
+  "src/microservices/auth-service/src/repository/accounts.rs",
+]
+regex = 'Journal<'
+message.ru = "In-memory репозитории пишут журнал крейта journal."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/journal"
+allow_only = [
+  "serde",
+  "serde_json",
+  "tokio",
+]
+message.ru = "journal это NDJSON на диске: serde, serde_json и tokio, больше ничего."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/journal/src/**/*.rs"]
+message.ru = "Код журнала говорит сам за себя."
+
+[[rules]]
+kind = "contains"
+globs = ["tools/xtask/src/bench.rs"]
+regex = '"post-service"'
+message.ru = "Замер ленты переехал вместе с лентой: cargo xtask bench запускает пример post-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/report/mod.rs"]
+regex = 'pub fn report'
+message.ru = "Отчёт об ошибке с цепочкой причин общий для всех сервисов: service_runtime::report."
+
+[[rules]]
+kind = "workspace_deps"
+packages = ["src/crates/admin"]
+message.ru = "Новый крейт admin подключается через [workspace.dependencies], как остальные."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/admin"
+allow_only = [
+  "contracts",
+  "http-engine",
+  "service-runtime",
+  "tokio",
+  "social-cli",
+]
+message.ru = "admin это /health и /ready на своём http-engine: contracts для формата ответа, service-runtime для реестра проверок, tokio. social-cli только в тестах."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/admin/src/**/*.rs"]
+message.ru = "Код admin-порта говорит сам за себя."
+
+[[rules]]
+kind = "max_lines"
+globs = ["src/microservices/*/src/main.rs"]
+max = 60
+message.ru = "main.rs короткий: сигналы, конфиг, сертификаты, bind и serve. Всё остальное живёт в bootstrap и service-runtime."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/main.rs"]
+regex = 'Signals::listen\(\)'
+message.ru = "Подпишись на сигналы первой строкой main: SIGTERM во время долгого старта тоже должен дойти."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/main.rs"]
+regex = 'Config::from_source\('
+message.ru = "Настройки читаются один раз и в одном месте: Config::from_source."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/main.rs"]
+regex = 'Source::load\('
+message.ru = "Источник настроек это .env снизу и окружение процесса сверху: Source::load."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/**/*.rs"]
+regex = 'ctrl_c|tokio::signal'
+message.ru = "Сигналы слушает service-runtime (SIGTERM и Ctrl-C вместе), а не ctrl_c в main."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/**/*.rs"]
+regex = 'env::var'
+message.ru = "Окружение читает только Source в main: env::var в глубине кода делает тесты зависимыми от окружения процесса."
+
+[[rules]]
+kind = "not_contains"
+globs = [
+  "src/microservices/*/src/service/**/*.rs",
+  "src/microservices/*/src/controller/**/*.rs",
+  "src/microservices/*/src/repository/**/*.rs",
+]
+regex = 'env::var'
+message.ru = "Правила не читают окружение: настройки приходят из Config."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/proto/src/**/*.rs", "src/crates/grpc-kit/src/**/*.rs"]
+regex = 'env::var'
+message.ru = "Контракт и общий gRPC-набор не читают окружение: адреса и каталог сертификатов приходят из конфига сервиса."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/common/config.rs"]
+regex = 'pub fn from_source\(source: &Source\)'
+message.ru = "У каждого сервиса Config::from_source, собирающий все ошибки разом."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/common/config.rs"]
+regex = 'fn from_env'
+message.ru = "Config::from_env ушёл: его место занял Config::from_source."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/common/config.rs"]
+regex = 'fields\.finish\(\)\?'
+message.ru = "Конфиг заканчивается fields.finish(): без него ошибки соберутся, но никто о них не узнает."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/api-gateway/src/common/config.rs",
+  "src/microservices/auth-service/src/common/config.rs",
+  "src/microservices/user-service/src/common/config.rs",
+  "src/microservices/post-service/src/common/config.rs",
+  "src/microservices/chat-service/src/common/config.rs",
+]
+regex = 'distinct_addrs'
+message.ru = "Свои адреса не должны совпадать: distinct_addrs ловит это до bind. У notify-service свой слушатель один, admin-порт, сравнивать не с чем."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/common/config.rs"]
+regex = 'Timing::read\('
+message.ru = "Тайминги жизни процесса читаются одинаково у всех: Timing::read."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/bootstrap/mod.rs"]
+regex = 'Admin::start\('
+message.ru = "У каждого сервиса admin-порт: Admin::start в bootstrap."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/*/src/bootstrap/mod.rs"]
+regex = 'pub async fn serve\('
+message.ru = "bootstrap даёт два входа: run без admin-порта для тестов и serve с admin-портом для main."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+  "src/microservices/api-gateway/src/bootstrap/mod.rs",
+]
+regex = 'closing'
+message.ru = "Сервер перестаёт принимать по токену closing, а не по сигналу: между ними пауза grace с ready=false."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+]
+regex = 'unready_on_stop::<'
+message.ru = "gRPC-здоровье становится NOT_SERVING вместе с /ready: unready_on_stop."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/bootstrap/mod.rs",
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+]
+regex = 'register\(\s*"journal"'
+message.ru = "Журнал это обязательная зависимость: его проверка в реестре /ready."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/post-service/src/bootstrap/mod.rs",
+  "src/microservices/chat-service/src/bootstrap/mod.rs",
+  "src/microservices/auth-service/src/bootstrap/mod.rs",
+]
+regex = 'Readiness::supervised'
+message.ru = "Без user-service посты, чат и регистрация не работают: его здоровье в /ready, через наблюдатель под надзором."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/config/secret.rs"]
+regex = 'Secret\(\*\*\*\)'
+message.ru = "Секрет печатается как ***: свой Debug у Secret."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/tls/mod.rs"]
+regex = 'pub key: Secret<Vec<u8>>'
+message.ru = "Закрытый ключ сервиса это Secret: он не попадёт в лог через {:?} конфига."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/health/mod.rs"]
+regex = 'JoinSet'
+message.ru = "Проверки готовности идут одновременно, каждая со своим лимитом."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/background/mod.rs"]
+regex = 'join_next_with_id'
+message.ru = "Результат каждой фоновой задачи разбирается: join_next_with_id, а не молчаливое ожидание."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/service-runtime/src/signals/mod.rs"]
+regex = 'SignalKind::terminate'
+message.ru = "SIGTERM и SIGINT слушаются вместе."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/admin/src/routes/mod.rs"]
+regex = '"/ready"'
+message.ru = "admin-порт отвечает на /health и /ready."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/admin/src/routes/mod.rs"]
+regex = '"/health", handler\(live\)'
+message.ru = "/health отвечает, жив ли процесс, и не ходит по проверкам."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = 'SHUTDOWN_GRACE_MS'
+message.ru = "В .env.example есть admin-адреса и тайминги жизни процесса."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = 'GATEWAY_ADMIN_ADDR'
+message.ru = "В .env.example есть admin-адрес шлюза: его ждёт клиент."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = 'kill -TERM'
+message.ru = "demo гасит сервисы штатно: kill -TERM и ожидание."
+
+[[rules]]
+kind = "workspace_deps"
+packages = ["src/crates/validation"]
+message.ru = "Новый крейт validation подключается через [workspace.dependencies]."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/validation"
+allow_only = []
+message.ru = "validation без зависимостей: правила, шаблон и пути полей пишутся руками."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/validation/src/**/*.rs"]
+message.ru = "Код валидатора говорит сам за себя."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/errors/mod.rs"]
+regex = 'pub enum ErrorCode'
+message.ru = "Каталог стабильных кодов живёт в одном месте: enum ErrorCode в contracts/src/errors."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/errors/mod.rs"]
+regex = 'pub const ALL'
+message.ru = "Строки кодов перечислены в ALL: from_wire ищет по нему, а незнакомая строка не ломает разбор."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/errors/mod.rs"]
+regex = 'pub request_id: Option<String>'
+message.ru = "Тело ошибки одно на весь API: code, message, details и request_id."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/errors/json.rs"]
+regex = 'classify\(\)'
+message.ru = "Битый JSON и чужая форма различаются: classify у serde_json::Error."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/patch/mod.rs"]
+regex = 'Null'
+message.ru = "PATCH различает «не прислано» и null: свой тип Field с тремя состояниями."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/email/mod.rs"]
+regex = 'impl TryFrom<&str> for Email'
+message.ru = "Email существует только проверенным: TryFrom<&str>."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/proto/src/status/mod.rs"]
+regex = 'x-error-details-bin'
+message.ru = "Поля ошибки едут в бинарных метаданных: русский текст не помещается в ASCII-заголовок."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/proto/src/status/mod.rs"]
+regex = 'grpc_code\(\*code\) == status\.code\(\)'
+message.ru = "Код соседа сверяется с gRPC-кодом: противоречивый статус не принимается на веру."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/service/**/*.rs"]
+regex = 'Deserialize'
+message.ru = "Правила работают с доменными типами, а не с формой входа: Deserialize живёт в dto и common, не в service."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/dto/mod.rs",
+  "src/microservices/post-service/src/dto/mod.rs",
+  "src/microservices/chat-service/src/dto/mod.rs",
+  "src/microservices/auth-service/src/dto/mod.rs",
+]
+regex = 'Validator::new\(\)'
+message.ru = "Вход проверяется на границе: Validator в dto/ каждого сервиса."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/controller/mod.rs",
+  "src/microservices/post-service/src/controller/mod.rs",
+  "src/microservices/chat-service/src/controller/mod.rs",
+]
+regex = 'invalid\(&errors\)'
+message.ru = "Ошибки полей уходят по gRPC все сразу: invalid(&errors) в контроллере."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/**/*.rs"]
+regex = 'fn status_of'
+message.ru = "Строковые таблицы статусов ушли: статус знает каталог ErrorCode."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/user-service/src/repository/memory.rs"]
+regex = 'change\.apply\('
+message.ru = "PATCH применяется под замком репозитория: прочитать, изменить копию и записать одной операцией."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/errors.rs"]
+regex = 'with_request_id'
+message.ru = "У каждого HTTP-запроса шлюза свой x-request-id, и любая ошибка уходит в одном конверте."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = 'request_ids\(\)'
+message.ru = "Слой с номерами запросов стоит сразу за CORS: любой ответ шлюза получает x-request-id, а ошибка уходит в одном конверте."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = 'Method::Patch'
+message.ru = "Профиль меняется PATCH /users/me."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/common/draft.rs"]
+regex = 'Matches \{'
+message.ru = "Теги проверяются мини-шаблоном из validation."
+
+[[rules]]
+kind = "absent"
+globs = ["src/microservices/auth-service/src/repository/tokens.rs"]
+message.ru = "Непрозрачные токены в памяти ушли: access подписан, а сессии и семейства refresh живут в repository/sessions.rs."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/auth-service"
+forbid = [
+  "jsonwebtoken",
+  "hmac",
+  "base64",
+]
+message.ru = "Подпись и base64url свои: jsonwebtoken, hmac и base64 не нужны."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/token/mod.rs"]
+regex = 'UnsupportedAlg'
+message.ru = "Алгоритм сверяется строго до всего остального: none и чужой алгоритм это отказ."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/token/mod.rs"]
+regex = 'hmac::same\('
+message.ru = "Подпись сравнивается за постоянное время."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/token/mod.rs"]
+regex = 'WrongAudience'
+message.ru = "Срок, издатель и аудитория читаются только после подписи."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/token/hmac.rs"]
+regex = '0x36'
+message.ru = "HMAC по RFC 2104 поверх sha2: ipad 0x36 и opad 0x5c."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/token/keys.rs"]
+regex = 'fn rotate'
+message.ru = "Связка ключей по kid: текущим подписывают, прошлыми ещё проверяют."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/password/mod.rs"]
+regex = 'Algorithm::Argon2id'
+message.ru = "Пароли хешируются argon2id."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/password/mod.rs"]
+regex = 'spawn_blocking'
+message.ru = "argon2 считается на отдельном пуле, а не в потоке рантайма."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/password/mod.rs"]
+regex = 'Semaphore'
+message.ru = "Число одновременных хешей ограничено семафором."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/repository/sessions.rs"]
+regex = 'RefreshError::Reused'
+message.ru = "Повтор использованного refresh гасит всё семейство."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/mod.rs"]
+regex = 'sha256_hex\(&refresh\)'
+message.ru = "В хранилище хеш refresh, а не он сам."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/**/*.rs"]
+regex = 'seed_from_u64|thread_rng|SmallRng'
+message.ru = "Секреты берутся из системного источника случайности, а не из генератора с seed."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/controller/handlers.rs"]
+regex = 'http_only: true'
+message.ru = "Refresh уезжает в HttpOnly cookie."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/role/mod.rs"]
+regex = '_unknown => Role::Guest'
+message.ru = "Незнакомая роль это гость без прав: запрет по умолчанию."
+
+[[rules]]
+kind = "allowed_children"
+dirs = ["src/microservices/auth-service/src/service"]
+allowed = [
+  "mod.rs",
+  "directory.rs",
+  "error.rs",
+  "exits.rs",
+  "letters.rs",
+  "mail.rs",
+  "token",
+  "password",
+  "deletion.rs",
+]
+message.ru = "В service auth-service рядом с правилами свои подмодули: token (подпись), password (argon2) и, с m42, deletion.rs: сага удаления аккаунта и её порты."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/common/claims.rs"]
+regex = 'pub struct Claims'
+message.ru = "Формат заголовка и claims живёт в common: разбор JSON не в service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/service/mod.rs"]
+regex = 'Permission::DeleteAnyPost'
+message.ru = "Права на ресурс проверяет service post-service: чужое удаляет только роль с DeleteAnyPost."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/controller/**/*.rs"]
+regex = 'Permission::'
+message.ru = "Контроллер не решает за service, кому что можно."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/caller/mod.rs"]
+regex = 'x-user-role'
+message.ru = "Роль из токена едет к сервисам в метаданных x-user-role."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/mod.rs"]
+regex = 'fn build\(self\) -> Result<Router, Duplicates>'
+message.ru = "Таблица маршрутов собирается один раз: build проверяет повторы и называет их все сразу."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/mod.rs"]
+regex = 'read_data'
+message.ru = "data разбирается в тип метода общим read_data до вызова обработчика: ошибка формы это bad_data с полями."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/mod.rs"]
+regex = 'route_authed\('
+message.ru = "Вход в защищённый маршрут решает таблица: route_authed для методов, которым нужен участник."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/routes/**/*.rs"]
+regex = 'Option<Principal>'
+message.ru = "Обработчик не проверяет вход сам: защищённый маршрут получает Principal, а не Option."
+
+[[rules]]
+kind = "exists"
+paths = [
+  "src/microservices/api-gateway/src/routes/users.rs",
+  "src/microservices/api-gateway/src/routes/posts.rs",
+  "src/microservices/api-gateway/src/routes/chat.rs",
+  "src/microservices/api-gateway/src/routes/live.rs",
+]
+message.ru = "Обработчики WS-методов разложены по сервисам: users.rs, posts.rs, chat.rs и live.rs в routes/."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/work.rs"]
+regex = 'try_acquire_owned'
+message.ru = "Предел запросов сокета держит семафор: разрешение берётся без ожидания, try_acquire_owned."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/work.rs"]
+regex = 'ErrorCode::Exhausted'
+message.ru = "Жадный клиент получает отказ exhausted, а чтение сокета не останавливается."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/work.rs"]
+regex = 'join_next_with_id'
+message.ru = "Ответ задачи находит свой кадр по task::Id: join_next_with_id знает и упавшую задачу."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/conn.rs"]
+regex = 'sleep_until\(deadline\)'
+message.ru = "Срок токена закрывает сокет по таймеру: sleep_until на монотонных часах."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/conn.rs"]
+regex = 'settle\('
+message.ru = "Перед закрытием соединение доделывает начатое: settle дожидается задач и отвечает, пока сокет жив."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/controller/conn.rs"]
+regex = 'SystemTime'
+message.ru = "Цикл соединения не читает часы стены: срок переведён в Instant при подключении."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/ws.rs"]
+regex = 'EXPIRED: u16 = 4001'
+message.ru = "Истёкший токен закрывает сокет своим кодом 4001, чтобы клиент понял: пора продлить вход."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/users.rs"]
+regex = 'tokio::join!'
+message.ru = "Карточка профиля собирается параллельно: tokio::join! над частями."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/users.rs"]
+regex = 'timeout\('
+message.ru = "Каждая часть карточки ограничена своим временем: зависший сосед не держит ответ."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/users.rs"]
+regex = 'partial'
+message.ru = "Что не успело прийти, карточка называет в partial."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/ctx.rs"]
+regex = '\.pass\('
+message.ru = "Метаданные клиента едут к сервисам только по белому списку: Stamp::pass."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/grpc-kit/src/stamp/mod.rs"]
+regex = 'CLIENT_KEYS'
+message.ru = "Белый список клиентских ключей живёт в grpc-kit рядом со штампом."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/proxy.rs"]
+regex = 'PREFIX: &str = "/auth/"'
+message.ru = "Прокси обслуживает только /auth/*: остальные пути шлюз решает сам."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/proxy.rs"]
+regex = 'HOP_BY_HOP'
+message.ru = "Hop-by-hop заголовки не уходят дальше прокси: список по RFC 9110 и имена из Connection."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/proxy.rs"]
+regex = '"x-forwarded-for"'
+message.ru = "Клиентские X-Forwarded-* выбрасываются: адрес клиента шлюз пишет сам."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/proxy.rs"]
+regex = '"x-user-role"'
+message.ru = "Внутренние x-user* от клиента не проходят: их ставит только шлюз."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/client/upstream.rs"]
+regex = '\.relay\('
+message.ru = "Прокси отдаёт ответ апстрима как есть, без редиректов: http-client relay."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/client/upstream.rs"]
+regex = 'mutual_client_config'
+message.ru = "Шлюз ходит в HTTP auth-service по взаимному TLS."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/bootstrap/mod.rs"]
+regex = 'mutual_server_config'
+message.ru = "HTTP auth-service принимает только клиентов с сертификатом курса."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/bootstrap/mod.rs"]
+regex = 'terminate_announced'
+message.ru = "Адрес клиента под своим TLS-краем шлюз узнаёт из строки PROXY."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/bootstrap/mod.rs"]
+regex = 'proxy_protocol: edge\.is_some\(\)'
+message.ru = "Движок читает строку PROXY только там, где её обещал свой край."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-engine/src/proxy/mod.rs"]
+regex = 'PROXY_LINE_MAX: usize = 107'
+message.ru = "Строка PROXY v1 ограничена 107 байтами."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-client/src/client/mod.rs"]
+regex = 'pub async fn relay'
+message.ru = "relay делает один обмен: без редиректов и без повторов."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/http-client/src/conn/mod.rs"]
+regex = 'TlsConnector'
+message.ru = "TLS клиента живёт в conn/: соединение это TCP или TLS поверх него."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/errors/mod.rs"]
+regex = 'ErrorCode::Exhausted => 429'
+message.ru = "Отказ по пределу это код exhausted со статусом 429."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/proto/src/status/mod.rs"]
+regex = 'ResourceExhausted'
+message.ru = "В gRPC exhausted становится ResourceExhausted и обратно."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/controller/handlers.rs"]
+regex = 'is_request_id'
+message.ru = "auth-service принимает x-request-id шлюза, только если он похож на идентификатор."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/post-service/src/common/post.rs"]
+regex = 'MAX_AUTHOR_POSTS'
+message.ru = "Посты автора для карточки ограничены сверху."
+
+[[rules]]
+kind = "workspace_deps"
+packages = ["src/crates/nats-engine", "src/microservices/notify-service"]
+message.ru = "Новые пакеты nats-engine и notify-service подключаются через [workspace.dependencies]."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/nats-engine"
+allow_only = [
+  "async-nats",
+  "tokio",
+  "serde",
+  "serde_json",
+  "bytes",
+  "futures",
+]
+message.ru = "nats-engine это async-nats и tokio с serde: шина не знает ни контрактов соцсети, ни сервисов."
+
+[[rules]]
+kind = "no_comments"
+globs = ["src/crates/nats-engine/src/**/*.rs"]
+message.ru = "Код nats-engine говорит сам за себя."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/**/*.rs"]
+regex = 'async_nats::'
+message.ru = "Сервисы не трогают async-nats напрямую: только nats-engine с проверенными темами и заголовками."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/service/**/*.rs"]
+regex = 'nats_engine::'
+message.ru = "Правила сервиса знают только порт Events, а не шину: nats-engine живёт в client/ и bootstrap/."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/notify-service"
+allow_only = [
+  "admin",
+  "async-nats",
+  "contracts",
+  "futures",
+  "grpc-kit",
+  "jobs",
+  "nats-engine",
+  "proto",
+  "serde_json",
+  "service-runtime",
+  "tokio",
+  "tonic",
+  "user-service",
+]
+message.ru = "notify-service: шина через nats-engine, соседи по gRPC через grpc-kit, proto и tonic, контракты, admin и service-runtime. async-nats, futures (сырой мусор и мёртвая тема) и user-service (настоящий веер) нужны только тестам. jobs: ежедневная сводка задачей с арендой и контрольной точкой."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/subject/mod.rs"]
+regex = 'pub fn token'
+message.ru = "Слово темы проверяется: 1..=32 символа A-Za-z0-9_-, точка и подстановки в слове это ошибка."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/bus/mod.rs"]
+regex = 'round_trip'
+message.ru = "Подписка возвращается только после круга до брокера: иначе первое событие теряется."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/bus/mod.rs"]
+regex = 'RequestErrorKind::NoResponders'
+message.ru = "Запрос различает «никто не слушает» и «не ответили вовремя»."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/bus/mod.rs"]
+regex = 'reconnect_delay_callback'
+message.ru = "Переподключение быстрое и с потолком паузы."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/bus/mod.rs"]
+regex = 'Event::SlowConsumer'
+message.ru = "Медленный потребитель считается, а не теряется молча."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/meta/mod.rs"]
+regex = 'X-Request-Id'
+message.ru = "Номер запроса и трасса едут заголовками сообщения."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/notice/mod.rs"]
+regex = 'pub fn push'
+message.ru = "Уведомление превращается в прежний push: клиенту формат не меняется."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/controller/requests.rs"]
+regex = 'bus\.serve'
+message.ru = "Колокольчик отвечает запросами по NATS: unread, list и read."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/bootstrap/mod.rs"]
+regex = 'register\("nats"'
+message.ru = "Обрыв NATS снимает готовность notify-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/dto/mod.rs"]
+regex = 'Decoded::Reject'
+message.ru = "Мусор в событии отвергается и считается, а не роняет приём."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/repository/memory.rs"]
+regex = 'Recorded::Duplicate'
+message.ru = "Одинаковое непрочитанное уведомление не множится: проверка и вставка под одним замком."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/service/mod.rs"]
+regex = 'audience\.readers'
+message.ru = "Веер нового поста идёт по audience из user-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/client/courier.rs"]
+regex = 'topics\.notice'
+message.ru = "Уведомление уходит в тему адресата через порт Courier."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/routes/**/*.rs"]
+regex = 'Push::'
+message.ru = "Самодельных пушей больше нет: обработчики маршрутов не собирают Push сами, уведомления приходят событиями."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/notices.rs"]
+regex = 'read_notice'
+message.ru = "Шлюз подписан на уведомления и проверяет, что тема и адресат совпадают."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/client/notify.rs"]
+regex = 'BusError::NoService'
+message.ru = "Колокольчик шлюза: «никто не слушает» это unavailable, а не зависание."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/mod.rs"]
+regex = '"notify\.unread"'
+message.ru = "Методы колокольчика и комментария в таблице маршрутов."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/certgen/src/issue/mod.rs"]
+regex = '"notify-service"'
+message.ru = "У notify-service свой сертификат: он ходит в user-service по взаимному TLS."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = '^NATS_URL='
+message.ru = "Адрес брокера и корень тем в .env.example."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = '-p", "notify-service"'
+message.ru = "notify-service запускается вместе со стеком."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/**/*.rs", "src/crates/nats-engine/src/**/*.rs"]
+regex = 'delete_stream'
+message.ru = "Сервисы никогда не удаляют stream: в нём история событий соцсети. Удалять свой stream могут только тесты, за собой."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/mod.rs"]
+regex = 'get_or_create_stream'
+message.ru = "Stream создаётся, если его нет, а при новых темах обновляется: без пересоздания и потери записей."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/mod.rs"]
+regex = 'update_stream'
+message.ru = "Темы существующего stream расширяются через update_stream."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/mod.rs"]
+regex = 'NATS_MESSAGE_ID'
+message.ru = "Публикация несёт Nats-Msg-Id: повтор внутри окна брокер не пишет второй раз."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/feed.rs"]
+regex = 'AckKind::Progress'
+message.ru = "Долгая обработка сообщает брокеру «ещё работаю», и событие не уходит второму читателю."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/feed.rs"]
+regex = 'AckKind::Nak\(Some'
+message.ru = "Временная ошибка возвращает событие с паузой из backoff."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/feed.rs"]
+regex = 'AckKind::Term'
+message.ru = "Яд и исчерпанные повторы заканчиваются Term после мёртвой темы."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/feed.rs"]
+regex = 'max_deliver'
+message.ru = "У читателя потолок доставок: max_deliver."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/feed.rs"]
+regex = 'AckPolicy::Explicit'
+message.ru = "Подтверждение явное: событие считается обработанным только после ack."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/dead.rs"]
+regex = 'X-Original-Subject'
+message.ru = "Мёртвое письмо помнит исходную тему, число доставок и причину."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/topics/mod.rs"]
+regex = 'pub fn stream_subjects'
+message.ru = "Имя stream и его темы задаёт схема тем в contracts."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/client/relay.rs",
+  "src/microservices/post-service/src/client/relay.rs",
+  "src/microservices/notify-service/src/bootstrap/mod.rs",
+  "src/microservices/feed-service/src/bootstrap/mod.rs",
+]
+regex = 'ensure_stream'
+message.ru = "Stream готовится при старте сервиса, без удаления."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/controller/events.rs"]
+regex = 'open_feed'
+message.ru = "notify-service читает durable pull consumer, а не подписку в группе."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/notify-service/src/controller/**/*.rs"]
+regex = 'subscribe_group'
+message.ru = "Подписка в группе ушла: группа теряет события, пока сервис лежит, durable нет."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/controller/events.rs"]
+regex = 'Verdict::Retry'
+message.ru = "Недоступный сосед это повтор, а не потеря."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/controller/events.rs"]
+regex = 'Verdict::Poison'
+message.ru = "Мусор и постоянные ошибки это яд для мёртвой темы."
+
+[[rules]]
+kind = "contains"
+globs = [".env.example"]
+regex = '^NOTIFY_ACK_WAIT_MS='
+message.ru = "Срок подтверждения и пачка читателя в .env.example."
+
+[[rules]]
+kind = "workspace_deps"
+packages = ["src/microservices/feed-service"]
+message.ru = "feed-service подключается через [workspace.dependencies], как остальные."
+
+[[rules]]
+kind = "deps"
+package = "src/microservices/feed-service"
+allow_only = [
+  "admin",
+  "contracts",
+  "grpc-kit",
+  "nats-engine",
+  "proto",
+  "service-runtime",
+  "tokio",
+  "tokio-stream",
+  "tonic",
+  "tonic-health",
+  "validation",
+  "async-nats",
+  "serde_json",
+]
+message.ru = "feed-service: проекция из событий через nats-engine, gRPC через proto, grpc-kit, tonic и tonic-health, валидатор, admin и service-runtime. async-nats и serde_json нужны только тестам."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/service/**/*.rs"]
+regex = 'nats_engine::'
+message.ru = "Правила сервиса не знают шины: событие ложится в outbox через репозиторий, публикует его релей в client/."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/domain/mod.rs"]
+regex = 'pub struct DomainEvent'
+message.ru = "Конверт доменного события в contracts: идентификатор, тип, схема, версия, время, агрегат и данные."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/domain/mod.rs"]
+regex = 'default = "first"'
+message.ru = "Терпимый читатель: нет schema, значит 1."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/domain/upcast.rs"]
+regex = 'fn profile_v1_to_v2'
+message.ru = "Апкаст поднимает старую схему profile_changed до новой."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/contracts/src/outbox/mod.rs"]
+regex = 'pub fn prepare'
+message.ru = "Outbox нумерует строки сквозным seq и версии по агрегату."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/repository/entry.rs",
+  "src/microservices/post-service/src/repository/entry.rs",
+]
+regex = 'pub outbox: Option<OutboxRow>'
+message.ru = "Изменение и его событие пишутся в журнал одной строкой."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/repository/entry.rs",
+  "src/microservices/post-service/src/repository/entry.rs",
+]
+regex = 'Published'
+message.ru = "Отметка «опубликовано до seq» тоже строка журнала: после перезапуска опубликованное не уходит второй раз."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/client/relay.rs",
+  "src/microservices/post-service/src/client/relay.rs",
+]
+regex = 'mark_published'
+message.ru = "Релей публикует с Nats-Msg-Id из outbox и только потом помечает отправленное."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/client/relay.rs",
+  "src/microservices/post-service/src/client/relay.rs",
+]
+regex = 'row\.event\.event_id'
+message.ru = "Идентификатор события берётся из outbox, а не придумывается при публикации: повтор после падения брокер узнаёт."
+
+[[rules]]
+kind = "contains"
+globs = [
+  "src/microservices/user-service/src/client/relay.rs",
+  "src/microservices/post-service/src/client/relay.rs",
+]
+regex = 'notified\(\)'
+message.ru = "Релей ждёт новых строк по сигналу репозитория, а не опрашивает впустую."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/feed-service/src/controller/events.rs"]
+regex = 'replay::<DomainEvent>'
+message.ru = "feed-service при старте читает stream с начала упорядоченным читателем."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/feed-service/src/repository/memory.rs"]
+regex = 'Consumed::Buffered'
+message.ru = "Проекция применяет события строго по версии агрегата: из будущего ждёт, повтор пропускает."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/feed-service/src/service/mod.rs"]
+regex = 'Change::Nothing'
+message.ru = "Незнакомое событие тоже сдвигает версию агрегата, иначе следующее будет ждать вечно."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/feed-service/src/service/mod.rs"]
+regex = 'occurred_at'
+message.ru = "Время поста берётся из события: пересборка не зависит от часов."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/feed-service/src/bootstrap/mod.rs"]
+regex = 'register\("projection"'
+message.ru = "feed-service готов, только когда догнал stream."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/posts.rs"]
+regex = 'ctx\.feed\(\)'
+message.ru = "Ленту шлюз берёт у feed-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/feed-service/src/bootstrap/mod.rs"]
+regex = 'Gate::only'
+message.ru = "feed-service отвечает только шлюзу."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/certgen/src/issue/mod.rs"]
+regex = '"feed-service"'
+message.ru = "У feed-service свой сертификат."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = '-p", "feed-service"'
+message.ru = "feed-service запускается вместе со стеком."
+
+[[rules]]
+kind = "exists"
+paths = ["src/microservices/api-gateway/src/controller/presence.rs"]
+message.ru = "Присутствие и подписки шлюза живут в controller/presence.rs. План называл папку controller/presence/, но внутри слоя лежат только файлы (uniform_modules), поэтому это файл с соседями subs.rs и revoked.rs."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/proto/proto/social/v1/chat.proto"]
+regex = 'rpc Subscribe'
+message.ru = "Потока Subscribe больше нет: сообщения приходят шлюзам из stream чата."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/proto/proto/social/v1/chat.proto"]
+regex = 'rpc Typing'
+message.ru = "У chat.proto есть «печатает»."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/mod.rs"]
+regex = 'republish'
+message.ru = "Stream умеет повторять записанное в живую тему: так у живого сообщения есть номер."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/live.rs"]
+regex = 'NATS_SEQUENCE'
+message.ru = "Номер живого сообщения берётся из заголовка Nats-Sequence константой async-nats: по строке его не найти."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/history.rs"]
+regex = 'ByStartSequence'
+message.ru = "История читается временным читателем с номера после последнего увиденного."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/history.rs", "src/crates/nats-engine/src/js/kv.rs"]
+regex = 'delete_consumer'
+message.ru = "Временный читатель истории удаляется после запроса."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/kv.rs"]
+regex = 'max_age'
+message.ru = "Присутствие это KV со сроком жизни записи."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/kv.rs"]
+regex = 'LastPerSubject'
+message.ru = "«В сети» считается по последней записи каждого устройства пользователя."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/presence.rs"]
+regex = 'refs \+= 1'
+message.ru = "Подписка на пользователя одна на шлюз: второе устройство только увеличивает счёт."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/presence.rs"]
+regex = 'subs\.close\(\)\.await'
+message.ru = "Последнее устройство снимает подписку и ждёт, пока брокер её отпустит."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/presence.rs"]
+regex = 'fresh_id\("gw"\)'
+message.ru = "Идентификатор устройства уникален на всю систему: имя шлюза плюс номер соединения."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/presence.rs"]
+regex = 'ttl / 3'
+message.ru = "Сигнал присутствия идёт каждую треть срока жизни записи."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/common/outbox.rs"]
+regex = 'pub fn hold'
+message.ru = "Догон: живое копится, пока читается история, потом склеивается по номеру."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/common/outbox.rs"]
+regex = 'seq <= cursor\.last'
+message.ru = "Номер не больше уже отданного это повтор, его не шлют."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/revoked.rs"]
+regex = 'MAX_REVOKED'
+message.ru = "Шлюз помнит ограниченное число отозванных сессий."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/ws.rs"]
+regex = 'is_revoked'
+message.ru = "Отозванная сессия не открывает новое соединение."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/common/outbox.rs"]
+regex = '4003'
+message.ru = "Отзыв закрывает соединения кодом 4003."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/mod.rs"]
+regex = '"users\.online"'
+message.ru = "Шлюз отвечает «в сети» и пропускает «печатает» к chat-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/routes/mod.rs"]
+regex = '"chat\.typing"'
+message.ru = "Шлюз отвечает «в сети» и пропускает «печатает» к chat-service."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/chat-service/src/repository/memory.rs"]
+regex = 'outbox: Option<Box<OutboxRow>>'
+message.ru = "Сообщение и его событие пишутся в журнал чата одной строкой."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/chat-service/src/client/relay.rs"]
+regex = 'topics\.chat\('
+message.ru = "Релей чата пишет в тему получателя и заводит stream с повтором в живую тему."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/chat-service/src/client/typing.rs"]
+regex = '\.publish\('
+message.ru = "«Печатает» идёт обычной публикацией: эфемерное не хранят."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/chat-service/src/client/typing.rs"]
+regex = 'publish_event'
+message.ru = "«Печатает» не пишется в JetStream."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/chat-service/src/service/typing.rs"]
+regex = 'TYPING_PACE'
+message.ru = "«Печатает» не чаще раза в 3 секунды на пару."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/common/claims.rs"]
+regex = 'pub sid'
+message.ru = "В токене есть сессия: по ней шлюзы закрывают соединения при отзыве."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/exits.rs"]
+regex = 'self\.announce\('
+message.ru = "Каждый выход объявляет закрытые сессии."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/client/revoker.rs"]
+regex = 'topics\.revoked\(\)'
+message.ru = "Отзыв уходит шлюзам в тему отзывов."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = 'api-gateway-2'
+message.ru = "В cargo make demo два шлюза."
+
+[[rules]]
+kind = "workspace_deps"
+packages = ["src/crates/jobs"]
+message.ru = "Крейт jobs подключается через [workspace.dependencies], как остальные."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/jobs"
+allow_only = [
+  "async-nats",
+  "futures",
+  "nats-engine",
+  "serde",
+  "serde_json",
+  "tokio",
+]
+message.ru = "jobs строится на nats-engine: очередь, аренда, контрольные точки и журнал саги лежат в JetStream и KV, но сам крейт о async-nats не знает. Кроме него tokio, serde, serde_json и futures; async-nats только тестам."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/crates/jobs/src/**/*.rs"]
+regex = 'async_nats'
+message.ru = "jobs ходит в брокер только через nats-engine."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/jobs/src/queue/mod.rs"]
+regex = 'work_queue\(\)'
+message.ru = "Очередь задач это stream с удержанием WorkQueue: запись исчезает после подтверждения."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/jobs/src/queue/mod.rs"]
+regex = 'publish_event\(&self\.bus, &subject, &job\.id'
+message.ru = "Задача ставится с Nats-Msg-Id = id задачи: повторная постановка это одна задача."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/jobs/src/policy/mod.rs"]
+regex = '\.min\(self\.cap\)'
+message.ru = "Пауза повтора растёт вдвое и не дольше потолка."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/jobs/src/worker/mod.rs"]
+regex = 'job\.run_at - now'
+message.ru = "Отложенная задача возвращается одним nak на всё оставшееся время."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/jobs/src/worker/mod.rs"]
+regex = 'nak\(Duration::ZERO\)'
+message.ru = "Остановка возвращает текущую и набранные задачи сразу, без паузы."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/jobs/src/periodic/mod.rs"]
+regex = '\(now - self\.next\) / self\.every \+ 1'
+message.ru = "Периодическая задача после паузы срабатывает один раз и остаётся на своей сетке."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/nats-engine/src/js/kv.rs"]
+regex = 'UpdateErrorKind::WrongLastRevision'
+message.ru = "Аренда берётся созданием ключа и продлевается только с номером своей записи."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/jobs/src/lease/mod.rs"]
+regex = 'pub async fn run_exclusive'
+message.ru = "Долгая работа под арендой продлевает её чаще, чем она истекает, и останавливается, если аренду перехватили."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/jobs/src/checkpoint/mod.rs"]
+regex = 'checkpoints\.set\(job, item\)'
+message.ru = "Контрольная точка пишется сразу после каждого отправленного элемента."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/jobs/src/saga/mod.rs"]
+regex = 'started\.iter\(\)\.rev\(\)'
+message.ru = "Компенсации саги идут в порядке, обратном началу шагов."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/deletion.rs"]
+regex = '\.step\(Freeze'
+message.ru = "Шаги саги удаления: заморозка, скрытие профиля, посты пачками, профиль, учётная запись."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/service/deletion.rs"]
+regex = 'run_checkpointed'
+message.ru = "Посты удаляются пачками с контрольной точкой."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/auth-service/src/bootstrap/mod.rs"]
+regex = 'Leader::new\("sweep"'
+message.ru = "Чистку сессий делает один экземпляр на период: лидер по аренде."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/controller/jobs.rs"]
+regex = 'Leader::new\("digest"'
+message.ru = "Сводку ставит в очередь один экземпляр на период."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/notify-service/src/controller/jobs.rs"]
+regex = 'run_checkpointed'
+message.ru = "Сводка рассылается с контрольной точкой: повтор задачи не шлёт сводку дважды."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/user-service/src/repository/entry.rs"]
+regex = 'Fact::UserDeleted'
+message.ru = "Удаление профиля это событие user.deleted в outbox."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/feed-service/src/service/mod.rs"]
+regex = 'Fact::UserDeleted'
+message.ru = "Лента забывает удалённого автора по событию."
+
+[[rules]]
+kind = "workspace_deps"
+packages = ["src/crates/files"]
+message.ru = "Крейт files подключается через [workspace.dependencies], как остальные."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/files"
+allow_only = [
+  "futures",
+  "sha2",
+  "tokio",
+]
+message.ru = "files держится на tokio, futures и sha2: файловая система, потоки и хеш. HMAC собран свой поверх sha2."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/service/**/*.rs"]
+regex = 'std::fs'
+message.ru = "Слой service не трогает диск: файлы пишет и читает адаптер FsFileStore за портом FileStore."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/*/src/service/**/*.rs"]
+regex = 'tokio::fs'
+message.ru = "Слой service не трогает диск и асинхронно: tokio::fs живёт только в адаптере хранилища."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/store/mod.rs"]
+regex = 'pub trait FileStore'
+message.ru = "Порт хранилища файлов это трейт FileStore."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/store/mod.rs"]
+regex = 'sync_all\(\)'
+message.ru = "Перед переименованием временный файл сбрасывается на диск."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/store/mod.rs"]
+regex = 'tokio::fs::rename'
+message.ru = "Файл появляется под ключом только переименованием готового временного."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/store/mod.rs"]
+regex = 'impl Drop for TempGuard'
+message.ru = "Брошенный временный файл убирает страж в Drop."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/content/mod.rs"]
+regex = 'Sha256::new\(\)'
+message.ru = "Ключ файла это sha256 содержимого."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/limit/mod.rs"]
+regex = 'FileError::TooLarge'
+message.ru = "Лимит считается на лету по пришедшим байтам, а не по заявленной длине."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/image/mod.rs"]
+regex = 'pub fn sniff'
+message.ru = "Тип картинки определяется по сигнатуре: PNG, JPEG и WebP."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/image/mod.rs"]
+regex = 'u64::from\(width\) \* u64::from\(height\)'
+message.ru = "Площадь картинки считается в u64, чтобы произведение сторон не переполнилось."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/sign/mod.rs"]
+regex = 'fn same'
+message.ru = "Подпись сравнивается за постоянное время."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/files/src/serve/mod.rs"]
+regex = 'nosniff'
+message.ru = "Раздача файлов запрещает браузеру угадывать тип."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/proto/proto/social/v1/users.proto"]
+regex = 'rpc UploadAvatar\(stream AvatarChunk\)'
+message.ru = "Аватар идёт в user-service потоком кусков: client-streaming."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/user-service/src/controller/mod.rs"]
+regex = 'Streaming<AvatarChunk>'
+message.ru = "user-service принимает аватар потоком Streaming<AvatarChunk>."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/user-service/src/service/avatars.rs"]
+regex = 'avatars\.pending'
+message.ru = "Загрузка двухфазная: запись о незавершённой загрузке, потом ссылка из профиля."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/user-service/src/bootstrap/mod.rs"]
+regex = 'Leader::new\("orphans"'
+message.ru = "Уборку сирот делает один экземпляр: лидер по аренде."
+
+[[rules]]
+kind = "contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = '"/files/:key"'
+message.ru = "Шлюз раздаёт файлы только по подписанной ссылке."
+
+[[rules]]
+kind = "not_contains"
+globs = ["src/microservices/api-gateway/src/controller/http.rs"]
+regex = '/avatars/'
+message.ru = "Старой раздачи аватара по id больше нет: ссылка подписана и со сроком."
+
+[[rules]]
+kind = "workspace_deps"
+packages = ["src/crates/test-support"]
+message.ru = "test-support подключается через [workspace.dependencies], как остальные."
+
+[[rules]]
+kind = "deps"
+package = "src/crates/test-support"
+allow_only = ["tokio"]
+message.ru = "test-support держится на одном tokio: паузы eventually и часы тестов."
+
+[[rules]]
+kind = "exists"
+paths = ["tests/e2e/golden"]
+message.ru = "Золотые файлы форматов событий лежат в tests/e2e/golden: их меняет только запуск с UPDATE_GOLDEN=1."
+
+[[rules]]
+kind = "not_contains"
+globs = ["tests/e2e/tests/**/*.rs"]
+regex = 'sleep\('
+message.ru = "e2e ждёт условий через eventually, а не спит: sleep делает тест медленным и всё равно ненадёжным."
+
+[[rules]]
+kind = "contains"
+globs = ["tests/e2e/src/stack/mod.rs"]
+regex = '127\.0\.0\.1:0'
+message.ru = "Стенд поднимает сервисы на портах 0: адрес узнаётся у слушателя, конфликтов между тестами нет."
+
+[[rules]]
+kind = "contains"
+globs = ["tests/e2e/src/stack/mod.rs"]
+regex = 'unique_root'
+message.ru = "У каждого стенда свой корень тем и stream'ов NATS."
+
+[[rules]]
+kind = "contains"
+globs = ["tests/e2e/src/stack/mod.rs"]
+regex = '/health'
+message.ru = "Стенд ждёт готовности через /health шлюза."
+
+[[rules]]
+kind = "contains"
+globs = ["tests/e2e/src/stack/mod.rs"]
+regex = 'drop_streams\(&self\.topics\)'
+message.ru = "Остановка стенда убирает его stream'ы и бакеты из брокера курса."
+
+[[rules]]
+kind = "contains"
+globs = ["tests/e2e/src/golden/mod.rs"]
+regex = 'UPDATE_GOLDEN'
+message.ru = "Золотой файл переписывается только по UPDATE_GOLDEN=1."
+
+[[rules]]
+kind = "contains"
+globs = ["src/crates/test-support/src/eventually/mod.rs"]
+regex = '\(pause \* 2\)\.min\(self\.cap\)'
+message.ru = "Паузы eventually растут вдвое до потолка."
+
+[[rules]]
+kind = "contains"
+globs = ["tests/e2e/tests/model.rs"]
+regex = 'seed \{seed\}'
+message.ru = "Тест на случайных последовательностях печатает seed: упавший прогон повторяется с E2E_SEED."
+
+[[rules]]
+kind = "contains"
+globs = ["Makefile.toml"]
+regex = '\[tasks\.e2e\]'
+message.ru = "cargo make e2e гоняет пакет e2e."

@@ -1,0 +1,90 @@
+[chapter]
+title.en = "Move semantics"
+title.ru = "Семантика перемещения"
+
+[[exercises]]
+name = "move_semantics1"
+hint.en = """
+So you've got the "cannot borrow `vec` as mutable, as it is not declared as
+mutable" error on the line where we push an element to the vector, right?
+
+The fix for this is going to be adding one keyword, and the addition is NOT on
+the line where we push to the vector (where the error is).
+
+Try accessing `vec0` after having called `fill_vec()`. See what happens!"""
+hint.ru = """Значит, у тебя ошибка «cannot borrow `vec` as mutable, as it is not declared as
+mutable» на строке, где мы добавляем элемент в вектор, верно?
+
+Исправление сводится к добавлению одного ключевого слова, причём не в той строке,
+где добавляется элемент (где и показана ошибка).
+
+Попробуй обратиться к `vec0` после вызова `fill_vec()`. Посмотри, что будет!"""
+
+[[exercises]]
+name = "move_semantics2"
+hint.en = """
+When running this exercise for the first time, you'll notice an error about
+"borrow of moved value". In Rust, when an argument is passed to a function and
+it's not explicitly returned, you can't use the original variable anymore.
+We call this "moving" a variable. When we pass `vec0` into `fill_vec`, it's
+being "moved" into `vec1`, meaning we can't access `vec0` anymore.
+
+You could make another, separate version of the data that's in `vec0` and
+pass it to `fill_vec` instead. This is called cloning in Rust."""
+hint.ru = """При первом запуске этого упражнения ты увидишь ошибку «borrow of moved value».
+В Rust, если аргумент передан в функцию и явно не возвращён обратно, использовать
+исходную переменную больше нельзя. Это называется «перемещением» переменной.
+Когда мы передаём `vec0` в `fill_vec`, он «перемещается» в `vec1`, и обратиться
+к `vec0` уже нельзя.
+
+Можно сделать отдельную копию данных из `vec0` и передать в `fill_vec` её.
+В Rust это называется клонированием."""
+
+[[exercises]]
+name = "move_semantics3"
+hint.en = """
+The difference between this one and the previous ones is that the first line
+of `fn fill_vec` that had `let mut vec = vec;` is no longer there. You can,
+instead of adding that line back, add `mut` in one place that will change
+an existing binding to be a mutable binding instead of an immutable one :)"""
+hint.ru = """Отличие от предыдущих упражнений в том, что первой строки `fn fill_vec`
+с `let mut vec = vec;` здесь уже нет. Вместо того чтобы возвращать эту строку,
+можно добавить `mut` в одном месте, и существующая привязка из неизменяемой
+станет изменяемой :)"""
+
+[[exercises]]
+name = "move_semantics4"
+hint.en = """
+Carefully reason about the range in which each mutable reference is in
+scope. Does it help to update the value of `x` immediately after
+the mutable reference is taken?
+Read more about 'Mutable References' in the book's section 'References and
+Borrowing':
+https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html#mutable-references."""
+hint.ru = """Аккуратно подумай, в каком диапазоне действует каждая изменяемая ссылка.
+Поможет ли обновить значение `x` сразу после того, как взята изменяемая ссылка?
+Подробнее об изменяемых ссылках в разделе книги «Ссылки и заимствование»:
+https://doc.rust-lang.ru/book/ch04-02-references-and-borrowing.html"""
+
+[[exercises]]
+name = "move_semantics5"
+test = false
+hint.en = """
+To find the answer, you can consult the book section "References and Borrowing":
+https://doc.rust-lang.org/book/ch04-02-references-and-borrowing.html
+
+The first problem is that `get_char` is taking ownership of the string. So
+`data` is moved and can't be used for `string_uppercase`. `data` is moved to
+`get_char` first, meaning that `string_uppercase` can't manipulate the data.
+
+Once you've fixed that, `string_uppercase`'s function signature will also need
+to be adjusted."""
+hint.ru = """Чтобы найти ответ, загляни в раздел книги «Ссылки и заимствование»:
+https://doc.rust-lang.ru/book/ch04-02-references-and-borrowing.html
+
+Первая проблема в том, что `get_char` забирает владение строкой. Поэтому
+`data` перемещается и не может быть использована в `string_uppercase`. `data` сначала
+перемещается в `get_char`, и `string_uppercase` уже не может работать с данными.
+
+Когда это исправишь, сигнатуру функции `string_uppercase` тоже придётся
+подправить."""

@@ -1,0 +1,34 @@
+[chapter]
+title.en = "Generics"
+title.ru = "Обобщённые типы"
+
+[[exercises]]
+name = "generics1"
+test = false
+hint.en = """
+Vectors in Rust make use of generics to create dynamically sized arrays of any
+type.
+If the vector `numbers` has the type `Vec<T>`, then we can only push values of
+type `T` to it. By using `into()` before pushing, we ask the compiler to convert
+`n1` and `n2` to `T`. But the compiler doesn't know what `T` is yet and needs a
+type annotation.
+
+`u8` and `i8` can both be converted to `i16`, `i32` and `i64`. Choose one for
+the generic of the vector."""
+hint.ru = """Векторы в Rust используют обобщения, чтобы создавать динамические массивы
+любого типа.
+Если у вектора `numbers` тип `Vec<T>`, мы можем добавлять в него только значения
+типа `T`. Вызывая `into()` перед добавлением, мы просим компилятор преобразовать
+`n1` и `n2` в `T`. Но компилятор пока не знает, что такое `T`, и ему нужна
+аннотация типа.
+
+`u8` и `i8` можно преобразовать и в `i16`, и в `i32`, и в `i64`. Выбери один из
+них как тип элементов вектора."""
+
+[[exercises]]
+name = "generics2"
+hint.en = """
+Related section in The Book:
+https://doc.rust-lang.org/book/ch10-01-syntax.html#in-method-definitions"""
+hint.ru = """Соответствующий раздел Книги:
+https://doc.rust-lang.ru/book/ch10-01-syntax.html#in-method-definitions"""

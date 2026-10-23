@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Путь запроса через сервер</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Путь запроса через сервер</h1>
+  <p class="sub">Один клиент отправляет POST /orders двумя кусками. Смотри, где ждёт сервер, а где работает код приложения.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Нормальный запрос",
+  "boxes": [
+   "Сокет",
+   "Буфер соединения",
+   "Парсер",
+   "Роутер",
+   "Обработчик"
+  ],
+  "steps": [
+   {
+    "t": "Соединение принято, для него запущена своя задача. Буфер пуст, сервер ждёт первый read.",
+    "s": [
+     [
+      [
+       "соединение открыто",
+       "ok"
+      ]
+     ],
+     [],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Пришёл первый кусок: строка запроса и часть заголовков. Сервер кладёт его в буфер и спрашивает парсер.",
+    "s": [
+     [
+      [
+       "read: 61 байт",
+       "info"
+      ]
+     ],
+     [
+      [
+       "POST /orders HTTP/1.1…",
+       "info"
+      ]
+     ],
+     [
+      [
+       "Partial: голова не закончена",
+       "warn"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Парсер ответил «пока мало». Сервер снова делает read: отвечать рано, пустой строки после заголовков ещё не было.",
+    "s": [
+     [
+      [
+       "ждём read",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "POST /orders HTTP/1.1…",
+       "info"
+      ]
+     ],
+     [
+      [
+       "Partial",
+       "warn"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Второй кусок принёс конец головы и тело. Новые байты дописаны в тот же буфер, терминатор ищется во всём накопленном.",
+    "s": [
+     [
+      [
+       "read: 48 байт",
+       "info"
+      ]
+     ],
+     [
+      [
+       "голова + тело (109 байт)",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "Complete, использовано 109",
+       "ok"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Готовый Request уходит в роутер. Он выбирает маршрут POST /orders и кладёт параметры в запрос.",
+    "s": [
+     [],
+     [
+      [
+       "буфер очищен на 109 байт",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "Request готов",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "POST /orders найден",
+       "ok"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "Обработчик (отдельная задача) разбирает JSON, обращается к состоянию и возвращает Response 201.",
+    "s": [
+     [],
+     [],
+     [],
+     [
+      [
+       "вызов обработчика",
+       "info"
+      ]
+     ],
+     [
+      [
+       "json -> Order",
+       "info"
+      ],
+      [
+       "Response 201",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Ответ превращается в байты (Content-Length считается по байтам) и уходит в сокет. Дальше соединение закрывается.",
+    "s": [
+     [
+      [
+       "write: ответ",
+       "ok"
+      ],
+      [
+       "shutdown",
+       "ok"
+      ]
+     ],
+     [],
+     [],
+     [],
+     [
+      [
+       "готово",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Плохой запрос",
+  "boxes": [
+   "Сокет",
+   "Буфер соединения",
+   "Парсер",
+   "Роутер",
+   "Обработчик"
+  ],
+  "steps": [
+   {
+    "t": "Клиент присылает мусор вместо запроса: GARBAGE и пустую строку.",
+    "s": [
+     [
+      [
+       "read: 11 байт",
+       "info"
+      ]
+     ],
+     [
+      [
+       "GARBAGE CRLF CRLF",
+       "info"
+      ]
+     ],
+     [],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Голова закончена, но это не строка запроса. Парсер возвращает ошибку, а не Partial: ждать больше нечего.",
+    "s": [
+     [],
+     [
+      [
+       "GARBAGE CRLF CRLF",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "BadRequestLine -> 400",
+       "bad"
+      ]
+     ],
+     [],
+     []
+    ]
+   },
+   {
+    "t": "Роутер и обработчик даже не видят этот запрос. Ответ 400 отправляет код соединения.",
+    "s": [
+     [
+      [
+       "write: 400 + Connection: close",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "ошибка разбора",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "не вызван",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "не вызван",
+       "mute"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "После ответа сервер закрывает запись и ещё немного вычитывает входящее, чтобы клиент не потерял ответ из-за RST.",
+    "s": [
+     [
+      [
+       "shutdown записи",
+       "info"
+      ],
+      [
+       "вычитывание остатка",
+       "info"
+      ]
+     ],
+     [],
+     [],
+     [],
+     []
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Паника обработчика",
+  "boxes": [
+   "Сокет",
+   "Задача соединения",
+   "Задача обработчика",
+   "Результат"
+  ],
+  "steps": [
+   {
+    "t": "Запрос разобран и роутер выбрал маршрут. Соединение запускает обработчик отдельной задачей и ждёт её JoinHandle.",
+    "s": [
+     [
+      [
+       "соединение открыто",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "await JoinHandle",
+       "info"
+      ]
+     ],
+     [
+      [
+       "handler(request)",
+       "info"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "В обработчике unwrap() на пустом Option: паника. Задача обработчика уничтожена, но рантайм жив.",
+    "s": [
+     [],
+     [
+      [
+       "await JoinHandle",
+       "info"
+      ]
+     ],
+     [
+      [
+       "panic!",
+       "bad"
+      ]
+     ],
+     []
+    ]
+   },
+   {
+    "t": "JoinHandle возвращает Err(JoinError). Задача соединения жива и решает, что ответить.",
+    "s": [
+     [],
+     [
+      [
+       "получила JoinError",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "Err: is_panic",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "Клиент получает 500 с общим текстом без подробностей. Подробности паники остаются в журнале сервера.",
+    "s": [
+     [
+      [
+       "write: 500 internal error",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "соединение закрыто",
+       "ok"
+      ]
+     ],
+     [],
+     [
+      [
+       "сервер принимает новых клиентов",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>

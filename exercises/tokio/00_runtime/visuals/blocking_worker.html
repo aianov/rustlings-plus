@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Блокирующий вызов держит воркер</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #667085; --line: #d5d9e0;
+  --h: #2e9e5b; --l: #d9822b; --bad: #d64545; --idle: #e8ebf0; --code: #f0f2f6; --accent: #2f6fed;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151b; --panel: #1b2029; --ink: #e6e9ef; --muted: #98a2b3; --line: #343b49;
+    --h: #4cc585; --l: #f0a85a; --bad: #ff7b7b; --idle: #262c38; --code: #151a22; --accent: #6b9bff;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 0 0 12px; }
+.modes { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.mode { text-align: left; font: 13px/1.4 ui-monospace, "SF Mono", Menlo, monospace; padding: 8px 12px; border-radius: 8px; border: 2px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.mode.on { border-color: var(--accent); }
+.mode small { display: block; font: 12px system-ui, sans-serif; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+.row { display: grid; grid-template-columns: 120px repeat(14, 1fr); gap: 3px; align-items: stretch; margin-bottom: 4px; }
+.row .name { font-size: 13px; color: var(--muted); align-self: center; }
+.cell { min-height: 28px; border-radius: 5px; background: var(--idle); font: 600 11px system-ui, sans-serif; color: #fff; display: flex; align-items: center; justify-content: center; }
+.cell.H { background: var(--h); }
+.cell.L { background: var(--l); }
+.cell.late { background: var(--bad); }
+.cell.cur { outline: 2px solid var(--ink); }
+.axis .cell { background: none; color: var(--muted); min-height: 16px; font-weight: 400; }
+.queue { display: flex; gap: 6px; min-height: 30px; align-items: center; flex-wrap: wrap; }
+.chip { padding: 3px 10px; border-radius: 12px; border: 2px solid; font: 600 12px system-ui, sans-serif; }
+.chip.H { border-color: var(--h); color: var(--h); }
+.chip.L { border-color: var(--l); color: var(--l); }
+.empty { color: var(--muted); font-size: 13px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+.stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
+.stats b { font-size: 20px; }
+.late-n { color: var(--bad); }
+.caption { padding: 10px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); min-height: 64px; margin-bottom: 10px; }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button.ctl { font: 600 14px system-ui, sans-serif; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+button.ctl:disabled { opacity: .45; cursor: default; }
+.counter { color: var(--muted); font-size: 13px; margin-left: auto; }
+@media (max-width: 640px) { .row { grid-template-columns: 70px repeat(14, 1fr); } .cell { font-size: 9px; } }
+</style>
+</head>
+<body>
+<h1>Блокирующий вызов держит воркер</h1>
+<p class="sub">Один воркер, две задачи: сердцебиение (должно тикать каждые 2 такта) и поиск в базе. Выбери, как поиск ждёт ответа, и прокрути время.</p>
+
+<div class="modes">
+  <button class="mode on" id="mBlock">std::thread::sleep<small>поток засыпает вместе с задачей</small></button>
+  <button class="mode" id="mAsync">tokio::time::sleep(..).await<small>задача засыпает, поток свободен</small></button>
+</div>
+
+<div class="panel">
+  <h2>Время (1 такт = 1 условная единица)</h2>
+  <div class="row axis" id="axis"></div>
+  <div class="row" id="rowThread"></div>
+  <div class="row" id="rowH"></div>
+</div>
+
+<div class="grid2">
+  <div class="panel"><h2>Очередь готовых задач</h2><div class="queue" id="queue"></div></div>
+  <div class="panel"><h2>Итог на сейчас</h2><div class="stats" id="stats"></div></div>
+</div>
+
+<div class="caption" id="caption"></div>
+
+<div class="controls">
+  <button class="ctl" id="step">Шаг</button>
+  <button class="ctl" id="play">Играть</button>
+  <button class="ctl" id="reset">Сброс</button>
+  <span class="counter" id="counter"></span>
+</div>
+
+<script>
+const T = 14;
+function simulate(mode) {
+  const ticks = [];
+  let queue = [], busy = null;
+  const beats = [];
+  for (let t = 0; t < T; t++) {
+    const events = [];
+    if (t % 2 === 0) { queue.push({ k: "H", ready: t }); events.push("пора тикнуть сердцу");}
+    if (t === 1) { queue.push({ k: "L", ready: t, part: 1 }); events.push("поиск получил запрос"); }
+    if (mode === "async" && t === 6) { queue.push({ k: "L", ready: t, part: 2 }); events.push("база ответила, поиск готов продолжить"); }
+    if (busy && busy.left === 0) busy = null;
+    if (!busy && queue.length) {
+      const job = queue.shift();
+      let dur = 1;
+      if (job.k === "L") dur = mode === "block" ? 6 : 1;
+      busy = { job, left: dur };
+      if (job.k === "H") beats.push({ start: t, ready: job.ready, late: t - job.ready });
+    }
+    const running = busy ? busy.job.k : null;
+    if (busy) busy.left -= 1;
+    ticks.push({ t, running, queue: queue.map(x => x.k), events, part: busy && busy.job.k === "L" ? busy.job.part : null, beat: busy && busy.job.k === "H" ? beats[beats.length - 1] : null });
+  }
+  return ticks;
+}
+let mode = "block", sim = simulate(mode), pos = 0, timer = null;
+
+function caption(upto) {
+  if (upto === 0) return "Время ещё не пошло. Сердцебиение должно тикать на тактах 0, 2, 4, 6... Нажми «Шаг».";
+  const c = sim[upto - 1];
+  const parts = [];
+  if (c.events.length) parts.push("<b>Событие:</b> " + c.events.join("; ") + ".");
+  if (c.running === "L" && mode === "block") parts.push("Поиск вызвал std::thread::sleep: поток спит и вместе с ним спит весь рантайм. Сердце в очереди, но его некому вызвать.");
+  else if (c.running === "L" && c.part === 2) parts.push("Поиск доделал работу после ответа базы и завершился. Поток всё это время обслуживал сердце.");
+  else if (c.running === "L") parts.push("Поиск дошёл до .await на таймере и вернул Pending. Работа заняла такт, поток тут же свободен.");
+  else if (c.running === "H" && c.beat && c.beat.late > 0) parts.push(`Сердце наконец получило поток, но опоздало на ${c.beat.late}. В мониторинге это пропущенные сердцебиения.`);
+  else if (c.running === "H") parts.push("Сердце тикнуло вовремя.");
+  else parts.push("Задач для потока нет: рантайм ждёт событий.");
+  return parts.join(" ");
+}
+
+function render() {
+  const mk = (cls, txt, extra) => `<div class="cell ${cls || ""} ${extra || ""}">${txt || ""}</div>`;
+  const axis = ['<div class="name"></div>'], th = ['<div class="name">Поток воркера</div>'], hh = ['<div class="name">Тики сердца</div>'];
+  for (let t = 0; t < T; t++) {
+    axis.push(mk("", t));
+    const c = sim[t], seen = t < pos, cur = t === pos - 1 ? "cur" : "";
+    th.push(seen && c.running ? mk(c.running, c.running === "H" ? "сердце" : "поиск", cur) : mk("", "", seen ? cur : ""));
+    if (seen && c.running === "H" && c.beat && c.beat.start === t) hh.push(mk(c.beat.late > 0 ? "late" : "H", c.beat.late > 0 ? "+" + c.beat.late : "ок", cur));
+    else hh.push(mk("", "", seen ? cur : ""));
+  }
+  document.getElementById("axis").innerHTML = axis.join("");
+  document.getElementById("rowThread").innerHTML = th.join("");
+  document.getElementById("rowH").innerHTML = hh.join("");
+  const shown = pos ? sim[pos - 1] : null;
+  const qEl = document.getElementById("queue");
+  qEl.innerHTML = shown && shown.queue.length ? shown.queue.map(k => `<span class="chip ${k}">${k === "H" ? "сердце" : "поиск"}</span>`).join("") : `<span class="empty">пусто</span>`;
+  let beats = 0, late = 0;
+  for (let t = 0; t < pos; t++) { const c = sim[t]; if (c.running === "H" && c.beat && c.beat.start === t) { beats++; if (c.beat.late > 0) late++; } }
+  const expected = Math.ceil(pos / 2);
+  document.getElementById("stats").innerHTML = `<div><b>${beats}</b><br>тиков выполнено</div><div><b>${expected}</b><br>тиков ожидалось</div><div class="late-n"><b>${late}</b><br>с опозданием</div>`;
+  document.getElementById("caption").innerHTML = caption(pos);
+  document.getElementById("counter").textContent = `такт ${pos} из ${T}`;
+  document.getElementById("step").disabled = pos >= T;
+  document.getElementById("play").disabled = pos >= T;
+  if (pos >= T) {
+    stop();
+    document.getElementById("caption").innerHTML += mode === "block"
+      ? "<br><b>Итог:</b> одна блокировка выбила из графика несколько тиков, а поток при этом ничего полезного не делал. Попробуй второй вариант."
+      : "<br><b>Итог:</b> ожидание не заняло поток, сердце тикало вовремя, а поиск всё равно закончился. Так и должен выглядеть async-код.";
+  }
+}
+function step() { if (pos < T) { pos++; render(); } }
+function stop() { if (timer) { clearInterval(timer); timer = null; } document.getElementById("play").textContent = "Играть"; }
+function setMode(m) {
+  stop(); mode = m; sim = simulate(m); pos = 0;
+  document.getElementById("mBlock").classList.toggle("on", m === "block");
+  document.getElementById("mAsync").classList.toggle("on", m === "async");
+  render();
+}
+document.getElementById("mBlock").onclick = () => setMode("block");
+document.getElementById("mAsync").onclick = () => setMode("async");
+document.getElementById("step").onclick = () => { stop(); step(); };
+document.getElementById("play").onclick = () => {
+  if (timer) { stop(); return; }
+  document.getElementById("play").textContent = "Пауза";
+  timer = setInterval(step, 900);
+};
+document.getElementById("reset").onclick = () => setMode(mode);
+render();
+</script>
+</body>
+</html>

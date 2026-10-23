@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cargo: от Cargo.toml до сборки</title>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--mut:#6b6b66;--card:#fff;--line:#d6d4cc;--acc:#c2410c;--ok:#15803d;--okbg:#dcfce7;--hot:#fff1e6;--btn:#1d1d1b;--btnfg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#ecebe6;--mut:#9a9a92;--card:#201f1d;--line:#3a3935;--acc:#fb923c;--ok:#4ade80;--okbg:#14301d;--hot:#33241a;--btn:#ecebe6;--btnfg:#161614}}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--mut);margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:stretch}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:2px solid var(--line);border-radius:10px;padding:10px 12px;transition:border-color .25s,background .25s;min-height:150px}
+.card h2{font-size:13px;margin:0 0 6px;color:var(--mut);font-weight:600;text-transform:none}
+.card.on{border-color:var(--acc);background:var(--hot)}
+.card pre{margin:0;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
+.new{color:var(--ok);font-weight:700}
+.pick{background:var(--okbg);color:var(--ok);border-radius:3px;padding:0 3px;font-weight:700}
+.dim{color:var(--mut)}
+.note{margin:16px 0 10px;padding:12px 14px;border-left:4px solid var(--acc);background:var(--card);border-radius:0 8px 8px 0;min-height:70px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button{font:inherit;padding:7px 14px;border-radius:8px;border:0;background:var(--btn);color:var(--btnfg);cursor:pointer}
+button.alt{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button:disabled{opacity:.4;cursor:default}
+.cnt{color:var(--mut);margin-left:auto}
+</style>
+</head>
+<body>
+<h1>Cargo: от Cargo.toml до сборки</h1>
+<p class="sub">Требования превращаются в выбор версий, выбор фиксируется в Cargo.lock, а сборка идёт по локу.</p>
+<div class="grid">
+  <div class="card" id="toml"><h2>Cargo.toml</h2><pre></pre></div>
+  <div class="card" id="registry"><h2>Реестр (индекс)</h2><pre></pre></div>
+  <div class="card" id="resolver"><h2>Резолвер</h2><pre></pre></div>
+  <div class="card" id="lock"><h2>Cargo.lock</h2><pre></pre></div>
+  <div class="card" id="build"><h2>Сборка → target/</h2><pre></pre></div>
+</div>
+<div class="note" id="note"></div>
+<div class="bar">
+  <button id="step">Шаг</button>
+  <button id="play" class="alt">Играть</button>
+  <button id="reset" class="alt">Сначала</button>
+  <span class="cnt" id="cnt"></span>
+</div>
+<script>
+const TOML=['[dependencies]','serde = "1.0.100"','tokio = "~1.30"'];
+const REG0=['serde','  1.0.99','  1.0.100','  1.0.200','  2.0.0','tokio','  1.29.1','  1.30.0','  1.30.3','  1.31.0'];
+const steps=[
+ {on:['toml'],toml:TOML,reg:[],res:[],lock:[],build:[],note:'Ты написал в Cargo.toml не версию, а требование: serde ^1.0.100 (запись без знака значит то же, что с кареткой) и tokio ~1.30.'},
+ {on:['registry'],toml:TOML,reg:REG0,res:[],lock:[],build:[],note:'Cargo берёт из индекса реестра список всех опубликованных версий каждого крейта.'},
+ {on:['resolver'],toml:TOML,reg:REG0,res:['serde ^1.0.100','  2.0.0 нет: другой major','  итог: <mark>1.0.200</mark>','','tokio ~1.30','  1.31.0 нет: ~ держит minor','  итог: <mark>1.30.3</mark>'],lock:[],build:[],note:'Резолвер выбирает максимальную версию из подходящих. Для serde это 1.0.200, для tokio 1.30.3. Решает он для всего дерева сразу, включая зависимости зависимостей.'},
+ {on:['lock'],toml:TOML,reg:REG0,res:['serde → 1.0.200','tokio → 1.30.3'],lock:['[[package]]','name = "serde"','version = "1.0.200"','checksum = "9f1c…"','','[[package]]','name = "tokio"','version = "1.30.3"','checksum = "a07b…"'],build:[],note:'Выбор записывается в Cargo.lock вместе с контрольными суммами. С этого момента лок главнее реестра: он нужен, чтобы у всех была одна и та же сборка.'},
+ {on:['build'],toml:TOML,reg:REG0,res:['serde → 1.0.200','tokio → 1.30.3'],lock:['serde 1.0.200','tokio 1.30.3'],build:['план сборки:','  features: объединение','  по всему дереву','  build.rs раньше кода','  цели: lib, bin, tests'],note:'Cargo строит план: какие features включены (объединение запросов всех пакетов), в каком порядке собирать, какие цели у твоего пакета.'},
+ {on:['build'],toml:TOML,reg:REG0,res:[],lock:['serde 1.0.200','tokio 1.30.3'],build:['rustc serde 1.0.200','rustc tokio 1.30.3','rustc твой пакет','','target/debug/…'],note:'Для каждого крейта запускается rustc, результаты кладутся в target/. Cargo.lock при этом не меняется.'},
+ {on:['registry','lock'],toml:TOML,reg:['serde','  1.0.100','  1.0.200','  <span class="new">1.0.250  новая!</span>','  2.0.0','tokio','  1.30.3','  1.31.0'],res:[],lock:['serde <span class="pick">1.0.200</span>','tokio 1.30.3'],build:[],note:'Через месяц вышла serde 1.0.250. Cargo.toml тот же, и обычный cargo build возьмёт из лока 1.0.200: подходящая версия уже записана, искать лучше не нужно.'},
+ {on:['resolver','lock'],toml:TOML,reg:['serde','  1.0.200','  <span class="new">1.0.250</span>','  2.0.0'],res:['cargo update -p serde','  выбираем заново:','  <span class="pick">1.0.250</span>','','tokio не трогаем'],lock:['serde <span class="new">1.0.250</span>','tokio 1.30.3'],build:[],note:'cargo update -p serde просит резолвера переиграть выбор только для serde. Запись в локе меняется, остальные пакеты остаются как были.'},
+ {on:['lock','build'],toml:['serde = "2"'],reg:[],res:['лок: serde 1.0.250','требование: ^2','несовместимо'],lock:['serde 1.0.250'],build:['<span class="new">error:</span> lock file needs','to be updated but','--locked was passed'],note:'Если в Cargo.toml требование поменяли, а лок отстал, то cargo build --locked не станет молча чинить файл и упадёт. Для CI это именно то, что нужно.'}
+];
+const ids=['toml','registry','resolver','lock','build'];
+const keys={toml:'toml',registry:'reg',resolver:'res',lock:'lock',build:'build'};
+let i=0,timer=null;
+function render(){
+  const s=steps[i];
+  ids.forEach(id=>{
+    const el=document.getElementById(id);
+    el.classList.toggle('on',s.on.includes(id));
+    const lines=s[keys[id]];
+    el.querySelector('pre').innerHTML=lines.length?lines.join('\n').replace(/<mark>(.*?)<\/mark>/g,'<span class="pick">$1</span>'):'<span class="dim">…</span>';
+  });
+  document.getElementById('note').textContent=s.note;
+  document.getElementById('cnt').textContent='шаг '+(i+1)+' из '+steps.length;
+  document.getElementById('step').disabled=i===steps.length-1;
+  if(i===steps.length-1)stop();
+}
+function stop(){if(timer){clearInterval(timer);timer=null;}document.getElementById('play').textContent='Играть';}
+document.getElementById('step').onclick=()=>{if(i<steps.length-1){i++;render();}};
+document.getElementById('reset').onclick=()=>{stop();i=0;render();};
+document.getElementById('play').onclick=()=>{
+  if(timer){stop();return;}
+  if(i===steps.length-1){i=0;render();}
+  document.getElementById('play').textContent='Пауза';
+  timer=setInterval(()=>{if(i<steps.length-1){i++;render();}else stop();},2600);
+};
+render();
+</script>
+</body>
+</html>

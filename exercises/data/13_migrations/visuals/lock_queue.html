@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Очередь за ALTER: все ждут одну долгую транзакцию</title>
+<style>
+:root { --bg:#f6f7f9; --panel:#fff; --text:#1d2330; --muted:#6a7385; --line:#d9dde5; --accent:#2563eb; --g1:#e8f6ec; --g2:#fff4cc; --g3:#fde8e8; --g4:#e6e9fb; --bad:#b42318; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14171d; --panel:#1c212b; --text:#e6e9f0; --muted:#98a2b5; --line:#323a49; --accent:#6ea0ff; --g1:#1c3326; --g2:#4a3f12; --g3:#3b2024; --g4:#262c52; --bad:#ff8a80; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:960px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; } p.lead { color:var(--muted); margin:0 0 16px; }
+.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+h3 { margin:0 0 8px; font-size:14px; color:var(--muted); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th,td { text-align:left; padding:5px 8px; border-bottom:1px solid var(--line); font-size:14px; }
+th { color:var(--muted); font-weight:600; font-size:13px; }
+tr.a1 td { background:var(--g1); } tr.a2 td { background:var(--g3); }
+pre { margin:0; font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; }
+.note { min-height:3.6em; } .note b { color:var(--accent); } .note b.bad { color:var(--bad); }
+.controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button,select { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); cursor:pointer; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#fff; } button:disabled { opacity:.45; cursor:default; }
+.counter { color:var(--muted); margin-left:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Очередь блокировок вокруг ALTER TABLE</h1>
+  <p class="lead">Долгая транзакция читает таблицу, а ALTER хочет её изменить. Смотри, что происходит с обычными запросами.</p>
+  <div class="card controls">
+    <select id="mode"><option value="wait">ALTER без lock_timeout</option><option value="timeout">ALTER с lock_timeout и повтором</option></select>
+    <button id="step" class="primary">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="card grid">
+    <div><h3>что происходит</h3><pre id="log"></pre></div>
+    <div><h3 id="thead">состояние</h3><table id="tbl"></table></div>
+  </div>
+  <div class="card note" id="note"></div>
+</main>
+<script>
+(function () {
+  var SC = {"wait": {"name": "ALTER без lock_timeout", "table": "очередь на таблицу posts", "head": ["кто", "состояние"], "start": {"note": "Аналитик открыл транзакцию, прочитал posts и ушёл на обед. Транзакция «висит», но держит мягкий замок на чтение.", "rows": [["аналитик: BEGIN; SELECT ...", "держит замок на чтение"], ["ALTER TABLE posts ...", "-"], ["обычные SELECT сервиса", "работают"]]}, "steps": [{"ev": "миграция: ALTER TABLE posts ADD COLUMN ...", "note": "ALTER просит самый жёсткий замок. Он несовместим с замком аналитика и <b>встаёт в очередь</b>. Сам он пока ничего не сделал.", "rows": [["аналитик: BEGIN; SELECT ...", "держит замок на чтение"], ["ALTER TABLE posts ...", "ждёт в очереди"], ["обычные SELECT сервиса", "работают"]], "hl": [], "bad": [1]}, {"ev": "приходит новый SELECT пользователя", "note": "Новое чтение само по себе не конфликтует с замком аналитика. Но очередь честная: обогнать ждущий ALTER нельзя, и SELECT <b>встаёт за ним</b>.", "rows": [["аналитик: BEGIN; SELECT ...", "держит замок на чтение"], ["ALTER TABLE posts ...", "ждёт в очереди"], ["обычные SELECT сервиса", "ждут за ALTER"]], "hl": [], "bad": [1, 2]}, {"ev": "проходит минута", "note": "<b class=\"bad\">Сервис лежит</b>: пул соединений забит ждущими запросами. Виноват не ALTER и не аналитик по отдельности, а их сочетание.", "rows": [["аналитик: BEGIN; SELECT ...", "всё ещё на обеде"], ["ALTER TABLE posts ...", "ждёт 60 секунд"], ["обычные SELECT сервиса", "сотни ждут, пул пуст"]], "hl": [], "bad": [0, 1, 2]}]}, "timeout": {"name": "ALTER с lock_timeout и повтором", "table": "очередь на таблицу posts", "head": ["кто", "состояние"], "start": {"note": "Та же ситуация, но миграция ставит <code>lock_timeout = 300 мс</code> и умеет повторять.", "rows": [["аналитик: BEGIN; SELECT ...", "держит замок на чтение"], ["ALTER TABLE posts ...", "-"], ["обычные SELECT сервиса", "работают"]]}, "steps": [{"ev": "попытка 1: ALTER", "note": "ALTER встал в очередь. Новые SELECT встают за ним, но ненадолго.", "rows": [["аналитик: BEGIN; SELECT ...", "держит замок на чтение"], ["ALTER TABLE posts ...", "ждёт (до 300 мс)"], ["обычные SELECT сервиса", "ждут за ALTER"]], "hl": [], "bad": [1, 2]}, {"ev": "через 300 мс", "note": "База обрывает ожидание ошибкой <b>55P03</b>. ALTER ушёл из очереди, и все застрявшие SELECT выполняются.", "rows": [["аналитик: BEGIN; SELECT ...", "держит замок на чтение"], ["ALTER TABLE posts ...", "ошибка 55P03, миграция отдыхает"], ["обычные SELECT сервиса", "работают"]], "hl": [2], "bad": []}, {"ev": "пауза, попытка 2, 3, ...", "note": "Раннер пробует снова и снова, каждый раз блокируя трафик максимум на 300 мс. Когда аналитик закончит, очередная попытка пройдёт.", "rows": [["аналитик: COMMIT", "замок снят"], ["ALTER TABLE posts ...", "выполнен"], ["обычные SELECT сервиса", "работают"]], "hl": [1], "bad": []}]}};
+  var $ = function (id) { return document.getElementById(id); };
+  var i = 0, timer = null, total = 0;
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = 'Играть'; }
+  function render() {
+    var sc = SC[$('mode').value]; total = sc.steps.length;
+    var log = [];
+    for (var k = 0; k < i; k++) log.push((k === i - 1 ? '> ' : '  ') + sc.steps[k].ev);
+    $('log').textContent = log.join('\n') || '(пока ничего)';
+    var st = i > 0 ? sc.steps[i - 1] : sc.start;
+    $('thead').textContent = sc.table;
+    $('tbl').innerHTML = '<tr>' + sc.head.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr>' + st.rows.map(function (r, idx) {
+      var cls = (st.hl || []).indexOf(idx) >= 0 ? 'a1' : ((st.bad || []).indexOf(idx) >= 0 ? 'a2' : '');
+      return '<tr class="' + cls + '">' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    $('note').innerHTML = st.note;
+    $('counter').textContent = 'шаг ' + i + ' из ' + total;
+    $('step').disabled = i >= total;
+    if (i >= total) stop();
+  }
+  function reset() { stop(); i = 0; render(); }
+  $('step').onclick = function () { if (i < total) { i++; render(); } };
+  $('reset').onclick = reset; $('mode').onchange = reset;
+  $('play').onclick = function () {
+    if (timer) { stop(); return; }
+    if (i >= total) i = 0;
+    $('play').textContent = 'Пауза';
+    timer = setInterval(function () { if (i >= total) { stop(); return; } i++; render(); }, 1400);
+    i++; render();
+  };
+  reset();
+})();
+</script>
+</body>
+</html>

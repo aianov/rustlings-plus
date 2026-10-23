@@ -1,0 +1,18 @@
+[package]
+name = "resp-client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+bytes.workspace = true
+framing.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+framing.workspace = true
+
+[lints]
+workspace = true

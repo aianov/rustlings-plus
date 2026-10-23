@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Догон после обрыва: окно, в котором теряются сообщения</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2330; --muted: #5d6879; --line: #c9d0db;
+  --box: #eef1f6; --boxline: #aeb8c8; --ok: #1f8a4c; --bad: #c92a2a; --warn: #d9820f; --accent: #2f6fe0;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+    --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14181f; --panel: #1b212b; --ink: #e6ebf3; --muted: #9aa6b8; --line: #384152;
+  --box: #232b38; --boxline: #4a566b; --ok: #51cf66; --bad: #ff6b6b; --warn: #ffa94d; --accent: #6ea4ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 12px; color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button, select { font: inherit; color: var(--ink); background: var(--box); border: 1px solid var(--boxline); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+button:hover:enabled { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+.spacer { flex: 1; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--ink); font-size: 13px; }
+svg .muted { fill: var(--muted); font-size: 12px; }
+#caption { margin-top: 12px; min-height: 84px; }
+.step { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Догон после обрыва: окно, в котором теряются сообщения</h1>
+  <p class="sub">Порядок «подписка, история, склейка» закрывает щель между чтением истории и началом живого потока.</p>
+  <div class="panel">
+    <div class="bar">
+      <label>Случай <select id="scenario"></select></label>
+      <span class="spacer"></span>
+      <button id="reset">Сброс</button>
+      <button id="prev">Назад</button>
+      <button id="next">Шаг</button>
+      <button id="play">Играть</button>
+      <button id="theme">Тема</button>
+    </div>
+    <svg viewBox="0 0 960 340" role="img" aria-label="Догон после обрыва: окно, в котором теряются сообщения"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs><g id="scene"></g></svg>
+    <div id="caption" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, parent, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const NODES = [{"id": "cl", "x": 10, "y": 60, "w": 170, "h": 260, "label": "клиент", "sub": "видел до №5"}, {"id": "gw", "x": 230, "y": 60, "w": 200, "h": 260, "label": "шлюз", "sub": ""}, {"id": "st", "x": 480, "y": 60, "w": 200, "h": 260, "label": "история (stream)", "sub": ""}, {"id": "live", "x": 730, "y": 60, "w": 220, "h": 260, "label": "живая подписка", "sub": ""}];
+const SCEN = {"wrong": {"title": "неверный порядок: сначала история", "intro": "Шлюз сначала читает историю, а подписывается потом.", "steps": [{"text": "Клиент вернулся и говорит: «последнее у меня №5». В истории лежат №6 и №7.", "hl": ["cl"], "tokens": {"st": [["№5", "ok"], ["№6", "ok"], ["№7", "ok"]], "cl": [["последнее: №5", "n"]]}}, {"text": "Шлюз читает историю после №5 и получает №6 и №7. Подписки у него пока нет.", "hl": ["st"], "arrows": [["gw", "st", "после №5", "ok"]], "tokens": {"st": [["№5", "ok"], ["№6", "ok"], ["№7", "ok"]], "gw": [["получил №6, №7", "ok"]]}}, {"text": "Пока шлюз готовится подписаться, в чат пишут №8. Подписчиков нет, живая копия уходит в никуда, а историю шлюз уже прочитал.", "hl": ["st"], "tokens": {"st": [["№6", "ok"], ["№7", "ok"], ["№8 (новое)", "warn"]], "gw": [["получил №6, №7", "ok"]], "live": [["подписчиков нет", "warn"]]}}, {"text": "Шлюз подписывается. Дальше он будет получать №9, №10 и так далее.", "hl": ["live"], "arrows": [["gw", "live", "подписка", "ok"]], "tokens": {"live": [["подписка есть", "ok"]], "gw": [["получил №6, №7", "ok"]]}}, {"text": "Итог: у клиента №6, №7, №9... Сообщение №8 потеряно, и никакая ошибка об этом не скажет.", "hl": ["cl"], "tokens": {"cl": [["№6, №7, №9...", "bad"], ["дыра: №8", "bad"]]}}]}, "right": {"title": "верный порядок: сначала подписка", "intro": "Шлюз подписывается первым, потом читает историю, потом склеивает.", "steps": [{"text": "Сначала подписка: с этой минуты все живые сообщения копятся у шлюза.", "hl": ["live"], "arrows": [["gw", "live", "подписка", "ok"]], "tokens": {"live": [["подписка есть", "ok"]], "st": [["№5", "ok"], ["№6", "ok"], ["№7", "ok"]]}}, {"text": "В чат пишут №8: оно попадает и в историю, и в подписку.", "hl": ["st", "live"], "tokens": {"st": [["№6", "ok"], ["№7", "ok"], ["№8", "ok"]], "live": [["№8 ждёт у шлюза", "warn"]]}}, {"text": "Теперь шлюз читает историю после №5 и получает №6, №7, №8.", "hl": ["st"], "arrows": [["gw", "st", "после №5", "ok"]], "tokens": {"gw": [["история: №6, №7, №8", "ok"]], "live": [["№8 ждёт у шлюза", "warn"]]}}, {"text": "Шлюз сравнивает номера: живое №8 уже есть в истории, значит это дубль и его нужно выбросить (отбрасываем всё, что не больше уже отданного).", "hl": ["gw"], "tokens": {"gw": [["№8 из подписки: дубль, выброшено", "warn"], ["отдано: №6, №7, №8", "ok"]]}}, {"text": "Итог: клиент получил №6, №7, №8 без дыр и повторов, и дальше живые №9, №10 идут сами.", "hl": ["cl"], "arrows": [["gw", "cl", "№6, №7, №8", "ok"]], "tokens": {"cl": [["№6, №7, №8, №9...", "ok"]]}}]}};
+const COLOR = { ok: "var(--ok)", bad: "var(--bad)", warn: "var(--warn)", n: "var(--accent)" };
+const scene = document.getElementById("scene"), cap = document.getElementById("caption");
+const sel = document.getElementById("scenario");
+const btn = id => document.getElementById(id);
+let idx = -1, timer = null;
+Object.keys(SCEN).forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = SCEN[k].title; sel.appendChild(o); });
+function center(id) { const n = NODES.find(n => n.id === id); return { x: n.x + n.w / 2, y: n.y + n.h / 2, n }; }
+function render() {
+  scene.textContent = "";
+  const sc = SCEN[sel.value];
+  const step = idx >= 0 ? sc.steps[idx] : null;
+  NODES.forEach(n => {
+    const hot = step && (step.hl || []).includes(n.id);
+    el("rect", { x: n.x, y: n.y, width: n.w, height: n.h, rx: 10, fill: "var(--box)", stroke: hot ? "var(--accent)" : "var(--boxline)", "stroke-width": hot ? 3 : 1.2 }, scene);
+    el("text", { x: n.x + 10, y: n.y + 20, "font-weight": "600" }, scene, n.label);
+    if (n.sub) el("text", { x: n.x + 10, y: n.y + 36, class: "muted" }, scene, n.sub);
+  });
+  if (step) {
+    (step.arrows || []).forEach(a => {
+      const f = center(a[0]), t = center(a[1]);
+      const dx = t.x - f.x, dy = t.y - f.y, len = Math.hypot(dx, dy) || 1;
+      const x1 = f.x + (dx > 0 ? f.n.w / 2 : dx < 0 ? -f.n.w / 2 : 0), y1 = f.y + (Math.abs(dx) < 4 ? (dy > 0 ? f.n.h / 2 : -f.n.h / 2) : 0);
+      const x2 = t.x - (dx > 0 ? t.n.w / 2 : dx < 0 ? -t.n.w / 2 : 0), y2 = t.y - (Math.abs(dx) < 4 ? (dy > 0 ? t.n.h / 2 : -t.n.h / 2) : 0);
+      const c = COLOR[a[3] || "n"];
+      el("line", { x1, y1, x2, y2, stroke: c, "stroke-width": 2.2, "marker-end": "url(#arr)", "stroke-dasharray": a[3] === "bad" ? "6 4" : "" }, scene);
+      el("text", { x: (x1 + x2) / 2, y: (y1 + y2) / 2 - 6, "text-anchor": "middle", fill: c, style: "fill:" + c + ";font-size:12px" }, scene, a[2]);
+    });
+    Object.keys(step.tokens || {}).forEach(id => {
+      const n = NODES.find(n => n.id === id);
+      step.tokens[id].forEach((t, i) => {
+        const y = n.y + 48 + i * 26;
+        const c = COLOR[t[1] || "n"];
+        el("rect", { x: n.x + 10, y, width: n.w - 20, height: 21, rx: 10, fill: "none", stroke: c, "stroke-width": 1.6 }, scene);
+        el("text", { x: n.x + 18, y: y + 15, style: "fill:" + c + ";font-size:12px" }, scene, t[0]);
+      });
+    });
+  }
+  const sub = idx < 0 ? sc.intro : sc.steps[idx].text;
+  cap.innerHTML = "";
+  const s = document.createElement("div"); s.className = "step"; s.textContent = idx < 0 ? "Начало" : "Шаг " + (idx + 1) + " из " + sc.steps.length; cap.appendChild(s);
+  const p = document.createElement("div"); p.textContent = sub; cap.appendChild(p);
+  btn("prev").disabled = idx < 0; btn("next").disabled = idx >= sc.steps.length - 1;
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; btn("play").textContent = "Играть"; } }
+btn("next").onclick = () => { stop(); if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } };
+btn("prev").onclick = () => { stop(); if (idx >= 0) { idx--; render(); } };
+btn("reset").onclick = () => { stop(); idx = -1; render(); };
+sel.onchange = () => { stop(); idx = -1; render(); };
+btn("play").onclick = () => {
+  if (timer) { stop(); return; }
+  if (idx >= SCEN[sel.value].steps.length - 1) idx = -1;
+  btn("play").textContent = "Пауза";
+  timer = setInterval(() => { if (idx < SCEN[sel.value].steps.length - 1) { idx++; render(); } else stop(); }, 1800);
+  if (idx < 0) { idx = 0; render(); }
+};
+btn("theme").onclick = () => {
+  const r = document.documentElement, cur = r.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  r.setAttribute("data-theme", dark ? "light" : "dark");
+};
+render();
+</script>
+</body>
+</html>

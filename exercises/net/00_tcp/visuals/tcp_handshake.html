@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCP: рукопожатие, данные и закрытие</title>
+<style>
+:root {
+  --bg: #fafaf7; --fg: #1d1f24; --muted: #6b7078; --card: #ffffff; --line: #c9ccd2;
+  --c: #2b6cd9; --s: #1f8a5b; --warn: #c2410c; --accent: #7c3aed; --shadow: rgba(0,0,0,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --fg: #e8eaee; --muted: #9aa0aa; --card: #1d2026; --line: #3a3f48;
+    --c: #6ea3ff; --s: #4fd197; --warn: #ff9a62; --accent: #b794ff; --shadow: rgba(0,0,0,.4);
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 820px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 14px; color: var(--muted); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.counter { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stage { background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 8px var(--shadow); padding: 8px; }
+svg { width: 100%; height: auto; display: block; }
+svg text { fill: var(--fg); font-family: inherit; }
+.caption { margin-top: 12px; padding: 12px 14px; border-left: 4px solid var(--accent); background: var(--card); border-radius: 0 8px 8px 0; min-height: 3.4em; }
+.lane { stroke: var(--line); stroke-width: 2; stroke-dasharray: 5 5; }
+.host { fill: var(--card); stroke-width: 2; }
+.arrow { stroke-width: 2.4; fill: none; }
+.lbl { font-size: 13px; font-weight: 600; }
+.note { font-size: 11.5px; fill: var(--muted) !important; }
+.state { font-size: 12px; font-weight: 600; }
+.dot { stroke: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TCP: рукопожатие, данные и закрытие</h1>
+  <p class="sub">Это переписка ядер. Твой код видит только результат: connect вернулся, accept отдал сокет, read вернул 0.</p>
+  <div class="bar">
+    <button id="sc-normal" class="on">Обычное закрытие</button>
+    <button id="sc-rst">Закрытие с непрочитанным (RST)</button>
+    <span style="width:12px"></span>
+    <button id="prev">Назад</button>
+    <button id="next">Шаг</button>
+    <button id="play">Играть</button>
+    <button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="stage"><svg id="svg" role="img" aria-label="Диаграмма обмена пакетами между клиентом и сервером"></svg></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SC = {
+  normal: [
+    { t: "Сервер сделал bind и listen: порт занят, ядро ждёт первый пакет. Клиент пока ничего не знает.", c: "CLOSED", s: "LISTEN" },
+    { m: ["c", "s", "SYN", "connect(): хочу соединиться"], t: "Клиент вызвал connect. Ядро отправляет SYN и ждёт ответа.", c: "SYN_SENT", s: "LISTEN" },
+    { m: ["s", "c", "SYN + ACK", "ладно, и я готов"], t: "Сервер отвечает SYN+ACK. Заметь: его код ещё не вызывал accept, всё делает ядро.", c: "SYN_SENT", s: "SYN_RECEIVED" },
+    { m: ["c", "s", "ACK", "рукопожатие закончено"], t: "Третий пакет. Теперь connect у клиента возвращается, а у сервера соединение ждёт в очереди: accept заберёт его сразу.", c: "ESTABLISHED", s: "ESTABLISHED" },
+    { m: ["c", "s", "DATA 5 байт", "write_all(\"hello\")"], t: "Клиент отправляет байты. Граница write здесь никому не видна: это просто часть потока.", c: "ESTABLISHED", s: "ESTABLISHED" },
+    { m: ["s", "c", "ACK", "5 байт получены"], t: "Сервер подтверждает приём. Не получив ACK, клиент отправил бы байты повторно: так TCP чинит потери.", c: "ESTABLISHED", s: "ESTABLISHED" },
+    { m: ["c", "s", "FIN", "shutdown(Write)"], t: "Клиент закончил: отправляет FIN. Это half-close, читать клиент ещё может.", c: "FIN_WAIT_1", s: "ESTABLISHED" },
+    { m: ["s", "c", "ACK", "FIN принят"], t: "Теперь read у сервера вернёт Ok(0), это EOF. Но сервер ещё может писать: клиент по-прежнему слушает.", c: "FIN_WAIT_2", s: "CLOSE_WAIT" },
+    { m: ["s", "c", "DATA 5 байт", "write_all(\"world\")"], t: "Сервер отвечает по половине соединения, которая осталась открытой. Так работает схема «запрос, EOF, ответ».", c: "FIN_WAIT_2", s: "CLOSE_WAIT" },
+    { m: ["s", "c", "FIN", "close / drop"], t: "Сервер закрывает свою сторону. Клиент после прочтения ответа получит Ok(0).", c: "FIN_WAIT_2", s: "LAST_ACK" },
+    { m: ["c", "s", "ACK", "всё, расходимся"], t: "Последний ACK. Сервер свободен сразу, а клиент ещё некоторое время держит TIME_WAIT (порядка минуты), чтобы запоздавшие пакеты не попали в новое соединение с тем же портом.", c: "TIME_WAIT", s: "CLOSED" }
+  ],
+  rst: [
+    { t: "Соединение уже установлено (рукопожатие из трёх пакетов было как в обычном сценарии).", c: "ESTABLISHED", s: "ESTABLISHED" },
+    { m: ["c", "s", "DATA 100 байт", "write_all(запрос)"], t: "Клиент отправил запрос. Сервер ещё не вызвал read, байты лежат в буфере приёма ядра.", c: "ESTABLISHED", s: "ESTABLISHED" },
+    { m: ["s", "c", "ACK", "100 байт у меня в буфере"], t: "Ядро подтвердило приём. Для клиента всё хорошо: данные доставлены, хотя приложение их не прочитало.", c: "ESTABLISHED", s: "ESTABLISHED" },
+    { m: ["s", "c", "RST", "drop(stream) с непрочитанным"], t: "Сервер закрыл сокет, не прочитав 100 байт. Вежливо закрыться (FIN) нельзя: данные потеряются. Ядро шлёт RST, «соединения больше нет».", c: "ESTABLISHED", s: "CLOSED" },
+    { t: "Клиент получает сброс. Следующий read вернёт ошибку ConnectionReset, а не Ok(0). Всё, что сервер мог бы успеть ответить, потеряно. Правило: дочитывай, что тебе шлют, прежде чем закрываться.", c: "CLOSED", s: "CLOSED", err: true }
+  ]
+};
+const STATE_COLOR = { CLOSED: "#8a8f98", LISTEN: "#b7791f", SYN_SENT: "#b7791f", SYN_RECEIVED: "#b7791f", ESTABLISHED: "#1f8a5b", FIN_WAIT_1: "#c2410c", FIN_WAIT_2: "#c2410c", CLOSE_WAIT: "#c2410c", LAST_ACK: "#c2410c", TIME_WAIT: "#7c3aed" };
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("svg");
+const cap = document.getElementById("caption");
+const counter = document.getElementById("counter");
+let scenario = "normal", step = 0, timer = null, raf = 0;
+const X = { c: 150, s: 610 }, TOP = 96, GAP = 62;
+
+function el(name, attrs, text) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  svg.appendChild(e);
+  return e;
+}
+function arrowTo(x1, x2, y, color, dashed) {
+  const dir = x2 > x1 ? 1 : -1;
+  el("line", { x1, y1: y, x2: x2 - dir * 8, y2: y + 14, class: "arrow", stroke: color, "stroke-dasharray": dashed ? "6 4" : "0" });
+  el("polygon", { points: `${x2},${y + 14} ${x2 - dir * 10},${y + 8} ${x2 - dir * 10},${y + 20}`, fill: color });
+}
+function draw(animate) {
+  cancelAnimationFrame(raf);
+  const steps = SC[scenario];
+  const msgs = steps.slice(0, step + 1).map((s, i) => ({ s, i })).filter(o => o.s.m);
+  const H = TOP + 40 + steps.filter(s => s.m).length * GAP + 20;
+  svg.setAttribute("viewBox", `0 0 760 ${H}`);
+  svg.innerHTML = "";
+  const cur = steps[step];
+  el("line", { x1: X.c, y1: 62, x2: X.c, y2: H - 10, class: "lane" });
+  el("line", { x1: X.s, y1: 62, x2: X.s, y2: H - 10, class: "lane" });
+  for (const who of ["c", "s"]) {
+    const color = who === "c" ? "var(--c)" : "var(--s)";
+    el("rect", { x: X[who] - 80, y: 6, width: 160, height: 28, rx: 8, class: "host", stroke: color });
+    el("text", { x: X[who], y: 25, "text-anchor": "middle", class: "lbl" }, who === "c" ? "Клиент" : "Сервер");
+    const st = cur[who];
+    el("rect", { x: X[who] - 70, y: 38, width: 140, height: 22, rx: 11, fill: STATE_COLOR[st], opacity: .95 });
+    el("text", { x: X[who], y: 54, "text-anchor": "middle", class: "state", fill: "#fff", style: "fill:#fff" }, st);
+  }
+  let lastGeom = null;
+  msgs.forEach((o, k) => {
+    const [from, to, label, note] = o.s.m;
+    const y = TOP + k * GAP;
+    const isLast = o.i === step;
+    const color = label === "RST" ? "var(--warn)" : (from === "c" ? "var(--c)" : "var(--s)");
+    const x1 = X[from], x2 = X[to];
+    const g = { x1, x2, y, color };
+    if (!(isLast && animate)) {
+      arrowTo(x1, x2, y, color, !isLast);
+      el("text", { x: (x1 + x2) / 2, y: y - 4, "text-anchor": "middle", class: "lbl", opacity: isLast ? 1 : .7 }, label);
+      el("text", { x: (x1 + x2) / 2, y: y + 36, "text-anchor": "middle", class: "note" }, note);
+    } else lastGeom = { g, label, note };
+  });
+  if (cur.err) {
+    el("text", { x: 380, y: H - 18, "text-anchor": "middle", class: "lbl", style: "fill:var(--warn)" }, "read клиента: Err(ConnectionReset)");
+  }
+  cap.textContent = cur.t;
+  counter.textContent = `шаг ${step} из ${steps.length - 1}`;
+  document.getElementById("prev").disabled = step === 0;
+  document.getElementById("next").disabled = step === steps.length - 1;
+  if (lastGeom) animateMsg(lastGeom);
+}
+function animateMsg({ g, label, note }) {
+  const dot = el("circle", { r: 7, cx: g.x1, cy: g.y + 8, fill: g.color, class: "dot" });
+  const t0 = performance.now(), dur = 700;
+  (function tick(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    dot.setAttribute("cx", g.x1 + (g.x2 - g.x1) * p);
+    dot.setAttribute("cy", g.y + 8 + 6 * p);
+    if (p < 1) raf = requestAnimationFrame(tick);
+    else {
+      dot.remove();
+      arrowTo(g.x1, g.x2, g.y, g.color, false);
+      el("text", { x: (g.x1 + g.x2) / 2, y: g.y - 4, "text-anchor": "middle", class: "lbl" }, label);
+      el("text", { x: (g.x1 + g.x2) / 2, y: g.y + 36, "text-anchor": "middle", class: "note" }, note);
+    }
+  })(t0);
+}
+function go(n, animate) { step = Math.max(0, Math.min(SC[scenario].length - 1, n)); draw(animate); }
+function stop() { clearInterval(timer); timer = null; document.getElementById("play").textContent = "Играть"; }
+document.getElementById("next").onclick = () => { stop(); go(step + 1, true); };
+document.getElementById("prev").onclick = () => { stop(); go(step - 1, false); };
+document.getElementById("reset").onclick = () => { stop(); go(0, false); };
+document.getElementById("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SC[scenario].length - 1) go(0, false);
+  document.getElementById("play").textContent = "Пауза";
+  timer = setInterval(() => {
+    if (step >= SC[scenario].length - 1) return stop();
+    go(step + 1, true);
+  }, 2400);
+};
+function pick(name) {
+  stop(); scenario = name;
+  document.getElementById("sc-normal").classList.toggle("on", name === "normal");
+  document.getElementById("sc-rst").classList.toggle("on", name === "rst");
+  go(0, false);
+}
+document.getElementById("sc-normal").onclick = () => pick("normal");
+document.getElementById("sc-rst").onclick = () => pick("rst");
+go(0, false);
+</script>
+</body>
+</html>

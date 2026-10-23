@@ -1,0 +1,40 @@
+env_files = [{ path = ".env", defaults_only = true }]
+
+[config]
+default_to_workspace = false
+
+[tasks.fmt]
+command = "cargo"
+args = ["fmt", "--all", "--check"]
+
+[tasks.lint]
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
+
+[tasks.test]
+command = "cargo"
+args = ["test", "--workspace"]
+
+[tasks.check]
+clear = true
+dependencies = ["fmt", "lint", "test"]
+
+[tasks.build-all]
+command = "cargo"
+args = ["build", "--workspace"]
+
+[tasks.api]
+command = "cargo"
+args = ["run", "--quiet", "-p", "api"]
+
+[tasks.auth]
+command = "cargo"
+args = ["run", "--quiet", "-p", "auth"]
+
+[tasks.worker]
+command = "cargo"
+args = ["run", "--quiet", "-p", "worker"]
+
+[tasks.run-all]
+dependencies = ["build-all"]
+run_task = { name = ["api", "auth", "worker"], parallel = true }

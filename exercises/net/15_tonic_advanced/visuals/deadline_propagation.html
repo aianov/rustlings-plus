@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Бюджет времени по цепочке</title>
+<style>
+:root { --bg:#fafaf7; --fg:#1d1f24; --muted:#6b7078; --card:#fff; --line:#c9ccd2; --accent:#7c3aed; --shadow:rgba(0,0,0,.08);
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c2410c; --info:#2b6cd9; --mute:#8a8f98; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14161a; --fg:#e8eaee; --muted:#9aa0aa; --card:#1d2026; --line:#3a3f48; --accent:#b794ff; --shadow:rgba(0,0,0,.4);
+  --ok:#4fd197; --warn:#f0b64a; --bad:#ff9a62; --info:#6ea3ff; --mute:#8a8f98; } }
+* { box-sizing:border-box; }
+body { margin:0; padding:20px; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { max-width:900px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p.sub { margin:0 0 14px; color:var(--muted); }
+.bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+button { font:inherit; padding:6px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:default; }
+button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+.counter { margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+.board { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+.box { background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 2px 8px var(--shadow); padding:10px; min-height:150px; }
+.box h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.chips { display:flex; flex-direction:column; gap:6px; }
+.chip { padding:5px 10px; border-radius:8px; border:1.5px solid currentColor; font-size:13.5px; font-weight:600; background:transparent; }
+.chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.info { color:var(--info); } .chip.mute { color:var(--mute); }
+.chip.new { animation:pop .7s ease-out; }
+@keyframes pop { 0% { transform:scale(.7); opacity:0; } 60% { transform:scale(1.08); opacity:1; } 100% { transform:scale(1); } }
+.empty { color:var(--muted); font-size:13px; }
+.caption { margin-top:14px; padding:12px 14px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0; min-height:3.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Бюджет времени по цепочке</h1>
+  <p class="sub">Шлюз даёт запросу 300 мс. Видно, сколько остаётся каждому звену, когда срок передают дальше остатком, и что бывает при фиксированных таймаутах.</p>
+  <div class="bar" id="scenarios"></div>
+  <div class="bar">
+    <button id="prev">Назад</button><button id="next">Шаг</button><button id="play">Играть</button><button id="reset">Сброс</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="caption" id="caption" aria-live="polite"></div>
+</main>
+<script>
+const SCENARIOS = [
+ {
+  "label": "Остаток бюджета",
+  "boxes": [
+   "Шлюз",
+   "posts",
+   "users",
+   "Что осталось"
+  ],
+  "steps": [
+   {
+    "t": "Шлюз принимает запрос ленты и ставит бюджет 300 мс. В заголовок grpc-timeout вызова к posts уходит 300 мс.",
+    "s": [
+     [
+      [
+       "бюджет 300 мс",
+       "info"
+      ]
+     ],
+     [],
+     [],
+     [
+      [
+       "300 мс",
+       "ok"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "posts получил запрос и сразу засёк время. Своя работа занимает 100 мс.",
+    "s": [
+     [
+      [
+       "ждёт",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "работа: 100 мс",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "200 мс",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "posts зовёт users и ставит ему срок, равный остатку: 200 мс (а не свои привычные 300 мс).",
+    "s": [
+     [
+      [
+       "ждёт",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "grpc-timeout: 200 мс",
+       "info"
+      ]
+     ],
+     [
+      [
+       "работа: 80 мс",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "120 мс",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "users ответил за 80 мс. posts собирает ответ и возвращает его шлюзу. Всего 190 мс из 300.",
+    "s": [
+     [
+      [
+       "ответ получен",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "собрал ответ",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "отдал за 80 мс",
+       "ok"
+      ]
+     ],
+     [
+      [
+       "110 мс в запасе",
+       "ok"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Медленный users",
+  "boxes": [
+   "Шлюз",
+   "posts",
+   "users",
+   "Что осталось"
+  ],
+  "steps": [
+   {
+    "t": "Те же 300 мс на запрос. posts отработал свои 100 мс, остаток 200 мс, зовёт users.",
+    "s": [
+     [
+      [
+       "бюджет 300 мс",
+       "info"
+      ]
+     ],
+     [
+      [
+       "grpc-timeout: 200 мс",
+       "info"
+      ]
+     ],
+     [
+      [
+       "работает...",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "200 мс",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "users зависает на 500 мс (база тормозит). Через 200 мс от вызова posts срок вышел.",
+    "s": [
+     [
+      [
+       "ждёт",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "срок вызова users вышел",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "всё ещё работает",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "0 мс",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "posts отвечает DeadlineExceeded и отпускает вызов, users бросают. Шлюз получает ошибку ровно в момент своего срока, а не позже.",
+    "s": [
+     [
+      [
+       "DeadlineExceeded на 300 мс",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "отдал ошибку",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "вызов отменён",
+       "mute"
+      ]
+     ],
+     [
+      [
+       "0 мс",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ },
+ {
+  "label": "Ошибка: фиксированные таймауты",
+  "boxes": [
+   "Шлюз",
+   "posts",
+   "users",
+   "Что осталось"
+  ],
+  "steps": [
+   {
+    "t": "Каждое звено ставит себе и соседу «честные» 300 мс. Шлюз сказал posts: 300 мс.",
+    "s": [
+     [
+      [
+       "бюджет 300 мс",
+       "info"
+      ]
+     ],
+     [
+      [
+       "работа: 100 мс",
+       "warn"
+      ]
+     ],
+     [],
+     [
+      [
+       "200 мс",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "posts вызывает users с фиксированным сроком 300 мс, хотя до срока шлюза осталось 200. users может работать до 400-й миллисекунды суммарно.",
+    "s": [
+     [
+      [
+       "ждёт",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "grpc-timeout: 300 мс (ошибка)",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "работает...",
+       "warn"
+      ]
+     ],
+     [
+      [
+       "200 мс",
+       "warn"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "На 300-й миллисекунде шлюз сдался и ушёл. А users ещё работает: 100 мс впустую для того, кого уже нет.",
+    "s": [
+     [
+      [
+       "ушёл по сроку",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "ждёт users",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "работает впустую",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "-100 мс",
+       "bad"
+      ]
+     ]
+    ]
+   },
+   {
+    "t": "На цепочке из трёх сервисов потери складываются. Под нагрузкой нижние сервисы заняты работой, чей результат никому не нужен, и очередь растёт.",
+    "s": [
+     [],
+     [
+      [
+       "очередь растёт",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "очередь растёт",
+       "bad"
+      ]
+     ],
+     [
+      [
+       "перегрузка",
+       "bad"
+      ]
+     ]
+    ]
+   }
+  ]
+ }
+];
+let cur = 0, step = 0, timer = null;
+const $ = id => document.getElementById(id);
+function render() {
+  const sc = SCENARIOS[cur], s = sc.steps[step], prev = step > 0 ? sc.steps[step - 1] : null;
+  const board = $("board"); board.innerHTML = "";
+  sc.boxes.forEach((title, i) => {
+    const box = document.createElement("div"); box.className = "box";
+    const h = document.createElement("h2"); h.textContent = title; box.appendChild(h);
+    const chips = document.createElement("div"); chips.className = "chips";
+    const list = s.s[i] || [];
+    if (!list.length) { const e = document.createElement("span"); e.className = "empty"; e.textContent = "пусто"; chips.appendChild(e); }
+    list.forEach(([text, kind]) => {
+      const c = document.createElement("div");
+      const was = prev && (prev.s[i] || []).some(p => p[0] === text);
+      c.className = "chip " + (kind || "info") + (prev && !was ? " new" : "");
+      c.textContent = text; chips.appendChild(c);
+    });
+    box.appendChild(chips); board.appendChild(box);
+  });
+  $("caption").textContent = s.t;
+  $("counter").textContent = "шаг " + step + " из " + (sc.steps.length - 1);
+  $("prev").disabled = step === 0; $("next").disabled = step === sc.steps.length - 1;
+  document.querySelectorAll("#scenarios button").forEach((b, i) => b.classList.toggle("on", i === cur));
+}
+function go(n) { step = Math.max(0, Math.min(SCENARIOS[cur].steps.length - 1, n)); render(); }
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Играть"; }
+$("next").onclick = () => { stop(); go(step + 1); };
+$("prev").onclick = () => { stop(); go(step - 1); };
+$("reset").onclick = () => { stop(); go(0); };
+$("play").onclick = () => {
+  if (timer) return stop();
+  if (step === SCENARIOS[cur].steps.length - 1) go(0);
+  $("play").textContent = "Пауза";
+  timer = setInterval(() => { if (step >= SCENARIOS[cur].steps.length - 1) return stop(); go(step + 1); }, 2300);
+};
+SCENARIOS.forEach((sc, i) => {
+  const b = document.createElement("button"); b.textContent = sc.label;
+  b.onclick = () => { stop(); cur = i; go(0); };
+  $("scenarios").appendChild(b);
+});
+if (SCENARIOS.length < 2) $("scenarios").style.display = "none";
+go(0);
+</script>
+</body>
+</html>
